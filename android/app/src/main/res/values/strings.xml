@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Loadout</string>
+    <string name="title_activity_main">Loadout</string>
+    <string name="package_name">com.brandan.loadout</string>
+    <string name="custom_url_scheme">com.brandan.loadout</string>
+</resources>

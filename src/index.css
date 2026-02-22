@@ -1,0 +1,15 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #0f1012;
+  color: rgba(255,255,255,0.95);
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
