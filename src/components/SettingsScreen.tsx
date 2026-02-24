@@ -16,6 +16,10 @@ import {
 } from "../lib/authStore";
 
 import { loadThemeMode, saveThemeMode, type ThemeMode } from "../lib/themeStore";
+import {
+  loadNotificationRecipients,
+  saveNotificationRecipients,
+} from "../lib/notificationStore";
 
 function roleLabel(r: Role) {
   if (r === "admin") return "Admin";
@@ -37,6 +41,7 @@ export default function SettingsScreen() {
   const sec = useMemo(() => loadSecuritySettings(), [tick]);
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
+  const [notifRecipients, setNotifRecipients] = useState(() => loadNotificationRecipients());
 
   const activeUsers = users.filter((u) => u.isActive);
 
@@ -223,6 +228,71 @@ export default function SettingsScreen() {
               <b>Require PIN</b> to view costs/profit fields
             </span>
           </label>
+        </div>
+      </div>
+
+      {/* Job Completion Notifications */}
+      <div className="card cardSoft settingsCard">
+        <div className="label">Job Completion Notifications</div>
+        <div className="muted settingsSubtleGap">
+          Email addresses to notify when a job is marked complete. Leave blank to skip that recipient.
+        </div>
+
+        <div className="settingsRow2 settingsSecurityRow">
+          <div>
+            <div className="settingsStrong">Sales email</div>
+            <div className="muted">Notified when a job is completed.</div>
+          </div>
+          <input
+            className="input"
+            type="email"
+            inputMode="email"
+            placeholder="sales@example.com"
+            value={notifRecipients.salesEmail}
+            onChange={(e) => {
+              const next = { ...notifRecipients, salesEmail: e.target.value };
+              setNotifRecipients(next);
+              saveNotificationRecipients(next);
+            }}
+          />
+        </div>
+
+        <div className="settingsRow2 settingsSecurityRow">
+          <div>
+            <div className="settingsStrong">Parts person email</div>
+            <div className="muted">Notified when a job is completed.</div>
+          </div>
+          <input
+            className="input"
+            type="email"
+            inputMode="email"
+            placeholder="parts@example.com"
+            value={notifRecipients.partsEmail}
+            onChange={(e) => {
+              const next = { ...notifRecipients, partsEmail: e.target.value };
+              setNotifRecipients(next);
+              saveNotificationRecipients(next);
+            }}
+          />
+        </div>
+
+        <div className="settingsRow2 settingsSecurityRow">
+          <div>
+            <div className="settingsStrong">Invoicing email</div>
+            <div className="muted">Notified when a job is completed.</div>
+          </div>
+          <input
+            className="input"
+            type="email"
+            inputMode="email"
+            placeholder="invoicing@example.com"
+            value={notifRecipients.invoicingEmail}
+            onChange={(e) => {
+              const next = { ...notifRecipients, invoicingEmail: e.target.value };
+              setNotifRecipients(next);
+              saveNotificationRecipients(next);
+            }}
+          />
         </div>
       </div>
 

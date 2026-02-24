@@ -3,6 +3,10 @@ import { useItems, type InventoryItem } from "../hooks/useItems";
 import { useCategories } from "../hooks/useCategories";
 import { useLocations } from "../hooks/useLocations";
 import { loadActivity, type ActivityEvent } from "../lib/activityStore";
+import {
+  loadNotificationRecipients,
+  buildJobCompleteMailto,
+} from "../lib/notificationStore";
 
 import {
   createJob,
@@ -15,6 +19,8 @@ import {
   type Job,
   type JobUsageLine,
 } from "../lib/jobsStore";
+
+const SELECTED_JOB_KEY = "loadout.selectedJobId";
 
 function totalQty(item: InventoryItem) {
   return (item.stockByLocation ?? []).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
@@ -82,11 +88,25 @@ export default function DashboardScreen() {
   const [jobs, setJobs] = useState<Job[]>(() => loadJobs());
   const [usage, setUsage] = useState<JobUsageLine[]>(() => loadJobUsage());
 
+  // Simplified: just job name/number to start a job
   const [jobName, setJobName] = useState("");
-  const [jobCustomer, setJobCustomer] = useState("");
-  const [jobPO, setJobPO] = useState("");
 
-  const [selectedJobId, setSelectedJobId] = useState<string>(jobs[0]?.id ?? "");
+  // Persist selected job across reloads so parts can keep being added
+  const [selectedJobId, setSelectedJobIdState] = useState<string>(() => {
+    const saved = localStorage.getItem(SELECTED_JOB_KEY) ?? "";
+    const allJobs = loadJobs();
+    // Restore saved selection only if that job still exists and is open
+    if (saved && allJobs.some((j) => j.id === saved && j.status === "open")) return saved;
+    return allJobs.find((j) => j.status === "open")?.id ?? allJobs[0]?.id ?? "";
+  });
+
+  function setSelectedJobId(id: string) {
+    setSelectedJobIdState(id);
+    localStorage.setItem(SELECTED_JOB_KEY, id);
+  }
+
+  // Notification sent status (per job-complete action, cleared on next action)
+  const [completionMsg, setCompletionMsg] = useState<string | null>(null);
 
   // Use parts UI
   const [useSearch, setUseSearch] = useState("");
@@ -95,6 +115,12 @@ export default function DashboardScreen() {
   const [useNote, setUseNote] = useState("");
 
   const selectedJob = useMemo(() => jobs.find((j) => j.id === selectedJobId) ?? null, [jobs, selectedJobId]);
+
+  // Parts used on the currently selected job
+  const jobUsageLines = useMemo(
+    () => usage.filter((u) => u.jobId === selectedJobId).sort((a, b) => b.ts - a.ts),
+    [usage, selectedJobId]
+  );
 
   const activity = useMemo(() => loadActivity().slice().sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0)), [refresh]);
 
@@ -156,22 +182,46 @@ export default function DashboardScreen() {
       .slice(0, 20);
   }, [itemsApi.items, useSearch]);
 
-  function createNewJob() {
+  function startNewJob() {
     const name = jobName.trim();
     if (!name) return;
-    const job = createJob({ name, customer: jobCustomer, po: jobPO });
-    const next = [job, ...loadJobs()];
-    setJobs(next);
+    const job = createJob({ name });
+    setJobs(loadJobs());
     setSelectedJobId(job.id);
     setJobName("");
-    setJobCustomer("");
-    setJobPO("");
+    setCompletionMsg(null);
   }
 
-  function toggleJobStatus(job: Job) {
-    if (job.status === "open") closeJob(job.id);
-    else reopenJob(job.id);
+  function completeJob(job: Job) {
+    closeJob(job.id);
     setJobs(loadJobs());
+    setCompletionMsg(null);
+
+    // Build parts summary for the notification email
+    const lines = loadJobUsage().filter((l) => l.jobId === job.id);
+    const recipients = loadNotificationRecipients();
+    const hasRecipients = [recipients.salesEmail, recipients.partsEmail, recipients.invoicingEmail].some((e) => e.trim());
+
+    if (hasRecipients) {
+      const mailto = buildJobCompleteMailto({ job, lines, recipients });
+      window.location.href = mailto;
+      const notified = [
+        recipients.salesEmail.trim() ? "sales" : "",
+        recipients.partsEmail.trim() ? "parts" : "",
+        recipients.invoicingEmail.trim() ? "invoicing" : "",
+      ].filter(Boolean).join(", ");
+      setCompletionMsg(`Job "${job.name}" marked complete. Notification email opened for: ${notified}.`);
+    } else {
+      setCompletionMsg(
+        `Job "${job.name}" marked complete. (No notification emails configured — add them in Settings › Job Completion Notifications.)`
+      );
+    }
+  }
+
+  function reopenSelectedJob(job: Job) {
+    reopenJob(job.id);
+    setJobs(loadJobs());
+    setCompletionMsg(null);
   }
 
   function exportSelectedJob() {
@@ -181,9 +231,13 @@ export default function DashboardScreen() {
     downloadTextFile(out.filename, out.csv);
   }
 
-  function useParts(item: InventoryItem) {
+  function addPartsToJob(item: InventoryItem) {
     if (!selectedJob) {
-      alert("Create/select a job first.");
+      alert("Start or select an open job first.");
+      return;
+    }
+    if (selectedJob.status !== "open") {
+      alert("This job is complete. Reopen it to add more parts.");
       return;
     }
 
@@ -205,6 +259,8 @@ export default function DashboardScreen() {
     setUsage(loadJobUsage());
     setRefresh((x) => x + 1);
     setUseNote("");
+    // Intentionally do NOT clear useSearch, useQty, or useLoc so technician can
+    // keep adding parts without losing their search context.
   }
 
   return (
@@ -212,7 +268,7 @@ export default function DashboardScreen() {
       <div className="dashboardHeader">
         <div>
           <h2 className="dashboardTitle">Dashboard</h2>
-          <div className="dashboardSubtitle">Jobs, stock usage, restock priorities, and recent activity in one place.</div>
+          <div className="dashboardSubtitle">Parts used by job number, restock priorities, and recent activity.</div>
         </div>
         <div className="dashboardHeaderActions">
           <button className="btn" onClick={() => setRefresh((x) => x + 1)}>Refresh</button>
@@ -241,18 +297,25 @@ export default function DashboardScreen() {
 
       {/* Main grid */}
       <div className="dashboardMain dashboardGapTop">
-        <Card title="Jobs • Used parts (for invoicing)">
-          <div className="dashboardJobCreateGrid">
-            <input value={jobName} onChange={(e) => setJobName(e.target.value)} placeholder="Job name (e.g. PG Sawmill Repair)" />
-            <input value={jobCustomer} onChange={(e) => setJobCustomer(e.target.value)} placeholder="Customer (optional)" />
-            <input value={jobPO} onChange={(e) => setJobPO(e.target.value)} placeholder="PO / WO (optional)" />
-            <button className="btn primary" onClick={createNewJob}>Create Job</button>
+        <Card title="Parts Used • Job Tracking">
+
+          {/* Start a new job — simple single-field form */}
+          <div className="dashboardSectionTitle">Start a new job</div>
+          <div className="dashboardJobCreateGrid dashboardJobCreateSimple">
+            <input
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") startNewJob(); }}
+              placeholder="Job number or name (e.g. WO-1042, PG Sawmill Repair)"
+            />
+            <button className="btn primary" onClick={startNewJob}>Start Job</button>
           </div>
 
+          {/* Job selector + actions */}
           <div className="dashboardJobActions">
             <select
               value={selectedJobId}
-              onChange={(e) => setSelectedJobId(e.target.value)}
+              onChange={(e) => { setSelectedJobId(e.target.value); setCompletionMsg(null); }}
               disabled={!jobs.length}
             >
               {!jobs.length ? (
@@ -266,94 +329,118 @@ export default function DashboardScreen() {
               )}
             </select>
 
-            <button
-              className="btn"
-              onClick={() => {
-                if (!selectedJob) return;
-                toggleJobStatus(selectedJob);
-              }}
-              disabled={!selectedJob}
-            >
-              {selectedJob?.status === "open" ? "Close Job" : "Reopen Job"}
-            </button>
+            {selectedJob?.status === "open" ? (
+              <button
+                className="btn primary"
+                onClick={() => { if (selectedJob) completeJob(selectedJob); }}
+                disabled={!selectedJob}
+              >
+                ✅ Job Complete
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={() => { if (selectedJob) reopenSelectedJob(selectedJob); }}
+                disabled={!selectedJob}
+              >
+                Reopen Job
+              </button>
+            )}
 
             <button className="btn" onClick={exportSelectedJob} disabled={!selectedJob}>
-              Export Job CSV
+              Export CSV
             </button>
           </div>
 
-          <div className="dashboardUsePanel">
-            <div className="dashboardSectionTitle">Use parts on selected job</div>
+          {/* Completion notification message */}
+          {completionMsg && (
+            <div className="dashboardCompletionMsg">
+              {completionMsg}
+            </div>
+          )}
 
-            <div className="dashboardUseGrid">
-              <div>
-                <input value={useSearch} onChange={(e) => setUseSearch(e.target.value)} placeholder="Search item (Part Number, Brand, Model Number, Serial Number, Description…)" />
-                <div className="searchHints" aria-hidden="true">
-                  <span className="searchHint">Part Number</span>
-                  <span className="searchHint">Brand</span>
-                  <span className="searchHint">Model Number</span>
-                  <span className="searchHint">Serial Number</span>
-                </div>
+          {/* Parts used on selected job */}
+          {selectedJob && (
+            <div className="dashboardSection">
+              <div className="dashboardSectionTitle">
+                Parts used on <strong>{selectedJob.name}</strong>
+                {selectedJob.status === "closed" && <span className="dashboardCompletedTag"> — Complete</span>}
               </div>
-              <input value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity" />
-              <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
-                <option value="">Missing Location</option>
-                {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-
-            <div className="dashboardUseNote">
-              <input value={useNote} onChange={(e) => setUseNote(e.target.value)} placeholder="Note (optional) e.g. Used during alignment / emergency repair" />
-            </div>
-
-            <div className="dashboardResultCount">Matching items: {filteredItems.length}</div>
-
-            <div className="dashboardItemsList">
-              {filteredItems.map((it) => (
-                <div key={it.id} className="dashboardItemRow">
-                  <div className="dashboardItemMain">
-                    <div className="dashboardItemName">{it.name}</div>
-                    <div className="dashboardItemMeta">{categoryLabel(it)} • Part Number: {it.partNumber || "—"}</div>
-                    <div className="dashboardPills">
-                      <Badge>Total Quantity: {totalQty(it)}</Badge>
-                      <Badge>Low: {it.lowStock ?? "—"}</Badge>
+              <div className="dashboardStack">
+                {jobUsageLines.length === 0 ? (
+                  <div className="dashboardMuted">No parts logged for this job yet.</div>
+                ) : (
+                  jobUsageLines.map((u) => (
+                    <div key={u.id} className="dashboardRowCard">
+                      <div className="dashboardUsageTop">
+                        <Badge>{fmt(u.ts)}</Badge>
+                        <div className="dashboardStrong">{u.itemName}</div>
+                        <Badge>Qty: {u.qty}</Badge>
+                      </div>
+                      <div className="dashboardUsageMeta">
+                        Part#: {u.partNumber || "—"} {u.note ? `• ${u.note}` : ""}
+                      </div>
                     </div>
-                  </div>
-                  <button className="btn" onClick={() => useParts(it)} disabled={!selectedJob}>
-                    Use on Job
-                  </button>
-                </div>
-              ))}
-              {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="dashboardSection">
-            <div className="dashboardSectionTitle">Recent job usage</div>
-            <div className="dashboardStack">
-              {usage.slice(0, 8).map((u) => (
-                <div key={u.id} className="dashboardRowCard">
-                  <div className="dashboardUsageTop">
-                    <Badge>{fmt(u.ts)}</Badge>
-                    <div className="dashboardStrong">{u.jobName}</div>
-                    <div className="dashboardDot">•</div>
-                    <div className="dashboardStrong">{u.itemName}</div>
-                    <Badge>Quantity: {u.qty}</Badge>
-                  </div>
-                  <div className="dashboardUsageMeta">
-                    Part Number: {u.partNumber || "—"} {u.note ? `• Note: ${u.note}` : ""}
+          {/* Add parts panel — only shown for open jobs */}
+          {selectedJob?.status === "open" && (
+            <div className="dashboardUsePanel">
+              <div className="dashboardSectionTitle">Add parts to job</div>
+
+              <div className="dashboardUseGrid">
+                <div>
+                  <input value={useSearch} onChange={(e) => setUseSearch(e.target.value)} placeholder="Search item (Part Number, Brand, Model, Serial, Description…)" />
+                  <div className="searchHints" aria-hidden="true">
+                    <span className="searchHint">Part Number</span>
+                    <span className="searchHint">Brand</span>
+                    <span className="searchHint">Model Number</span>
+                    <span className="searchHint">Serial Number</span>
                   </div>
                 </div>
-              ))}
-              {usage.length === 0 ? <div className="dashboardMuted">No job usage logged yet.</div> : null}
+                <input value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity" />
+                <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
+                  <option value="">Location (optional)</option>
+                  {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+
+              <div className="dashboardUseNote">
+                <input value={useNote} onChange={(e) => setUseNote(e.target.value)} placeholder="Note (optional) e.g. Used during alignment / emergency repair" />
+              </div>
+
+              <div className="dashboardResultCount">Matching items: {filteredItems.length}</div>
+
+              <div className="dashboardItemsList">
+                {filteredItems.map((it) => (
+                  <div key={it.id} className="dashboardItemRow">
+                    <div className="dashboardItemMain">
+                      <div className="dashboardItemName">{it.name}</div>
+                      <div className="dashboardItemMeta">{categoryLabel(it)} • Part#: {it.partNumber || "—"}</div>
+                      <div className="dashboardPills">
+                        <Badge>In Stock: {totalQty(it)}</Badge>
+                        <Badge>Low: {it.lowStock ?? "—"}</Badge>
+                      </div>
+                    </div>
+                    <button className="btn" onClick={() => addPartsToJob(it)}>
+                      Add to Job
+                    </button>
+                  </div>
+                ))}
+                {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
+              </div>
             </div>
-          </div>
+          )}
         </Card>
 
         <div className="dashboardStack">
           <Card title="Restock list (worst first)">
             {restock.length === 0 ? (
-              <div className="dashboardMuted">No low-stock items. You’re good.</div>
+              <div className="dashboardMuted">No low-stock items. You're good.</div>
             ) : (
               <div className="dashboardStack">
                 {restock.map(({ it, t, low, need }) => (
@@ -384,7 +471,7 @@ export default function DashboardScreen() {
               <div className="dashboardAuditList">
                 {activity.slice(0, 12).map((ev) => (
                   <div key={ev.id} className="dashboardAuditRow">
-                    {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Quantity ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
+                    {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Qty ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
                   </div>
                 ))}
               </div>

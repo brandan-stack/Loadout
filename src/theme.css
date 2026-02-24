@@ -1519,6 +1519,27 @@ button:focus-visible,
   margin-top: 12px;
 }
 
+.dashboardJobCreateSimple {
+  grid-template-columns: 1fr auto;
+}
+
+.dashboardCompletionMsg {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ok);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.dashboardCompletedTag {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .dashboardRestockRow {
   border: 1px solid rgba(255, 80, 80, 0.55);
   border-radius: 14px;
