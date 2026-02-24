@@ -6,6 +6,7 @@ export type User = {
   role: Role;
   pin?: string; // 4–8 digits recommended
   isActive: boolean;
+  canAddInventory: boolean;
 };
 
 type Session = {
@@ -47,22 +48,27 @@ function normalizeRole(v: any): Role {
 }
 
 function normalizeUser(u: any): User {
+  const role = normalizeRole(u?.role);
   return {
     id: String(u?.id || newId()),
     name: String(u?.name || "User").trim() || "User",
-    role: normalizeRole(u?.role),
+    role,
     pin: typeof u?.pin === "string" ? u.pin : "",
     // KEY FIX: if old data has no isActive → treat as ACTIVE
     isActive: typeof u?.isActive === "boolean" ? u.isActive : true,
+    canAddInventory:
+      typeof u?.canAddInventory === "boolean"
+        ? u.canAddInventory
+        : role === "admin",
   };
 }
 
 function defaultUsers(): User[] {
   return [
-    { id: newId(), name: "Admin", role: "admin", pin: "1234", isActive: true },
-    { id: newId(), name: "Stock", role: "stock", pin: "1111", isActive: true },
-    { id: newId(), name: "Invoicing", role: "invoicing", pin: "2222", isActive: true },
-    { id: newId(), name: "Viewer", role: "viewer", pin: "", isActive: true },
+    { id: newId(), name: "Admin", role: "admin", pin: "1234", isActive: true, canAddInventory: true },
+    { id: newId(), name: "Stock", role: "stock", pin: "1111", isActive: true, canAddInventory: false },
+    { id: newId(), name: "Invoicing", role: "invoicing", pin: "2222", isActive: true, canAddInventory: false },
+    { id: newId(), name: "Viewer", role: "viewer", pin: "", isActive: true, canAddInventory: false },
   ];
 }
 
@@ -79,7 +85,7 @@ export function ensureDefaults() {
     // Ensure at least one active admin
     const hasAdmin = users.some((u) => u.isActive && u.role === "admin");
     if (!hasAdmin) {
-      users.unshift({ id: newId(), name: "Admin", role: "admin", pin: "1234", isActive: true });
+      users.unshift({ id: newId(), name: "Admin", role: "admin", pin: "1234", isActive: true, canAddInventory: true });
     }
     rawSave(USERS_KEY, users); // save repaired
   }
@@ -169,10 +175,9 @@ export function unlockWithPin(pin: string, minutesOverride?: number): boolean {
   const settings = loadSecuritySettings();
   const minutes = minutesOverride ?? Math.max(1, Number(settings.autoLockMinutes) || 60);
 
-  // if user has no pin, allow unlock
-  if (!u.pin) {
-    saveSession({ ...s, unlockedUntil: Date.now() + minutes * 60_000 });
-    return true;
+  // require a real PIN for unlock
+  if (!u.pin || !String(u.pin).trim()) {
+    return false;
   }
 
   if (String(pin).trim() === String(u.pin).trim()) {
@@ -192,6 +197,9 @@ export function canAdjustStock(u: User | null) {
 export function canSeeCosts(u: User | null) {
   return !!u && (u.role === "admin" || u.role === "invoicing");
 }
+export function canAddInventory(u: User | null) {
+  return !!u && (u.role === "admin" || !!u.canAddInventory);
+}
 
 /* User ops (admin) */
 export function addUser(input: { name: string; role: Role; pin?: string }) {
@@ -202,6 +210,7 @@ export function addUser(input: { name: string; role: Role; pin?: string }) {
     role: input.role,
     pin: (input.pin ?? "").trim(),
     isActive: true,
+    canAddInventory: input.role === "admin",
   };
   users.unshift(u);
   saveUsers(users);
@@ -228,4 +237,14 @@ export function disableUser(userId: string) {
 }
 export function enableUser(userId: string) {
   updateUser(userId, { isActive: true });
+}
+export function setUserCanAddInventory(userId: string, allowed: boolean) {
+  const users = loadUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return;
+  if (target.role === "admin") {
+    updateUser(userId, { canAddInventory: true });
+    return;
+  }
+  updateUser(userId, { canAddInventory: !!allowed });
 }

@@ -1,513 +1,713 @@
-// src/components/InventoryScreen.tsx
-
-import { useState, useMemo } from "react";
-import { isUnlocked, loadSecuritySettings } from "../lib/authStore";
-import { useItems } from "../hooks/useItems";
-import { useLocations } from "../hooks/useLocations";
+import { useEffect, useMemo, useState } from "react";
+import { useItems, type InventoryItem } from "../hooks/useItems";
+import { useLocations, type LocationNode } from "../hooks/useLocations";
 import { useCategories } from "../hooks/useCategories";
-
+import * as authStore from "../lib/authStore";
+import { imageFileToOptimizedDataUrl } from "../lib/imageTools";
 import StockModal from "./StockModal";
+import ImageLightbox from "./ImageLightbox";
 
-type ThemeSafeNumber = number;
+type LocationOption = { id: string; label: string };
 
-function toInt(value: unknown, fallback: number = 0): number {
-  // Handles unknown/string/number cleanly (fixes TS "unknown not assignable to number")
-  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value === "string") {
-    const n = parseInt(value.trim(), 10);
-    return Number.isFinite(n) ? n : fallback;
-  }
-  return fallback;
+function flattenLocations(roots: LocationNode[]): LocationOption[] {
+  const out: LocationOption[] = [];
+  const walk = (nodes: LocationNode[], prefix: string[]) => {
+    for (const n of nodes) {
+      const path = [...prefix, n.name];
+      out.push({ id: n.id, label: path.join(" > ") });
+      if (n.children?.length) walk(n.children, path);
+    }
+  };
+  walk(roots, []);
+  return out;
 }
 
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n));
+function totalQty(item: InventoryItem) {
+  return (item.stockByLocation ?? []).reduce(
+    (sum, s) => sum + (Number(s.quantity) || 0),
+    0
+  );
 }
 
-function normalizeText(s: unknown) {
-  return String(s ?? "").toLowerCase().trim();
+function isLow(item: InventoryItem) {
+  const alert = item.lowStock;
+  if (alert === undefined || alert === null) return false;
+  const n = Number(alert);
+  if (!Number.isFinite(n)) return false;
+  return totalQty(item) <= n;
 }
 
 export default function InventoryScreen() {
-  const settings = loadSecuritySettings();
-  const locked = !isUnlocked();
+  const itemsApi = useItems();
+  const locApi = useLocations();
+  const catApi = useCategories();
 
-  const itemsApi: any = useItems();
-  const locationsApi: any = useLocations();
-  const categoriesApi: any = useCategories();
+  const locked = !authStore.isUnlocked();
+  const requirePinForStock = !!authStore.loadSecuritySettings().requirePinForStock;
+  const me = authStore.currentUser();
+  const canAddItems = authStore.canAddInventory(me);
 
-  const items: any[] = Array.isArray(itemsApi?.items) ? itemsApi.items : [];
-  const roots: any[] = Array.isArray(locationsApi?.roots) ? locationsApi.roots : [];
+  const locationOptions = useMemo(
+    () => flattenLocations(locApi.roots),
+    [locApi.roots]
+  );
 
-  const categories: any[] = Array.isArray(categoriesApi?.categories) ? categoriesApi.categories : [];
-  const subcategories: any[] = Array.isArray(categoriesApi?.subcategories)
-    ? categoriesApi.subcategories
-    : [];
+  const locationLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const option of locationOptions) {
+      map.set(option.id, option.label);
+    }
+    return map;
+  }, [locationOptions]);
 
-  // ---- UI state
-  const [query, setQuery] = useState("");
-  const [lowOnly, setLowOnly] = useState(false);
-  const [catFilter, setCatFilter] = useState<string>("all");
-  const [subFilter, setSubFilter] = useState<string>("all");
-
-  const [showAdd, setShowAdd] = useState(true);
-
-  // ---- Add item form
+  // --- Add Item form ---
   const [name, setName] = useState("");
-  const [partNumber, setPartNumber] = useState("");
+  const [partNo, setPartNo] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
   const [serial, setSerial] = useState("");
   const [description, setDescription] = useState("");
 
-  const [initialQty, setInitialQty] = useState<ThemeSafeNumber>(0);
-  const [lowStockAlert, setLowStockAlert] = useState<ThemeSafeNumber>(0);
+  const [initialQty, setInitialQty] = useState<string>("");
+  const [lowStockAlert, setLowStockAlert] = useState<string>("");
+  const [initialLocationId, setInitialLocationId] = useState<string>("");
 
-  const [initialLocation, setInitialLocation] = useState<string>("");
-  const [category, setCategory] = useState<string>("Uncategorized");
-  const [subcategory, setSubcategory] = useState<string>("None");
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [subcategoryId, setSubcategoryId] = useState<string>("");
+  const [photoDataUrl, setPhotoDataUrl] = useState<string>("");
+  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string>("");
+  const [imageViewSrc, setImageViewSrc] = useState<string>("");
 
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  // --- Filters ---
+  const [q, setQ] = useState("");
+  const [onlyLow, setOnlyLow] = useState(false);
+  const [filterCategoryId, setFilterCategoryId] = useState<string>("");
 
-  // ---- Stock modal
+  // --- Stock modal ---
   const [stockOpen, setStockOpen] = useState(false);
-  const [selectedStockItem, setSelectedStockItem] = useState<any | null>(null);
+  const [selected, setSelected] = useState<InventoryItem | undefined>(undefined);
+  const [locationsViewItem, setLocationsViewItem] = useState<InventoryItem | undefined>(undefined);
 
-  const stockLocked = Boolean(locked && settings.requirePinForStock);
-
+  const categories = catApi.categories ?? [];
+  const subcats =
+    categories.find((c: any) => c.id === categoryId)?.subcategories ?? [];
   const filtered = useMemo(() => {
-    const q = normalizeText(query);
+    const query = q.trim().toLowerCase();
 
-    return items
+    return (itemsApi.items ?? [])
       .filter((it) => {
-        if (!q) return true;
-
+        if (!query) return true;
         const hay = [
-          it?.name,
-          it?.partNumber,
-          it?.pn,
-          it?.manufacturer,
-          it?.mfr,
-          it?.model,
-          it?.serial,
-          it?.sn,
-          it?.description,
-          it?.category,
-          it?.subcategory,
+          it.name,
+          it.partNumber,
+          `part number ${it.partNumber ?? ""}`,
+          `pn ${it.partNumber ?? ""}`,
+          it.manufacturer,
+          `manufacturer ${it.manufacturer ?? ""}`,
+          `brand ${it.manufacturer ?? ""}`,
+          it.model,
+          `model number ${it.model ?? ""}`,
+          it.serial,
+          `serial number ${it.serial ?? ""}`,
+          `sn ${it.serial ?? ""}`,
+          it.description,
         ]
-          .map(normalizeText)
-          .join(" ");
-
-        return hay.includes(q);
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(query);
       })
       .filter((it) => {
-        if (!lowOnly) return true;
-
-        const total = toInt(it?.totalQty ?? it?.total ?? it?.qty ?? 0, 0);
-        const low = toInt(it?.lowStockAlert ?? it?.lowStock ?? it?.low ?? 0, 0);
-        return low > 0 && total <= low;
+        if (!filterCategoryId) return true;
+        return it.categoryId === filterCategoryId;
       })
-      .filter((it) => {
-        if (catFilter === "all") return true;
-        return String(it?.category ?? "Uncategorized") === catFilter;
-      })
-      .filter((it) => {
-        if (subFilter === "all") return true;
-        return String(it?.subcategory ?? "None") === subFilter;
-      });
-  }, [items, query, lowOnly, catFilter, subFilter]);
+      .filter((it) => (onlyLow ? isLow(it) : true))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [itemsApi.items, q, onlyLow, filterCategoryId]);
 
-  function resetAddForm() {
+  const stats = useMemo(() => {
+    const items = itemsApi.items ?? [];
+    const totalItems = items.length;
+    const totalStock = items.reduce((sum, it) => sum + totalQty(it), 0);
+    const lowCount = items.filter(isLow).length;
+    return { totalItems, totalStock, lowCount };
+  }, [itemsApi.items]);
+
+  function resetForm() {
     setName("");
-    setPartNumber("");
+    setPartNo("");
     setManufacturer("");
     setModel("");
     setSerial("");
     setDescription("");
-    setInitialQty(0);
-    setLowStockAlert(0);
-    setInitialLocation("");
-    setCategory("Uncategorized");
-    setSubcategory("None");
-    setPhotoFile(null);
+    setInitialQty("");
+    setLowStockAlert("");
+    setInitialLocationId("");
+    setCategoryId("");
+    setSubcategoryId("");
+    setPhotoDataUrl("");
+    setEditingItemId("");
   }
 
-  async function onCreateItem() {
-    const cleanName = name.trim();
-    if (!cleanName) {
-      alert("Name is required.");
-      return;
-    }
+  function startEditItem(item: InventoryItem) {
+    setEditingItemId(item.id);
+    setShowAddPanel(true);
+    setName(item.name ?? "");
+    setPartNo(item.partNumber ?? "");
+    setManufacturer(item.manufacturer ?? "");
+    setModel(item.model ?? "");
+    setSerial(item.serial ?? "");
+    setDescription(item.description ?? "");
+    setLowStockAlert(
+      item.lowStock === undefined || item.lowStock === null
+        ? ""
+        : String(item.lowStock)
+    );
+    setCategoryId(item.categoryId ?? "");
+    setSubcategoryId(item.subcategoryId ?? "");
+    setPhotoDataUrl(item.photoDataUrl ?? "");
+    setInitialLocationId(item.stockByLocation?.[0]?.locationId ?? "");
+    setInitialQty("");
+  }
 
-    if (stockLocked) {
-      alert("Stock actions are PIN-protected. Unlock in Settings.");
-      return;
-    }
-
-    const qty = clamp(toInt(initialQty, 0), 0, 999999);
-    const low = clamp(toInt(lowStockAlert, 0), 0, 999999);
-
+  async function onPickPhoto(file?: File | null) {
+    if (!file) return;
     try {
-      const payload: any = {
-        name: cleanName,
-        partNumber: partNumber.trim(),
-        manufacturer: manufacturer.trim(),
-        model: model.trim(),
-        serial: serial.trim(),
-        description: description.trim(),
-        category: category || "Uncategorized",
-        subcategory: subcategory || "None",
-        lowStockAlert: low,
-        initialQty: qty,
-        initialLocation: initialLocation || undefined,
-      };
+      const dataUrl = await imageFileToOptimizedDataUrl(file);
+      setPhotoDataUrl(dataUrl);
+    } catch (err: any) {
+      alert(err?.message || "Unable to process image.");
+    }
+  }
 
-      // Create
-      const created = await itemsApi?.addItem?.(payload);
+  function createItem() {
+    if (!canAddItems) {
+      alert("You are not allowed to add inventory items.");
+      return;
+    }
 
-      // Optional photo attach (if your store supports it)
-      if (photoFile && created?.id && typeof itemsApi?.setItemPhoto === "function") {
-        await itemsApi.setItemPhoto(created.id, photoFile);
+    const n = name.trim();
+    if (!n) return;
+
+    const qty = initialQty.trim() === "" ? 0 : Number(initialQty);
+    const lowStockValue =
+      lowStockAlert.trim() === "" ? undefined : Number(lowStockAlert);
+
+    const locId =
+      initialLocationId ||
+      (locationOptions.length ? locationOptions[0].id : "");
+
+    if (editingItemId) {
+      itemsApi.updateItem(editingItemId, {
+        name: n,
+        partNumber: partNo.trim() || "",
+        manufacturer: manufacturer.trim() || "",
+        model: model.trim() || "",
+        serial: serial.trim() || "",
+        description: description.trim() || "",
+        categoryId: categoryId || "",
+        subcategoryId: subcategoryId || "",
+        lowStock: Number.isFinite(Number(lowStockValue))
+          ? Number(lowStockValue)
+          : undefined,
+        photoDataUrl: photoDataUrl || undefined,
+      });
+
+      if (Number.isFinite(qty) && qty > 0) {
+        itemsApi.adjustAtLocation(editingItemId, locId, qty);
       }
 
-      resetAddForm();
-      setShowAdd(false);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message ?? "Failed to create item.");
-    }
-  }
-
-  function openStock(it: any) {
-    setSelectedStockItem(it);
-    setStockOpen(true);
-  }
-
-  async function onDelete(it: any) {
-    if (stockLocked) {
-      alert("Delete is PIN-protected. Unlock in Settings.");
+      resetForm();
+      setShowAddPanel(false);
       return;
     }
-    const ok = confirm(`Delete "${it?.name ?? "item"}"?`);
-    if (!ok) return;
 
-    try {
-      await itemsApi?.deleteItem?.(it?.id);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message ?? "Delete failed.");
+    const norm = (v?: string) => (v ?? "").trim().toLowerCase();
+    const nameNorm = norm(n);
+    const partNorm = norm(partNo);
+    const mfrNorm = norm(manufacturer);
+    const modelNorm = norm(model);
+    const serialNorm = norm(serial);
+
+    const duplicate = (itemsApi.items ?? []).find((it) => {
+      if (norm(it.name) !== nameNorm) return false;
+      if (partNorm) return norm(it.partNumber) === partNorm;
+      return (
+        norm(it.manufacturer) === mfrNorm &&
+        norm(it.model) === modelNorm &&
+        norm(it.serial) === serialNorm
+      );
+    });
+
+    if (duplicate) {
+      const qtyToAdd = Number.isFinite(qty) ? qty : 0;
+      const proceed = confirm(
+        `"${duplicate.name}" already exists. Add quantity to existing item instead of creating a duplicate?`
+      );
+      if (!proceed) return;
+
+      if (qtyToAdd > 0) {
+        itemsApi.adjustAtLocation(duplicate.id, locId, qtyToAdd);
+      }
+
+      if (Number.isFinite(Number(lowStockValue))) {
+        itemsApi.updateItem(duplicate.id, { lowStock: Number(lowStockValue) });
+      }
+
+      if (photoDataUrl) {
+        itemsApi.updateItem(duplicate.id, { photoDataUrl });
+      }
+
+      resetForm();
+      setShowAddPanel(false);
+      return;
     }
+
+    itemsApi.addItem({
+      name: n,
+      partNumber: partNo.trim() || undefined,
+      manufacturer: manufacturer.trim() || undefined,
+      model: model.trim() || undefined,
+      serial: serial.trim() || undefined,
+      description: description.trim() || undefined,
+      categoryId: categoryId || undefined,
+      subcategoryId: subcategoryId || undefined,
+      lowStock: Number.isFinite(Number(lowStockValue)) ? Number(lowStockValue) : undefined,
+      initialQty: Number.isFinite(qty) ? qty : 0,
+      initialLocationId: locId,
+      photoDataUrl: photoDataUrl || undefined,
+    });
+
+    resetForm();
+    setShowAddPanel(false);
   }
 
-  // Unique category lists for filters (fallback-safe)
-  const categoryOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const it of items) set.add(String(it?.category ?? "Uncategorized"));
-    for (const c of categories) set.add(String(c?.name ?? c ?? ""));
-    return ["all", ...Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b))];
-  }, [items, categories]);
+  function formatStockLocations(item: InventoryItem) {
+    const rows = (item.stockByLocation ?? []).filter((row) => Number(row.quantity) > 0);
+    if (!rows.length) return "Locations: None";
 
-  const subcategoryOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const it of items) set.add(String(it?.subcategory ?? "None"));
-    for (const s of subcategories) set.add(String(s?.name ?? s ?? ""));
-    return ["all", ...Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b))];
-  }, [items, subcategories]);
+    const labels = rows
+      .slice()
+      .sort((a, b) => b.quantity - a.quantity)
+      .map((row) => {
+        const label = locationLabelById.get(row.locationId) || "Missing Location";
+        return `${label} (${row.quantity})`;
+      });
+
+    return `Locations: ${labels.join(" • ")}`;
+  }
+
+  function locationRows(item: InventoryItem) {
+    return (item.stockByLocation ?? [])
+      .filter((row) => Number(row.quantity) > 0)
+      .sort((a, b) => b.quantity - a.quantity)
+      .map((row) => ({
+        label: locationLabelById.get(row.locationId) || "Missing Location",
+        quantity: row.quantity,
+      }));
+  }
+
+  useEffect(() => {
+    if (!locationsViewItem) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLocationsViewItem(undefined);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [locationsViewItem]);
 
   return (
-    <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto" }}>
-      {/* Header row */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+    <div className="page inventoryPage">
+      <div className="pageHeader inventoryHeader">
         <div>
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: 0.2 }}>Inventory</div>
-          <div className="muted" style={{ marginTop: 2 }}>
-            Clean. Fast. No drama.
+          <h1>Inventory</h1>
+          <div className="muted inventorySubtitle">
+            Fast add • search • stock moves • clean cards
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button className="btn" onClick={() => setShowAdd((v: boolean) => !v)}>
-            {showAdd ? "Hide add" : "Add item"}
-          </button>
+        <div className="chips">
+          <span className="chip">Items: {stats.totalItems}</span>
+          <span className="chip">Shown: {filtered.length}</span>
+          <span className="chip">Total stock: {stats.totalStock}</span>
+          <span className="chip">Low alerts: {stats.lowCount}</span>
         </div>
       </div>
 
-      {/* Add Item */}
-      {showAdd && (
-        <div className="card" style={{ marginTop: 12, padding: 14 }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>Add item</div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <div>
-              <label className="label">Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Brake coil" />
-            </div>
-            <div>
-              <label className="label">Part #</label>
-              <input
-                value={partNumber}
-                onChange={(e) => setPartNumber(e.target.value)}
-                placeholder="e.g., 123-ABC"
-              />
-            </div>
-            <div>
-              <label className="label">Manufacturer</label>
-              <input
-                value={manufacturer}
-                onChange={(e) => setManufacturer(e.target.value)}
-                placeholder="e.g., Demag"
-              />
-            </div>
-
-            <div>
-              <label className="label">Model</label>
-              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="optional" />
-            </div>
-            <div>
-              <label className="label">Serial</label>
-              <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="optional" />
-            </div>
-            <div>
-              <label className="label">Initial Location</label>
-              <select value={initialLocation} onChange={(e) => setInitialLocation(e.target.value)}>
-                <option value="">Missing Location</option>
-                {(locationsApi?.flatList ?? []).map((loc: any) => (
-                  <option key={loc?.id ?? loc?.path ?? loc?.name} value={String(loc?.id ?? loc?.path ?? loc?.name)}>
-                    {String(loc?.label ?? loc?.name ?? loc?.path)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ gridColumn: "1 / span 3" }}>
-              <label className="label">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="notes, specs, what it fits..."
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <label className="label">Initial Qty</label>
-              <input
-                value={String(initialQty)}
-                onChange={(e) => setInitialQty(toInt(e.target.value, 0))}
-                inputMode="numeric"
-                placeholder="blank = 0"
-              />
-            </div>
-
-            <div>
-              <label className="label">Low Stock Alert</label>
-              <input
-                value={String(lowStockAlert)}
-                onChange={(e) => setLowStockAlert(toInt(e.target.value, 0))}
-                inputMode="numeric"
-                placeholder="blank = off"
-              />
-            </div>
-
-            <div>
-              <label className="label">Photo</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              />
-              {photoFile && (
-                <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                  Selected: {photoFile.name}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="label">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="Uncategorized">Uncategorized</option>
-                {categoryOptions
-                  .filter((x: any) => x !== "all" && x !== "Uncategorized")
-                  .map((c: any) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="label">Subcategory</label>
-              <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
-                <option value="None">None</option>
-                {subcategoryOptions
-                  .filter((x: any) => x !== "all" && x !== "None")
-                  .map((s: any) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, alignItems: "end", justifyContent: "flex-end" }}>
-              <button className="btn" onClick={resetAddForm} type="button">
-                Reset
-              </button>
-              <button className="btn primary" onClick={onCreateItem} type="button">
-                Add item
-              </button>
-            </div>
+      {/* Add item */}
+      <div className="card addItemCard inventoryAddCard">
+        <div className="addItemHeader">
+          <div className="cardTitle">{editingItemId ? "Edit item" : "Add item"}</div>
+          <div className="muted">
+            {canAddItems
+              ? "Enter item details and starting stock"
+              : "Only users allowed by Admin can add inventory items"}
           </div>
-
-          {stockLocked && (
-            <div className="muted" style={{ marginTop: 10 }}>
-              Stock actions are PIN-protected. Unlock in <b>Settings</b>.
-            </div>
-          )}
         </div>
-      )}
+
+        {canAddItems ? (
+          <>
+            <div className={"rowWrap inventoryToggleRow" + (showAddPanel ? " open" : "")}>
+              <button
+                className="btnPrimary"
+                type="button"
+                onClick={() => setShowAddPanel((v) => !v)}
+              >
+                {showAddPanel
+                  ? editingItemId
+                    ? "Hide edit form"
+                    : "Hide add form"
+                  : "Add inventory item"}
+              </button>
+            </div>
+
+            {showAddPanel && (
+              <>
+                <div className="grid addItemGrid">
+          <label className="field">
+            <span>Name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Limit switch" />
+          </label>
+
+          <label className="field">
+            <span>Part #</span>
+            <input value={partNo} onChange={(e) => setPartNo(e.target.value)} placeholder="e.g., 123-ABC" />
+          </label>
+
+          <label className="field">
+            <span>Manufacturer</span>
+            <input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="e.g., Demag" />
+          </label>
+
+          <label className="field">
+            <span>Model</span>
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g., D2L" />
+          </label>
+
+          <label className="field">
+            <span>Serial</span>
+            <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="optional" />
+          </label>
+
+          <label className="field fieldWide">
+            <span>Description</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="notes, specs, where it's used…"
+              rows={3}
+            />
+          </label>
+
+          <label className="field fieldWide">
+            <span>Picture</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                onPickPhoto(e.target.files?.[0]);
+                e.currentTarget.value = "";
+              }}
+            />
+            {photoDataUrl ? (
+              <div className="photoInlineRow">
+                <button
+                  type="button"
+                  className="thumb thumbButton"
+                  onClick={() => setImageViewSrc(photoDataUrl)}
+                  title="View image"
+                >
+                  <img src={photoDataUrl} alt="Item preview" />
+                </button>
+                <button type="button" className="btn" onClick={() => setPhotoDataUrl("")}>Remove picture</button>
+              </div>
+            ) : null}
+          </label>
+
+          <label className="field">
+            <span>Initial qty</span>
+            <input
+              value={initialQty}
+              onChange={(e) => setInitialQty(e.target.value)}
+              placeholder="blank = 0"
+              inputMode="numeric"
+            />
+          </label>
+
+          <label className="field">
+            <span>Low stock alert</span>
+            <input
+              value={lowStockAlert}
+              onChange={(e) => setLowStockAlert(e.target.value)}
+              placeholder="blank = off"
+              inputMode="numeric"
+            />
+          </label>
+
+          <label className="field">
+            <span>Initial location</span>
+            <select
+              value={initialLocationId}
+              onChange={(e) => setInitialLocationId(e.target.value)}
+            >
+              <option value="">(pick)</option>
+              {locationOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Category</span>
+            <select
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setSubcategoryId("");
+              }}
+            >
+              <option value="">Uncategorized</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Subcategory</span>
+            <select
+              value={subcategoryId}
+              onChange={(e) => setSubcategoryId(e.target.value)}
+              disabled={!categoryId}
+            >
+              <option value="">None</option>
+              {subcats.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+                </div>
+
+                <div className="row rowRight addItemActions">
+                  {editingItemId ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => {
+                        resetForm();
+                        setShowAddPanel(false);
+                      }}
+                    >
+                      Cancel edit
+                    </button>
+                  ) : null}
+                  <button className="btn" onClick={resetForm} type="button">
+                    Clear
+                  </button>
+                  <button className="btnPrimary" onClick={createItem} type="button">
+                    {editingItemId ? "Save item" : "Add item"}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : null}
+      </div>
 
       {/* Filters */}
-      <div className="card" style={{ marginTop: 12, padding: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, alignItems: "end" }}>
-          <div>
-            <label className="label">Search</label>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="name, PN, model, serial..."
-            />
-            <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}>
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
-                <span>Low stock only</span>
-              </label>
-              <span className="muted">Showing {filtered.length} items</span>
+      <div className="card inventoryFilterCard">
+        <div className="row rowBetween">
+          <div className="filterControls">
+            <div className="searchBlock">
+              <input
+                className="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search part #, manufacturer/brand, model #, serial #, description…"
+              />
+              <div className="searchHints" aria-hidden="true">
+                <span className="searchHint">Part Number</span>
+                <span className="searchHint">Brand</span>
+                <span className="searchHint">Model Number</span>
+                <span className="searchHint">Serial Number</span>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <label className="label">Category filter</label>
-            <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-              {categoryOptions.map((c: any) => (
-                <option key={c} value={c}>
-                  {c === "all" ? "All categories" : c}
+            <select
+              value={filterCategoryId}
+              onChange={(e) => setFilterCategoryId(e.target.value)}
+            >
+              <option value="">All categories</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="label">Subcategory filter</label>
-            <select value={subFilter} onChange={(e) => setSubFilter(e.target.value)}>
-              {subcategoryOptions.map((s: any) => (
-                <option key={s} value={s}>
-                  {s === "all" ? "All subs" : s}
-                </option>
-              ))}
-            </select>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={onlyLow}
+                onChange={(e) => setOnlyLow(e.target.checked)}
+              />
+              Low stock only
+            </label>
           </div>
         </div>
+        <div className="inventoryResultsMeta">Showing {filtered.length} of {stats.totalItems} items</div>
       </div>
 
       {/* List */}
-      <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-        {filtered.length === 0 ? (
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ fontWeight: 800 }}>No items found</div>
-            <div className="muted" style={{ marginTop: 6 }}>
-              Try clearing filters or search.
-            </div>
-          </div>
-        ) : (
-          filtered.map((it: any) => {
-            const total = toInt(it?.totalQty ?? it?.total ?? it?.qty ?? 0, 0);
-            const low = toInt(it?.lowStockAlert ?? it?.lowStock ?? it?.low ?? 0, 0);
-            const isLow = low > 0 && total <= low;
+      <div className="list">
+        {filtered.map((it) => {
+          const qty = totalQty(it);
+          const low = isLow(it);
 
-            return (
-              <div key={it?.id ?? `${it?.name}-${it?.partNumber}-${it?.serial}`} className="card" style={{ padding: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 12,
-                        overflow: "hidden",
-                        background: "rgba(255,255,255,0.06)",
-                        display: "grid",
-                        placeItems: "center",
-                        flexShrink: 0,
-                      }}
+          return (
+            <div className={"itemCard " + (low ? "itemCardLow" : "")} key={it.id}>
+              <div className="itemLeft">
+                <div className="thumb">
+                  {it.photoDataUrl ? (
+                    <button
+                      type="button"
+                      className="thumb thumbButton"
+                      onClick={() => setImageViewSrc(it.photoDataUrl || "")}
+                      title="View image"
                     >
-                      {it?.photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={it.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        <span className="muted" style={{ fontSize: 12 }}>
-                          no photo
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 16, fontWeight: 900 }}>{it?.name ?? "Unnamed item"}</div>
-                        <span className="badge">{it?.category ?? "Uncategorized"}</span>
-                        {it?.subcategory && it.subcategory !== "None" && <span className="badge">{it.subcategory}</span>}
-                        {isLow && <span className="badge danger">LOW</span>}
-                      </div>
-
-                      <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
-                        PN: <b>{it?.partNumber ?? it?.pn ?? "-"}</b> · Mfr: <b>{it?.manufacturer ?? it?.mfr ?? "-"}</b> ·
-                        Model: <b>{it?.model ?? "-"}</b> · SN: <b>{it?.serial ?? it?.sn ?? "-"}</b>
-                      </div>
-
-                      <div style={{ marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                        <span className="badge">Total: {total}</span>
-                        {low > 0 && <span className="badge">Low: {low}</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <button className="btn" onClick={() => openStock(it)}>
-                      Stock
+                      <img src={it.photoDataUrl} alt={it.name} />
                     </button>
-                    <button className="btn" onClick={() => itemsApi?.startEdit?.(it?.id) ?? openStock(it)}>
-                      Edit
-                    </button>
-                    <button className="btn danger" onClick={() => onDelete(it)} title={stockLocked ? "Unlock in Settings" : ""}>
-                      🗑
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="thumbEmpty" />
+                  )}
                 </div>
 
-                {it?.description ? (
-                  <div className="muted" style={{ marginTop: 10, whiteSpace: "pre-wrap" }}>
-                    {String(it.description)}
+                <div className="itemMeta">
+                  <div className="itemTopLine">
+                    <div className="itemName">{it.name}</div>
+                    <div className="pillRow">
+                      <span className="pill">Total Quantity: {qty}</span>
+                      {low && <span className="pill pillRed">Low Stock</span>}
+                    </div>
                   </div>
-                ) : null}
+
+                  <div className="itemSub muted">
+                    {it.partNumber ? <>Part Number: {it.partNumber} • </> : null}
+                    {it.manufacturer ? <>Manufacturer: {it.manufacturer} • </> : null}
+                    {it.model ? <>Model Number: {it.model} • </> : null}
+                    {it.serial ? <>Serial Number: {it.serial}</> : null}
+                  </div>
+                  <div className="itemSub muted">{formatStockLocations(it)}</div>
+                </div>
               </div>
-            );
-          })
+
+              <div className="itemRight">
+                {canAddItems ? (
+                  <button
+                    className="btn inventoryBtnEdit"
+                    type="button"
+                    onClick={() => startEditItem(it)}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                <button
+                  className="btn primary inventoryBtnStock"
+                  type="button"
+                  onClick={() => {
+                    setSelected(it);
+                    setStockOpen(true);
+                  }}
+                >
+                  Stock
+                </button>
+
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setLocationsViewItem(it)}
+                >
+                  View Locations
+                </button>
+
+                <button
+                  className="btn danger inventoryBtnDelete"
+                  type="button"
+                  onClick={() => {
+                    if (!confirm(`Delete item "${it.name}"?`)) return;
+                    itemsApi.deleteItem(it.id);
+                  }}
+                  title="Delete"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {!filtered.length && (
+          <div className="empty">No items match your filters.</div>
         )}
       </div>
 
-      {/* Stock modal */}
       <StockModal
         open={stockOpen}
         onClose={() => setStockOpen(false)}
-        item={selectedStockItem}
-        locationRoots={roots}
-        // these names match what your app has been using recently:
-        adjustAtLocation={itemsApi?.adjustAtLocation || itemsApi?.adjustStockAtLocation}
-        moveQty={itemsApi?.moveQty || itemsApi?.moveStock}
+        item={selected}
+        locationRoots={locApi.roots}
+        adjustAtLocation={itemsApi.adjustAtLocation}
+        moveQty={itemsApi.moveQty}
         locked={locked}
-        requirePinForStock={settings.requirePinForStock}
+        requirePinForStock={requirePinForStock}
+      />
+
+      {locationsViewItem ? (
+        <div className="modalOverlay" onClick={() => setLocationsViewItem(undefined)}>
+          <div className="modalCard" role="dialog" aria-modal="true" aria-label="Item locations" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const rows = locationRows(locationsViewItem);
+              return (
+                <>
+            <div className="modalHeader">
+              <div>
+                <div className="modalTitle">{locationsViewItem.name} — Locations</div>
+                <div className="muted">Total Quantity: {totalQty(locationsViewItem)}</div>
+              </div>
+              <button className="btn" type="button" onClick={() => setLocationsViewItem(undefined)}>
+                Close
+              </button>
+            </div>
+
+            <div className="qtyList">
+              {rows.length ? (
+                rows.map((row) => (
+                  <div className="qtyRow" key={`${locationsViewItem.id}-${row.label}`}>
+                    <div className="qtyName">{row.label}</div>
+                    <div className="qtyVal">{row.quantity}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty">No stocked locations yet.</div>
+              )}
+            </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      ) : null}
+
+      <ImageLightbox
+        open={!!imageViewSrc}
+        src={imageViewSrc}
+        alt="Inventory item image"
+        onClose={() => setImageViewSrc("")}
       />
     </div>
   );

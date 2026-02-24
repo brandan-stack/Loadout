@@ -5,6 +5,7 @@ import {
   disableUser,
   enableUser,
   setUserPin,
+  setUserCanAddInventory,
   type Role,
 } from "../lib/authStore";
 
@@ -33,17 +34,17 @@ export default function AdminPanel() {
   const [pinEdit, setPinEdit] = useState<Record<string, string>>({});
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className="adminPanel">
       <div>
-        <div style={{ fontSize: 18, fontWeight: 1000 }}>Admin Tools</div>
+        <div className="adminTitle">Admin Tools</div>
         <div className="muted">Create users, disable users, and set PINs (4–8 digits).</div>
       </div>
 
       {/* Create user */}
-      <div className="card-soft">
+      <div className="card-soft adminCard">
         <div className="label">Create user</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 220px 140px", gap: 10, alignItems: "center" }}>
+        <div className="adminCreateGrid">
           <input
             className="input"
             placeholder="Name (e.g., Brandan)"
@@ -89,38 +90,26 @@ export default function AdminPanel() {
           </button>
         </div>
 
-        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        <div className="muted adminHint">
           Tip: Give Admin/Stock/Invoicing a PIN. Viewer can be blank.
         </div>
       </div>
 
       {/* Manage users */}
-      <div className="card-soft">
+      <div className="card-soft adminCard">
         <div className="label">Manage users</div>
 
-        <div style={{ display: "grid", gap: 10 }}>
+        <div className="adminUsersList">
           {users.map((u) => {
             const currentPin = pinEdit[u.id] ?? "";
             return (
-              <div
-                key={u.id}
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 14,
-                  padding: 12,
-                  background: "var(--panel)",
-                  display: "grid",
-                  gridTemplateColumns: "1fr 220px 260px 260px",
-                  gap: 10,
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ display: "grid" }}>
-                  <div style={{ fontWeight: 1000 }}>
+              <div key={u.id} className="adminUserRow">
+                <div className="adminUserMain">
+                  <div className="adminStrong">
                     {u.name}{" "}
                     {!u.isActive ? <span className="pill pill-warn">Disabled</span> : <span className="pill">{roleLabel(u.role)}</span>}
                   </div>
-                  <div className="muted" style={{ fontSize: 12 }}>
+                  <div className="muted adminMeta">
                     Role: {roleLabel(u.role)}
                   </div>
                 </div>
@@ -138,6 +127,22 @@ export default function AdminPanel() {
                   }}
                 >
                   {u.isActive ? "Disable" : "Enable"}
+                </button>
+
+                <button
+                  className={"btn " + (u.canAddInventory || u.role === "admin" ? "primary" : "")}
+                  disabled={u.role === "admin"}
+                  onClick={() => {
+                    setUserCanAddInventory(u.id, !u.canAddInventory);
+                    setTick((x) => x + 1);
+                  }}
+                  title={u.role === "admin" ? "Admin always has add permission" : "Toggle inventory add permission"}
+                >
+                  {u.role === "admin"
+                    ? "Add: Always on"
+                    : u.canAddInventory
+                    ? "Add: Allowed"
+                    : "Add: Blocked"}
                 </button>
 
                 <input

@@ -50,6 +50,22 @@ npm run dev:network
 ### Build
 
 ```bash
+
+## Share Public Test URL (GitHub Pages)
+
+This repo is configured to deploy to GitHub Pages automatically on every push to `main`.
+
+Expected URL for this repository:
+
+- `https://brandan-stack.github.io/Loadout/`
+
+One-time setup in GitHub:
+
+1. Go to **Settings → Pages** in your GitHub repository.
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+3. Push to `main` (or run the **Deploy to GitHub Pages** workflow manually in **Actions**).
+
+After deploy completes, anyone with the URL can open and test the app.
 npm run build
 ```
 

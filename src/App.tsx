@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import DashboardScreen from "./components/DashboardScreen";
 import InventoryScreen from "./components/InventoryScreen";
-import LocationsInventoryScreen from "./components/LocationsInventoryScreen";
-import CategoryManager from "./components/CategoryManager";
+import ManagementScreen from "./components/ManagementScreen";
 import SettingsScreen from "./components/SettingsScreen";
 
 import {
@@ -13,17 +12,11 @@ import {
   setCurrentUser,
   currentUser,
   isUnlocked,
-  type Role,
+  unlockWithPin,
+  lockNow,
 } from "./lib/authStore";
 
-type Tab = "dashboard" | "inventory" | "locations" | "categories" | "settings";
-
-function roleLabel(r: Role) {
-  if (r === "admin") return "Admin";
-  if (r === "stock") return "Stock";
-  if (r === "invoicing") return "Invoicing";
-  return "Viewer";
-}
+type Tab = "dashboard" | "inventory" | "management" | "settings";
 
 function GearIcon({ size = 20 }: { size?: number }) {
   return (
@@ -42,135 +35,124 @@ function GearIcon({ size = 20 }: { size?: number }) {
 export default function App() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [tick, setTick] = useState(0);
+  const [pin, setPin] = useState("");
+  const [bootReady, setBootReady] = useState(false);
 
   // Ensure defaults exist (users/session/security settings)
   useEffect(() => {
     ensureDefaults();
+    lockNow();
+    setTick((x) => x + 1);
+    setBootReady(true);
+
+    const id = window.setInterval(() => {
+      setTick((x) => x + 1);
+    }, 15_000);
+
+    return () => window.clearInterval(id);
   }, []);
 
-  // Re-render periodically so lock status updates without user interaction
-  useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 1200);
-    return () => clearInterval(t);
-  }, []);
-
-  const users = useMemo(() => loadUsers(), [tick]);
+  const users = useMemo(() => loadUsers().filter((u) => u.isActive), [tick]);
   const session = useMemo(() => loadSession(), [tick]);
   const me = useMemo(() => currentUser(), [tick]);
   const unlocked = isUnlocked();
 
-  // Nav button styling (uses your global theme.css variables)
-  const navBtn = (active: boolean): React.CSSProperties => ({
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid var(--border2)",
-    background: active ? "var(--panel2)" : "var(--panel)",
-    color: "var(--text)",
-    fontWeight: 900,
-    cursor: "pointer",
-  });
+  if (!bootReady || !unlocked) {
+    return (
+      <div className="appShell appGateShell">
+        <div className="appGateCard cardSoft">
+          <div className="appBrand">Loadout</div>
+          <div className="muted">Enter your password (PIN) to continue.</div>
 
-  const statusPill: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid var(--border2)",
-    background: "var(--panel2)",
-    fontWeight: 900,
-    fontSize: 12,
-  };
+          <div className="settingsUserCards appGateUsers">
+            {users.map((u) => (
+              <button
+                key={u.id}
+                className={"btn settingsUserCard" + (u.id === session.currentUserId ? " selected" : "")}
+                style={{ justifyContent: "space-between" }}
+                onClick={() => {
+                  setCurrentUser(u.id);
+                  setPin("");
+                  setTick((x) => x + 1);
+                }}
+              >
+                <span style={{ display: "grid" }}>
+                  <span style={{ fontWeight: 1000 }}>{u.name}</span>
+                  <span className="muted" style={{ fontSize: 12 }}>{u.role}</span>
+                </span>
+                <span className="pill">{u.id === session.currentUserId ? "Selected" : "Select"}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="appGateUnlockRow">
+            <input
+              className="input"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const ok = unlockWithPin(pin || "", undefined);
+                setPin("");
+                setTick((x) => x + 1);
+                if (!ok) alert("Wrong password (PIN).");
+              }}
+              placeholder="Password / PIN"
+              inputMode="numeric"
+            />
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => {
+                const ok = unlockWithPin(pin || "", undefined);
+                setPin("");
+                setTick((x) => x + 1);
+                if (!ok) alert("Wrong password (PIN).");
+              }}
+            >
+              Enter Site
+            </button>
+          </div>
+
+          <div className="muted appGateHint">
+            {me?.pin ? "Use the selected user PIN from Settings." : "Selected user has no PIN set. Select a user with a PIN."}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+    <div className="appShell">
       {/* Top bar */}
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "color-mix(in srgb, var(--bg) 92%, transparent)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ fontWeight: 1000, marginRight: 6 }}>Loadout</div>
+      <div className="appTopbar">
+        <div className="appTopbarInner">
+          <div className="appBrand">Loadout</div>
 
-          <button style={navBtn(tab === "dashboard")} onClick={() => setTab("dashboard")}>
-            Dashboard
-          </button>
-          <button style={navBtn(tab === "inventory")} onClick={() => setTab("inventory")}>
-            Inventory
-          </button>
-          <button style={navBtn(tab === "locations")} onClick={() => setTab("locations")}>
-            Locations
-          </button>
-          <button style={navBtn(tab === "categories")} onClick={() => setTab("categories")}>
-            Categories
-          </button>
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            {/* Current user status */}
-            <div style={statusPill}>
-              {me ? (
-                <>
-                  <span>{me.name}</span>
-                  <span style={{ opacity: 0.7 }}>•</span>
-                  <span style={{ opacity: 0.85 }}>{roleLabel(me.role)}</span>
-                  <span style={{ opacity: 0.7 }}>•</span>
-                  {unlocked ? (
-                    <span style={{ color: "var(--accent)" }}>Unlocked</span>
-                  ) : (
-                    <span style={{ color: "var(--warn)" }}>Locked</span>
-                  )}
-                </>
-              ) : (
-                <span style={{ opacity: 0.85 }}>No user</span>
-              )}
-            </div>
-
-            {/* Quick user switch (optional but handy) */}
-            <select
-              value={session.currentUserId || ""}
-              onChange={(e) => {
-                setCurrentUser(e.target.value);
-                setTick((x) => x + 1);
-              }}
-              style={{
-                borderRadius: 14,
-                border: "1px solid var(--border2)",
-                background: "var(--panel2)",
-                color: "var(--text)",
-                padding: "10px 12px",
-                fontWeight: 900,
-              }}
-              title="Switch user"
-            >
-              {users
-                .filter((u) => u.isActive)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({roleLabel(u.role)})
-                  </option>
-                ))}
-            </select>
-
-            {/* Settings */}
+          <div className="appNavGroup">
             <button
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 14px",
-                borderRadius: 14,
-                border: "1px solid var(--border2)",
-                background: tab === "settings" ? "var(--panel2)" : "var(--panel)",
-                color: "var(--text)",
-                fontWeight: 1000,
-                cursor: "pointer",
-              }}
+              className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
+              onClick={() => setTab("dashboard")}
+            >
+              Dashboard
+            </button>
+            <button
+              className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
+              onClick={() => setTab("inventory")}
+            >
+              Inventory
+            </button>
+            <button
+              className={"appNavBtn " + (tab === "management" ? "active" : "")}
+              onClick={() => setTab("management")}
+            >
+              Management
+            </button>
+          </div>
+
+          <div className="appTopbarRight">
+            <button
+              className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
               onClick={() => setTab("settings")}
               title="Settings"
             >
@@ -182,16 +164,15 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: 10 }}>
+      <div className="appContent">
         {tab === "dashboard" && <DashboardScreen />}
         {tab === "inventory" && <InventoryScreen />}
-        {tab === "locations" && <LocationsInventoryScreen />}
-        {tab === "categories" && <CategoryManager />}
+        {tab === "management" && <ManagementScreen />}
         {tab === "settings" && <SettingsScreen />}
       </div>
 
       {/* Footer */}
-      <div style={{ padding: 14, textAlign: "center", opacity: 0.65, fontSize: 12 }}>
+      <div className="appFooter">
         Inventory App • Local-first • Works offline (this device)
       </div>
     </div>

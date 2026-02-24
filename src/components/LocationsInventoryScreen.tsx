@@ -1,651 +1,435 @@
 import { useMemo, useState } from "react";
-import { useLocations, type LocationNode } from "../hooks/useLocations";
-import { useItems, type InventoryItem } from "../hooks/useItems";
+import { useItems } from "../hooks/useItems";
+import { useLocations } from "../hooks/useLocations";
+import * as authStore from "../lib/authStore";
+import { imageFileToOptimizedDataUrl } from "../lib/imageTools";
+// categories aren't needed in this variant; drop the import to avoid unused var
+// import { useCategories } from "../hooks/useCategories";
 import LocationPicker from "./LocationPicker";
-import LocationManager from "./LocationManager";
+import StockModal from "./StockModal";
+import ImageLightbox from "./ImageLightbox";
 
-type LightboxState = { open: boolean; src?: string; title?: string };
-
-type MoveModalState = {
-  open: boolean;
-  itemId: string;
-  fromPath: string[]; // path ids (last = fromLocationId)
-  toPath: string[];   // path ids (last = toLocationId)
-  qty: number;
-};
-
-type DragPayload = {
-  itemId: string;
-  fromLocationId: string; // "" allowed
-};
-
-function totalQty(item: InventoryItem) {
-  return (item.stockByLocation ?? []).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
-}
-
-function qtyAt(item: InventoryItem, locationId: string) {
-  const locId = locationId ?? "";
-  return (item.stockByLocation ?? []).find((r) => (r.locationId ?? "") === locId)?.quantity ?? 0;
-}
-
-function findNodeByPath(roots: LocationNode[], path: string[]) {
-  let nodes = roots;
-  let current: LocationNode | undefined;
-  for (const id of path) {
-    current = nodes.find((x) => x.id === id);
-    if (!current) return undefined;
-    nodes = current.children ?? [];
-  }
-  return current;
-}
-
-function pathLabel(roots: LocationNode[], path: string[]) {
-  if (path.length === 0) return "None";
-  let nodes = roots;
-  const names: string[] = [];
-  for (const id of path) {
-    const n = nodes.find((x) => x.id === id);
-    if (!n) break;
-    names.push(n.name);
-    nodes = n.children ?? [];
-  }
-  return names.length ? names.join(" → ") : "None";
-}
-
-function collectDescendantIds(node: LocationNode | undefined): string[] {
-  if (!node) return [];
-  const out: string[] = [node.id];
-  const stack: LocationNode[] = [...(node.children ?? [])];
-  while (stack.length) {
-    const n = stack.pop()!;
-    out.push(n.id);
-    for (const c of n.children ?? []) stack.push(c);
-  }
-  return out;
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.60)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        zIndex: 9999,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "white",
-          borderRadius: 14,
-          width: "min(980px, 100%)",
-          maxHeight: "85vh",
-          overflow: "auto",
-          boxShadow: "0 12px 35px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div
-          style={{
-            padding: 14,
-            borderBottom: "1px solid rgba(0,0,0,0.12)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <div style={{ fontWeight: 1000, fontSize: 16 }}>{title}</div>
-          <button onClick={onClose} style={{ marginLeft: "auto" }}>
-            Close
-          </button>
-        </div>
-        <div style={{ padding: 14 }}>{children}</div>
-      </div>
-    </div>
-  );
-}
-
-export default function LocationsInventoryScreen() {
-  const loc = useLocations();
+export default function InventoryScreen() {
   const itemsApi = useItems();
+  const locApi = useLocations();
+  const me = authStore.currentUser();
+  const canAddItems = authStore.canAddInventory(me);
+  // const catApi = useCategories();
 
-  const [showManager, setShowManager] = useState(false);
+  const items = itemsApi.items ?? [];
+  const locations = locApi.roots ?? [];
+  // categories not used
 
-  // Selected location path (left panel click builds this)
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
-  const selectedNode = useMemo(() => findNodeByPath(loc.roots, selectedPath), [loc.roots, selectedPath]);
-  const selectedLabel = useMemo(() => pathLabel(loc.roots, selectedPath), [loc.roots, selectedPath]);
+  const [search, setSearch] = useState("");
+  const [lowOnly, setLowOnly] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>("");
 
-  const selectedLocationId = selectedPath[selectedPath.length - 1] ?? "";
+  const [stockOpen, setStockOpen] = useState(false);
+  const selectedItem = items.find((i: any) => i.id === selectedId);
 
-  const [includeSubs, setIncludeSubs] = useState(true);
+  // form state
+  const [name, setName] = useState("");
+  const [partNumber, setPartNumber] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
+  const [model, setModel] = useState("");
+  const [serial, setSerial] = useState("");
+  const [description, setDescription] = useState("");
 
-  const [lightbox, setLightbox] = useState<LightboxState>({ open: false });
+  const [initialQty, setInitialQty] = useState("");
+  const [lowStockAlert, setLowStockAlert] = useState("");
+  // track the selected location as a path of ids for the hierarchical picker
+  const [locationPath, setLocationPath] = useState<string[]>([]);
 
-  const [move, setMove] = useState<MoveModalState>({
-    open: false,
-    itemId: "",
-    fromPath: [],
-    toPath: [],
-    qty: 1,
-  });
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
+  const [imageViewSrc, setImageViewSrc] = useState("");
 
-  const [receiveQty, setReceiveQty] = useState<number>(1);
+  function getTotalQty(it: any) {
+    if (typeof it.totalQty === "number") return Number(it.totalQty || 0);
+    const rows = Array.isArray(it.stockByLocation) ? it.stockByLocation : [];
+    return rows.reduce((sum: number, row: any) => sum + Number(row?.quantity ?? 0), 0);
+  }
 
-  // Build list of selectable left “cards” = top-level + children shown as separate blocks
-  const leftCards = useMemo(() => {
-    const out: { path: string[]; node: LocationNode; hasChildren: boolean }[] = [];
+  function getLowAlert(it: any) {
+    return Number(it.lowStockAlert ?? it.lowStock ?? 0);
+  }
 
-    function walk(nodes: LocationNode[], prefix: string[]) {
+  // helper to find the path (array of ids) from root to a given location id
+  function findPathForId(roots: any[], targetId: string): string[] {
+    const path: string[] = [];
+    function dfs(nodes: any[], current: string[]): boolean {
       for (const n of nodes) {
-        const p = [...prefix, n.id];
-        out.push({ path: p, node: n, hasChildren: (n.children ?? []).length > 0 });
-        // We still render children as blocks (user asked to see them)
-        for (const c of n.children ?? []) {
-          out.push({ path: [...p, c.id], node: c, hasChildren: (c.children ?? []).length > 0 });
+        const next = [...current, n.id];
+        if (n.id === targetId) {
+          path.push(...next);
+          return true;
+        }
+        if (n.children && dfs(n.children, next)) {
+          return true;
         }
       }
+      return false;
+    }
+    dfs(roots, []);
+    return path;
+  }
+
+  // 🔍 filtering (fast + clean)
+  const filteredItems = useMemo(() => {
+    let list = items.slice();
+
+    const q = search.trim().toLowerCase();
+
+    if (q) {
+      list = list.filter((it: any) =>
+        [
+          it.name,
+          it.partNumber,
+          `part number ${it.partNumber ?? ""}`,
+          `pn ${it.partNumber ?? ""}`,
+          it.manufacturer,
+          `manufacturer ${it.manufacturer ?? ""}`,
+          `brand ${it.manufacturer ?? ""}`,
+          it.model,
+          `model number ${it.model ?? ""}`,
+          it.serial,
+          `serial number ${it.serial ?? ""}`,
+          `sn ${it.serial ?? ""}`,
+          it.description,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
     }
 
-    walk(loc.roots ?? [], []);
-    return out;
-  }, [loc.roots]);
-
-  const selectedLocationIds = useMemo(() => {
-    if (!selectedNode) return [];
-    if (!includeSubs) return [selectedNode.id];
-    return collectDescendantIds(selectedNode);
-  }, [selectedNode, includeSubs]);
-
-  const itemsInSelected = useMemo(() => {
-    if (!selectedNode) return [];
-    const ids = new Set(selectedLocationIds);
-
-    const list = itemsApi.items
-      .map((it) => {
-        const qty = (it.stockByLocation ?? [])
-          .filter((r) => ids.has(r.locationId ?? ""))
-          .reduce((sum, r) => sum + (r.quantity ?? 0), 0);
-
-        return { it, qty };
-      })
-      .filter((x) => x.qty > 0)
-      .sort((a, b) => b.qty - a.qty);
+    if (lowOnly) {
+      list = list.filter((it: any) => {
+        const total = getTotalQty(it);
+        const low = getLowAlert(it);
+        return low > 0 && total <= low;
+      });
+    }
 
     return list;
-  }, [itemsApi.items, selectedNode, selectedLocationIds]);
+  }, [items, search, lowOnly]);
 
-  function onDragStart(e: React.DragEvent, payload: DragPayload) {
-    e.dataTransfer.setData("application/json", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "move";
-  }
+  const stats = useMemo(() => {
+    const totalItems = items.length;
+    const lowCount = items.filter((it: any) => {
+      const total = getTotalQty(it);
+      const low = getLowAlert(it);
+      return low > 0 && total <= low;
+    }).length;
 
-  function allowDrop(e: React.DragEvent) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }
+    return {
+      totalItems,
+      shown: filteredItems.length,
+      lowCount,
+    };
+  }, [items, filteredItems]);
 
-  function openMoveModal(itemId: string, fromLocationId: string, toPath: string[]) {
-    const fromPath = fromLocationId ? [fromLocationId] : []; // we’ll show label as location id fallback
-    setMove({
-      open: true,
-      itemId,
-      fromPath,
-      toPath,
-      qty: 1,
-    });
-  }
-
-  function closeMoveModal() {
-    setMove({ open: false, itemId: "", fromPath: [], toPath: [], qty: 1 });
-  }
-
-  function doMoveModal() {
-    const item = itemsApi.items.find((x) => x.id === move.itemId);
-    if (!item) return;
-
-    const fromId = move.fromPath[move.fromPath.length - 1] ?? "";
-    const toId = move.toPath[move.toPath.length - 1] ?? "";
-
-    const available = qtyAt(item, fromId);
-    const q = Math.max(1, Math.floor(Number(move.qty) || 1));
-    const final = Math.min(q, available);
-
-    if (final <= 0) return;
-    itemsApi.moveQty(item.id, fromId, toId, final);
-    closeMoveModal();
-  }
-
-  function onDropToLocation(e: React.DragEvent, toLocationId: string) {
-    e.preventDefault();
-    try {
-      const raw = e.dataTransfer.getData("application/json");
-      if (!raw) return;
-      const payload = JSON.parse(raw) as DragPayload;
-
-      const item = itemsApi.items.find((x) => x.id === payload.itemId);
-      if (!item) return;
-
-      const fromId = payload.fromLocationId ?? "";
-      const toId = toLocationId ?? "";
-
-      const available = qtyAt(item, fromId);
-      const qStr = prompt(`Move how many?\nAvailable: ${available}`, "1");
-      if (!qStr) return;
-      const q = Math.max(1, Math.floor(Number(qStr) || 1));
-      const final = Math.min(q, available);
-      if (final <= 0) return;
-
-      itemsApi.moveQty(item.id, fromId, toId, final);
-    } catch {
-      // ignore
+  // ✅ add or update item
+  function saveItem() {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      alert("Name required");
+      return;
     }
+
+    if (!selectedId && !canAddItems) {
+      alert("You are not allowed to add inventory items.");
+      return;
+    }
+
+    const qty = initialQty === "" ? 0 : Number(initialQty);
+    const low = lowStockAlert === "" ? 0 : Number(lowStockAlert);
+
+    const payload: any = {
+      name: cleanName,
+      partNumber,
+      manufacturer,
+      model,
+      serial,
+      description,
+      totalQty: qty,
+      lowStockAlert: low,
+      // last element of path is the actual location id
+      locationId: locationPath[locationPath.length - 1] || "",
+      photoDataUrl,
+    };
+
+    if (!selectedId) {
+      itemsApi.addItem?.(payload);
+    } else {
+      itemsApi.updateItem?.(selectedId, payload);
+    }
+
+    resetForm();
   }
 
-  function receiveToSelected(itemId: string) {
-    if (!selectedNode) return;
-    const q = Math.max(1, Math.floor(Number(receiveQty) || 1));
-    itemsApi.adjustAtLocation(itemId, selectedNode.id, q);
+  function resetForm() {
+    setSelectedId("");
+    setName("");
+    setPartNumber("");
+    setManufacturer("");
+    setModel("");
+    setSerial("");
+    setDescription("");
+    setInitialQty("");
+    setLowStockAlert("");
+    setLocationPath([]);
+    setPhotoDataUrl("");
+  }
+
+  function startEdit(item: any) {
+    setSelectedId(item.id);
+    setName(item.name ?? "");
+    setPartNumber(item.partNumber ?? "");
+    setManufacturer(item.manufacturer ?? "");
+    setModel(item.model ?? "");
+    setSerial(item.serial ?? "");
+    setDescription(item.description ?? "");
+    setInitialQty(String(item.totalQty ?? ""));
+    setLowStockAlert(String(item.lowStockAlert ?? ""));
+    // prefill picker; try to resolve full path, fall back to single id
+    setLocationPath(
+      item.locationId ? findPathForId(locations, item.locationId) : []
+    );
+    setPhotoDataUrl(item.photoDataUrl ?? "");
+  }
+
+  function openStock(item: any) {
+    setSelectedId(item.id);
+    setStockOpen(true);
+  }
+
+  async function onPickPhoto(file?: File | null) {
+    if (!file) return;
+    try {
+      const dataUrl = await imageFileToOptimizedDataUrl(file);
+      setPhotoDataUrl(dataUrl);
+    } catch (err: any) {
+      alert(err?.message || "Unable to process image.");
+    }
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <h2 style={{ marginTop: 0, marginBottom: 10 }}>Locations</h2>
-        <button style={{ marginLeft: "auto" }} onClick={() => setShowManager((s) => !s)}>
-          {showManager ? "Hide location manager" : "Manage locations"}
-        </button>
+    <div className="page locationsPage">
+      <div className="pageHeader">
+        <div>
+          <h1>Locations Inventory</h1>
+          <div className="muted">Location-focused stock management with clean add/edit flow.</div>
+        </div>
+
+        <div className="chips">
+          <span className="chip">Items: {stats.totalItems}</span>
+          <span className="chip">Shown: {stats.shown}</span>
+          <span className="chip">Low Alerts: {stats.lowCount}</span>
+        </div>
       </div>
 
-      {showManager && (
-        <div style={{ marginBottom: 12 }}>
-          <LocationManager />
+      {/* ===== ADD / EDIT ===== */}
+      <div className="card addItemCard locationsFormCard">
+        <div className="sectionTitle">
+          {selectedId ? "Edit item" : "Add item"}
         </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
-        {/* LEFT: Locations */}
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 14,
-            padding: 12,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ fontWeight: 1000, marginBottom: 6 }}>Locations</div>
-          <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 10 }}>
-            Click a location to view items. Drag items on the right and drop onto a location to move stock.
+        {!selectedId && !canAddItems ? (
+          <div className="muted" style={{ marginBottom: 10 }}>
+            Only users allowed by Admin can add new inventory items.
           </div>
+        ) : null}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {leftCards.map(({ path, node, hasChildren }) => {
-              const isSelected = selectedPath[selectedPath.length - 1] === node.id;
+        <div className="grid2">
+          <input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            placeholder="Part #"
+            value={partNumber}
+            onChange={(e) => setPartNumber(e.target.value)}
+          />
+          <input
+            placeholder="Manufacturer"
+            value={manufacturer}
+            onChange={(e) => setManufacturer(e.target.value)}
+          />
+          <input
+            placeholder="Model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          />
+          <input
+            placeholder="Serial"
+            value={serial}
+            onChange={(e) => setSerial(e.target.value)}
+          />
 
-              // show count of items stored directly at this node (not including subs)
-              const countHere = itemsApi.items.reduce((sum, it) => sum + (qtyAt(it, node.id) > 0 ? 1 : 0), 0);
-
-              return (
-                <div
-                  key={path.join(".")}
-                  onClick={() => setSelectedPath(path)}
-                  onDragOver={allowDrop}
-                  onDrop={(e) => onDropToLocation(e, node.id)}
-                  style={{
-                    border: isSelected ? "2px solid rgba(255,255,255,0.55)" : "1px solid rgba(255,255,255,0.18)",
-                    borderRadius: 12,
-                    padding: 10,
-                    cursor: "pointer",
-                    background: "rgba(255,255,255,0.02)",
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 1000 }}>{node.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                      Items here: {countHere}
-                      {"  "}
-                      {hasChildren ? (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            fontSize: 11,
-                            fontWeight: 1000,
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            background: "rgba(255,255,255,0.10)",
-                          }}
-                        >
-                          Has sub-locations
-                        </span>
-                      ) : (
-                        <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.7 }}>No subs</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: 12, opacity: 0.85 }}>Drop here</div>
-                </div>
-              );
-            })}
-          </div>
+          <LocationPicker
+            roots={locations}
+            value={locationPath}
+            onChange={setLocationPath}
+          />
         </div>
 
-        {/* RIGHT: Inventory in Location */}
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 14,
-            padding: 12,
-            background: "rgba(255,255,255,0.03)",
-            minHeight: 420,
-          }}
-        >
-          <div style={{ fontWeight: 1000, fontSize: 18 }}>Inventory in Location</div>
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-            <strong>Selected:</strong> {selectedLabel}
-          </div>
+        <textarea
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
-          <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="checkbox" checked={includeSubs} onChange={(e) => setIncludeSubs(e.target.checked)} />
-              Include sub-locations
-            </label>
-
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 900 }}>Receive qty</span>
-              <input
-                type="number"
-                min={1}
-                value={receiveQty}
-                onChange={(e) => setReceiveQty(Number(e.target.value))}
-                style={{ padding: 8, width: 90 }}
-              />
-            </div>
-          </div>
-
-          {!selectedNode ? (
-            <div style={{ marginTop: 14, opacity: 0.8 }}>
-              Select a location on the left to view and move stock.
+        <div className="grid2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              onPickPhoto(e.target.files?.[0]);
+              e.currentTarget.value = "";
+            }}
+          />
+          {photoDataUrl ? (
+            <div className="photoInlineRow">
+              <button
+                type="button"
+                className="thumb thumbButton"
+                onClick={() => setImageViewSrc(photoDataUrl)}
+                title="View image"
+              >
+                <img src={photoDataUrl} alt="Item preview" />
+              </button>
+              <button type="button" className="btn" onClick={() => setPhotoDataUrl("")}>Remove picture</button>
             </div>
           ) : (
-            <>
-              <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>
-                Showing items stored in: <strong>{selectedLabel}</strong>
-              </div>
-
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10, maxHeight: "62vh", overflow: "auto" }}>
-                {itemsInSelected.length === 0 ? (
-                  <div style={{ opacity: 0.75 }}>No items stored in this location.</div>
-                ) : (
-                  itemsInSelected.map(({ it, qty }) => {
-                    const total = totalQty(it);
-
-                    return (
-                      <div
-                        key={it.id}
-                        draggable
-                        onDragStart={(e) => onDragStart(e, { itemId: it.id, fromLocationId: selectedLocationId })}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "72px 1fr auto",
-                          gap: 10,
-                          alignItems: "center",
-                          padding: 10,
-                          borderRadius: 12,
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          background: "rgba(255,255,255,0.02)",
-                        }}
-                      >
-                        {/* Photo */}
-                        <div style={{ width: 72 }}>
-                          {it.photoDataUrl ? (
-                            <img
-                              src={it.photoDataUrl}
-                              alt={it.name}
-                              style={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: 12,
-                                objectFit: "cover",
-                                cursor: "pointer",
-                              }}
-                              onClick={() => setLightbox({ open: true, src: it.photoDataUrl!, title: it.name })}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: 12,
-                                border: "1px dashed rgba(255,255,255,0.2)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 12,
-                                opacity: 0.7,
-                              }}
-                            >
-                              —
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Details */}
-                        <div>
-                          <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <div style={{ fontWeight: 1000 }}>{it.name}</div>
-                            <div style={{ fontSize: 12, opacity: 0.85 }}>
-                              PN: {it.partNumber || "—"} · Mfr: {it.manufacturer || "—"} · Model: {it.model || "—"} · SN: {it.serial || "—"}
-                            </div>
-                          </div>
-
-                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-                            <strong>Qty here:</strong> {qty}{" "}
-                            <span style={{ opacity: 0.75 }}>(Total: {total})</span>
-                          </div>
-
-                          {/* Quick actions */}
-                          <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <button onClick={() => itemsApi.adjustAtLocation(it.id, selectedLocationId, -1)}>-1</button>
-                            <button onClick={() => itemsApi.adjustAtLocation(it.id, selectedLocationId, +1)}>+1</button>
-
-                            <button
-                              onClick={() => {
-                                const qStr = prompt("Take out how many?", "1");
-                                if (!qStr) return;
-                                const q = Math.max(1, Math.floor(Number(qStr) || 1));
-                                itemsApi.adjustAtLocation(it.id, selectedLocationId, -q);
-                              }}
-                            >
-                              Take out…
-                            </button>
-
-                            <button
-                              onClick={() => receiveToSelected(it.id)}
-                              style={{ fontWeight: 1000 }}
-                            >
-                              Receive here
-                            </button>
-                          </div>
-
-                          {/* Breakdown dropdown */}
-                          <details style={{ marginTop: 8 }}>
-                            <summary style={{ cursor: "pointer", fontSize: 12, opacity: 0.9 }}>
-                              In-stock breakdown by location
-                            </summary>
-                            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                              {(it.stockByLocation ?? [])
-                                .slice()
-                                .sort((a, b) => (a.locationId || "").localeCompare(b.locationId || ""))
-                                .map((r) => (
-                                  <div
-                                    key={`${it.id}:${r.locationId || "missing"}`}
-                                    style={{
-                                      fontSize: 12,
-                                      opacity: 0.9,
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      gap: 10,
-                                    }}
-                                  >
-                                    <span>{r.locationId ? pathLabel(loc.roots, [r.locationId]) : "Missing Location"}</span>
-                                    <strong>{r.quantity}</strong>
-                                  </div>
-                                ))}
-                            </div>
-                          </details>
-                        </div>
-
-                        {/* Move */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-                          <button
-                            onClick={() => openMoveModal(it.id, selectedLocationId, selectedPath)}
-                            style={{ padding: "8px 12px", borderRadius: 10, fontWeight: 1000 }}
-                          >
-                            Move…
-                          </button>
-
-                          <div style={{ fontSize: 11, opacity: 0.75 }}>Drag to left</div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </>
+            <div className="muted">Picture (large files are auto-compressed)</div>
           )}
+        </div>
+
+        <div className="grid2">
+          <input
+            placeholder="Initial Qty (blank = 0)"
+            value={initialQty}
+            onChange={(e) => setInitialQty(e.target.value)}
+          />
+          <input
+            placeholder="Low Stock Alert"
+            value={lowStockAlert}
+            onChange={(e) => setLowStockAlert(e.target.value)}
+          />
+        </div>
+
+        <div className="rowEnd">
+          {selectedId && (
+            <button className="btn" onClick={resetForm}>
+              New item
+            </button>
+          )}
+          <button className="btn primary" onClick={saveItem}>
+            {selectedId ? "Save" : "Add item"}
+          </button>
         </div>
       </div>
 
-      {/* MOVE MODAL */}
-      {move.open && (
-        <Modal title="Move stock" onClose={closeMoveModal}>
-          {(() => {
-            const item = itemsApi.items.find((x) => x.id === move.itemId);
-            if (!item) return <div>Item not found.</div>;
-
-            const fromId = move.fromPath[move.fromPath.length - 1] ?? "";
-            const available = qtyAt(item, fromId);
-
-            return (
-              <div>
-                <div style={{ fontWeight: 1000, fontSize: 16 }}>{item.name}</div>
-
-                {item.photoDataUrl && (
-                  <img
-                    src={item.photoDataUrl}
-                    alt={item.name}
-                    style={{ width: 110, height: 110, borderRadius: 14, objectFit: "cover", marginTop: 10, cursor: "pointer" }}
-                    onClick={() => setLightbox({ open: true, src: item.photoDataUrl!, title: item.name })}
-                  />
-                )}
-
-                <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
-                  From: <strong>{fromId ? pathLabel(loc.roots, [fromId]) : "Missing Location"}</strong> (available: {available})
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 4 }}>Qty to move</div>
-                  <input
-                    type="number"
-                    min={1}
-                    max={available}
-                    value={move.qty}
-                    onChange={(e) => setMove((m) => ({ ...m, qty: Number(e.target.value) }))}
-                    style={{ width: "100%", padding: 10 }}
-                  />
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>To location</div>
-                  <LocationPicker roots={loc.roots} value={move.toPath} onChange={(p) => setMove((m) => ({ ...m, toPath: p }))} />
-                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                    Selected: <strong>{move.toPath.length ? pathLabel(loc.roots, move.toPath) : "None"}</strong>
-                  </div>
-                </div>
-
-                <details style={{ marginTop: 12 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 900 }}>Current stock breakdown</summary>
-                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                    {(item.stockByLocation ?? [])
-                      .slice()
-                      .sort((a, b) => (a.locationId || "").localeCompare(b.locationId || ""))
-                      .map((r) => (
-                        <div
-                          key={`${item.id}:${r.locationId || "missing"}`}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                            fontSize: 12,
-                            opacity: 0.9,
-                          }}
-                        >
-                          <span>{r.locationId ? pathLabel(loc.roots, [r.locationId]) : "Missing Location"}</span>
-                          <strong>{r.quantity}</strong>
-                        </div>
-                      ))}
-                  </div>
-                </details>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-                  <button onClick={closeMoveModal}>Cancel</button>
-                  <button
-                    onClick={doMoveModal}
-                    style={{ fontWeight: 1000 }}
-                    disabled={available <= 0 || move.toPath.length === 0}
-                  >
-                    Move
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-        </Modal>
-      )}
-
-      {/* PHOTO LIGHTBOX */}
-      {lightbox.open && (
-        <div
-          onClick={() => setLightbox({ open: false })}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 99999,
-          }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: "95vw", maxHeight: "95vh" }}>
-            <div style={{ color: "white", fontWeight: 1000, marginBottom: 8 }}>{lightbox.title}</div>
-            <img src={lightbox.src} style={{ maxWidth: "90vw", maxHeight: "80vh", borderRadius: 14 }} />
-            <div style={{ marginTop: 10 }}>
-              <button onClick={() => setLightbox({ open: false })}>Close</button>
-            </div>
+      {/* ===== FILTERS ===== */}
+      <div className="card locationsFilterCard">
+        <div className="searchBlock">
+          <input
+            placeholder="Search part #, manufacturer/brand, model #, serial #, description…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="searchHints" aria-hidden="true">
+            <span className="searchHint">Part Number</span>
+            <span className="searchHint">Brand</span>
+            <span className="searchHint">Model Number</span>
+            <span className="searchHint">Serial Number</span>
           </div>
         </div>
-      )}
+
+        <label className="checkRow">
+          <input
+            type="checkbox"
+            checked={lowOnly}
+            onChange={(e) => setLowOnly(e.target.checked)}
+          />
+          <span>Low stock only</span>
+        </label>
+      </div>
+
+      {/* ===== LIST ===== */}
+      <div className="list">
+        {filteredItems.map((it: any) => {
+          const total = getTotalQty(it);
+          const low = getLowAlert(it);
+          const isLow = low > 0 && total <= low;
+
+          return (
+            <div key={it.id} className={"itemCard " + (isLow ? "itemCardLow" : "")}> 
+              <div className="itemLeft">
+                {it.photoDataUrl ? (
+                  <button
+                    type="button"
+                    className="thumb thumbButton"
+                    onClick={() => setImageViewSrc(it.photoDataUrl || "")}
+                    title="View image"
+                  >
+                    <img src={it.photoDataUrl} alt={it.name} />
+                  </button>
+                ) : null}
+
+                <div className="itemMeta">
+                  <div className="itemTopLine">
+                    <div className="itemName">{it.name}</div>
+                    <div className="pillRow">
+                      <span className="pill">Total Quantity: {total}</span>
+                      {isLow ? <span className="pill pillRed">Low Stock</span> : null}
+                    </div>
+                  </div>
+                  <div className="itemSub muted">
+                    {it.partNumber ? <>Part Number: {it.partNumber} • </> : null}
+                    {it.manufacturer ? <>Manufacturer: {it.manufacturer} • </> : null}
+                    {it.model ? <>Model Number: {it.model} • </> : null}
+                    {it.serial ? <>Serial Number: {it.serial}</> : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="itemRight">
+                <button className="btn" onClick={() => startEdit(it)}>
+                  Edit
+                </button>
+                <button className="btn" onClick={() => openStock(it)}>
+                  Stock
+                </button>
+                <button
+                  className="btn danger"
+                  onClick={() => itemsApi.deleteItem?.(it.id)}
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <StockModal
+        open={stockOpen}
+        onClose={() => setStockOpen(false)}
+        item={selectedItem}
+        locationRoots={locations}
+        adjustAtLocation={itemsApi.adjustAtLocation}
+        moveQty={itemsApi.moveQty}
+        locked={false}
+        requirePinForStock={false}
+      />
+
+      <ImageLightbox
+        open={!!imageViewSrc}
+        src={imageViewSrc}
+        alt="Inventory item image"
+        onClose={() => setImageViewSrc("")}
+      />
     </div>
   );
 }

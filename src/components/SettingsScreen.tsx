@@ -41,20 +41,25 @@ export default function SettingsScreen() {
   const activeUsers = users.filter((u) => u.isActive);
 
   return (
-    <div style={{ maxWidth: 1100, display: "grid", gap: 12 }}>
-      <div>
+    <div className="page screenWrap settingsPage">
+      <div className="settingsHeader">
         <div style={{ fontSize: 26, fontWeight: 1000 }}>Settings</div>
         <div className="muted">Theme, users, security, and permissions.</div>
+        <div className="chips">
+          <span className="chip">Active Users: {activeUsers.length}</span>
+          <span className="chip">Current: {me?.name ?? "None"}</span>
+          {unlocked ? <span className="chip">Session: Unlocked</span> : <span className="chip">Session: Locked</span>}
+        </div>
       </div>
 
       {/* Appearance */}
-      <div className="card">
+      <div className="card cardSoft settingsCard">
         <div className="label">Appearance</div>
-        <div className="muted" style={{ marginBottom: 10 }}>
+        <div className="muted settingsSubtleGap">
           Choose how the app looks on this device.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 10, alignItems: "center" }}>
+        <div className="settingsRow2">
           <div className="muted">Theme mode</div>
           <select
             value={themeMode}
@@ -72,9 +77,9 @@ export default function SettingsScreen() {
       </div>
 
       {/* User & PIN */}
-      <div className="card">
+      <div className="card cardSoft settingsCard">
         <div className="label">User & PIN</div>
-        <div className="muted" style={{ marginBottom: 10 }}>
+        <div className="muted settingsSubtleGap">
           Tap a user below (no dropdown bugs), then enter PIN and Unlock.
         </div>
 
@@ -97,15 +102,13 @@ export default function SettingsScreen() {
             </button>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="settingsUserCards">
             {activeUsers.map((u) => (
               <button
                 key={u.id}
-                className="btn"
+                className={"btn settingsUserCard" + (u.id === session.currentUserId ? " selected" : "")}
                 style={{
-                  minWidth: 220,
                   justifyContent: "space-between",
-                  background: u.id === session.currentUserId ? "var(--panel2)" : "var(--panel)",
                 }}
                 onClick={() => {
                   setCurrentUser(u.id);
@@ -125,7 +128,7 @@ export default function SettingsScreen() {
           </div>
         )}
 
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 160px 120px 120px", gap: 10, alignItems: "center" }}>
+        <div className="settingsUnlockGrid">
           <div className="muted">
             Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
             {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
@@ -162,21 +165,21 @@ export default function SettingsScreen() {
           </button>
         </div>
 
-        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        <div className="muted settingsFootnote">
           Defaults: Admin 1234 • Stock 1111 • Invoicing 2222
         </div>
       </div>
 
       {/* Security */}
-      <div className="card">
+      <div className="card cardSoft settingsCard">
         <div className="label">Security</div>
-        <div className="muted" style={{ marginBottom: 10 }}>
+        <div className="muted settingsSubtleGap">
           These rules apply on this device (local-first).
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10, alignItems: "center" }}>
+        <div className="settingsRow2 settingsSecurityRow">
           <div>
-            <div style={{ fontWeight: 900 }}>Auto-lock (minutes)</div>
+            <div className="settingsStrong">Auto-lock (minutes)</div>
             <div className="muted">After unlocking, lock again automatically.</div>
           </div>
           <input
@@ -192,8 +195,8 @@ export default function SettingsScreen() {
           />
         </div>
 
-        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="settingsChecks">
+          <label className="settingsCheckLabel">
             <input
               type="checkbox"
               checked={sec.requirePinForStock}
@@ -207,7 +210,7 @@ export default function SettingsScreen() {
             </span>
           </label>
 
-          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <label className="settingsCheckLabel">
             <input
               type="checkbox"
               checked={sec.requirePinForCosts}
@@ -224,7 +227,7 @@ export default function SettingsScreen() {
       </div>
 
       {/* Admin */}
-      <div className="card">
+      <div className="card cardSoft settingsCard">
         <div className="label">Admin</div>
         {isAdmin && unlocked ? (
           <AdminPanel />

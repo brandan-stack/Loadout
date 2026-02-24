@@ -10,9 +10,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// Register service worker for PWA functionality
+// Disable stale service workers to ensure latest auth gate logic is always loaded
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js").catch((err) => {
-    console.log("Service Worker registration failed:", err);
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((registration) => {
+      registration.unregister();
+    });
+  }).catch((err) => {
+    console.log("Service Worker cleanup failed:", err);
   });
 }

@@ -27,38 +27,10 @@ function fmt(ts: number) {
   }
 }
 
-const bg = "#0b0c0e";
-const surface = "#111214";
-const panel = "#17181b";
-const border = "rgba(255,255,255,0.12)";
-const border2 = "rgba(255,255,255,0.18)";
-const text = "rgba(255,255,255,0.95)";
-const muted = "rgba(255,255,255,0.72)";
-
-const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: `1px solid ${border2}`,
-  background: "rgba(255,255,255,0.08)",
-  color: text,
-  fontWeight: 1000,
-  cursor: "pointer",
-};
-
-const input: React.CSSProperties = {
-  width: "100%",
-  padding: 10,
-  borderRadius: 12,
-  border: `1px solid ${border2}`,
-  background: panel,
-  color: text,
-  outline: "none",
-};
-
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 16, padding: 14 }}>
-      <div style={{ fontWeight: 1000, fontSize: 13, color: muted, marginBottom: 10 }}>{title}</div>
+    <div className="dashboardCard">
+      <div className="dashboardCardTitle">{title}</div>
       {children}
     </div>
   );
@@ -66,17 +38,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        padding: "2px 8px",
-        borderRadius: 999,
-        border: `1px solid ${border}`,
-        background: "rgba(255,255,255,0.06)",
-        fontSize: 11,
-        fontWeight: 1000,
-      }}
-    >
+    <span className="dashboardBadge">
       {children}
     </span>
   );
@@ -171,7 +133,24 @@ export default function DashboardScreen() {
     if (!q) return itemsApi.items.slice(0, 20);
     return itemsApi.items
       .filter((it) => {
-        const hay = [it.name, it.partNumber, it.manufacturer, it.model, it.serial].filter(Boolean).join(" ").toLowerCase();
+        const hay = [
+          it.name,
+          it.partNumber,
+          `part number ${it.partNumber ?? ""}`,
+          `pn ${it.partNumber ?? ""}`,
+          it.manufacturer,
+          `manufacturer ${it.manufacturer ?? ""}`,
+          `brand ${it.manufacturer ?? ""}`,
+          it.model,
+          `model number ${it.model ?? ""}`,
+          it.serial,
+          `serial number ${it.serial ?? ""}`,
+          `sn ${it.serial ?? ""}`,
+          it.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         return hay.includes(q);
       })
       .slice(0, 20);
@@ -229,150 +208,168 @@ export default function DashboardScreen() {
   }
 
   return (
-    <div style={{ padding: 16, background: bg, color: text, minHeight: "calc(100vh - 56px)" }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Dashboard</h2>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={btn} onClick={() => setRefresh((x) => x + 1)}>Refresh</button>
+    <div className="page dashboardPage">
+      <div className="dashboardHeader">
+        <div>
+          <h2 className="dashboardTitle">Dashboard</h2>
+          <div className="dashboardSubtitle">Jobs, stock usage, restock priorities, and recent activity in one place.</div>
+        </div>
+        <div className="dashboardHeaderActions">
+          <button className="btn" onClick={() => setRefresh((x) => x + 1)}>Refresh</button>
         </div>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
+      <div className="dashboardStats dashboardGapTop">
         <Card title="Items">
-          <div style={{ fontSize: 26, fontWeight: 1000 }}>{stats.items}</div>
-          <div style={{ fontSize: 12, color: muted }}>Unique inventory items</div>
+          <div className="dashboardStatValue">{stats.items}</div>
+          <div className="dashboardStatNote">Unique inventory items</div>
         </Card>
         <Card title="Total stock">
-          <div style={{ fontSize: 26, fontWeight: 1000 }}>{stats.totalStock}</div>
-          <div style={{ fontSize: 12, color: muted }}>All quantities across locations</div>
+          <div className="dashboardStatValue">{stats.totalStock}</div>
+          <div className="dashboardStatNote">All quantities across locations</div>
         </Card>
         <Card title="Low stock alerts">
-          <div style={{ fontSize: 26, fontWeight: 1000 }}>{stats.lowStock}</div>
-          <div style={{ fontSize: 12, color: muted }}>Items at or below threshold</div>
+          <div className="dashboardStatValue">{stats.lowStock}</div>
+          <div className="dashboardStatNote">Items at or below threshold</div>
         </Card>
         <Card title="Jobs open">
-          <div style={{ fontSize: 26, fontWeight: 1000 }}>{stats.jobsOpen}</div>
-          <div style={{ fontSize: 12, color: muted }}>Work in progress</div>
+          <div className="dashboardStatValue">{stats.jobsOpen}</div>
+          <div className="dashboardStatNote">Work in progress</div>
         </Card>
       </div>
 
       {/* Main grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 12, marginTop: 12 }}>
+      <div className="dashboardMain dashboardGapTop">
         <Card title="Jobs • Used parts (for invoicing)">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10 }}>
-            <input style={input} value={jobName} onChange={(e) => setJobName(e.target.value)} placeholder="Job name (e.g. PG Sawmill Repair)" />
-            <input style={input} value={jobCustomer} onChange={(e) => setJobCustomer(e.target.value)} placeholder="Customer (optional)" />
-            <input style={input} value={jobPO} onChange={(e) => setJobPO(e.target.value)} placeholder="PO / WO (optional)" />
-            <button style={btn} onClick={createNewJob}>Create</button>
+          <div className="dashboardJobCreateGrid">
+            <input value={jobName} onChange={(e) => setJobName(e.target.value)} placeholder="Job name (e.g. PG Sawmill Repair)" />
+            <input value={jobCustomer} onChange={(e) => setJobCustomer(e.target.value)} placeholder="Customer (optional)" />
+            <input value={jobPO} onChange={(e) => setJobPO(e.target.value)} placeholder="PO / WO (optional)" />
+            <button className="btn primary" onClick={createNewJob}>Create Job</button>
           </div>
 
-          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center" }}>
+          <div className="dashboardJobActions">
             <select
-              style={input}
               value={selectedJobId}
               onChange={(e) => setSelectedJobId(e.target.value)}
+              disabled={!jobs.length}
             >
-              {jobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.status === "open" ? "🟢" : "⚫"} {j.name}
-                </option>
-              ))}
+              {!jobs.length ? (
+                <option value="">No jobs yet</option>
+              ) : (
+                jobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.status === "open" ? "🟢" : "⚫"} {j.name}
+                  </option>
+                ))
+              )}
             </select>
 
             <button
-              style={btn}
+              className="btn"
               onClick={() => {
                 if (!selectedJob) return;
                 toggleJobStatus(selectedJob);
               }}
               disabled={!selectedJob}
             >
-              {selectedJob?.status === "open" ? "Close job" : "Reopen"}
+              {selectedJob?.status === "open" ? "Close Job" : "Reopen Job"}
             </button>
 
-            <button style={btn} onClick={exportSelectedJob} disabled={!selectedJob}>
-              Export job CSV
+            <button className="btn" onClick={exportSelectedJob} disabled={!selectedJob}>
+              Export Job CSV
             </button>
           </div>
 
-          <div style={{ marginTop: 12, padding: 12, border: `1px solid ${border}`, borderRadius: 14, background: panel }}>
-            <div style={{ fontWeight: 1000, marginBottom: 10 }}>Use parts on selected job</div>
+          <div className="dashboardUsePanel">
+            <div className="dashboardSectionTitle">Use parts on selected job</div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 1fr", gap: 10 }}>
-              <input style={input} value={useSearch} onChange={(e) => setUseSearch(e.target.value)} placeholder="Search item (name, PN, model…)" />
-              <input style={input} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Qty" />
-              <select style={input} value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
+            <div className="dashboardUseGrid">
+              <div>
+                <input value={useSearch} onChange={(e) => setUseSearch(e.target.value)} placeholder="Search item (Part Number, Brand, Model Number, Serial Number, Description…)" />
+                <div className="searchHints" aria-hidden="true">
+                  <span className="searchHint">Part Number</span>
+                  <span className="searchHint">Brand</span>
+                  <span className="searchHint">Model Number</span>
+                  <span className="searchHint">Serial Number</span>
+                </div>
+              </div>
+              <input value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity" />
+              <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
                 <option value="">Missing Location</option>
                 {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
 
-            <div style={{ marginTop: 10 }}>
-              <input style={input} value={useNote} onChange={(e) => setUseNote(e.target.value)} placeholder="Note (optional) e.g. Used during alignment / emergency repair" />
+            <div className="dashboardUseNote">
+              <input value={useNote} onChange={(e) => setUseNote(e.target.value)} placeholder="Note (optional) e.g. Used during alignment / emergency repair" />
             </div>
 
-            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+            <div className="dashboardResultCount">Matching items: {filteredItems.length}</div>
+
+            <div className="dashboardItemsList">
               {filteredItems.map((it) => (
-                <div key={it.id} style={{ display: "flex", gap: 10, alignItems: "center", border: `1px solid ${border}`, borderRadius: 14, padding: 10, background: "rgba(255,255,255,0.04)" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 1000, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</div>
-                    <div style={{ fontSize: 12, color: muted }}>{categoryLabel(it)} • PN: {it.partNumber || "—"}</div>
-                    <div style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Badge>Total: {totalQty(it)}</Badge>
+                <div key={it.id} className="dashboardItemRow">
+                  <div className="dashboardItemMain">
+                    <div className="dashboardItemName">{it.name}</div>
+                    <div className="dashboardItemMeta">{categoryLabel(it)} • Part Number: {it.partNumber || "—"}</div>
+                    <div className="dashboardPills">
+                      <Badge>Total Quantity: {totalQty(it)}</Badge>
                       <Badge>Low: {it.lowStock ?? "—"}</Badge>
                     </div>
                   </div>
-                  <button style={btn} onClick={() => useParts(it)} disabled={!selectedJob}>
-                    Use on job
+                  <button className="btn" onClick={() => useParts(it)} disabled={!selectedJob}>
+                    Use on Job
                   </button>
                 </div>
               ))}
+              {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
             </div>
           </div>
 
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontWeight: 1000, marginBottom: 8 }}>Recent job usage</div>
-            <div style={{ display: "grid", gap: 8 }}>
+          <div className="dashboardSection">
+            <div className="dashboardSectionTitle">Recent job usage</div>
+            <div className="dashboardStack">
               {usage.slice(0, 8).map((u) => (
-                <div key={u.id} style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 10, background: "rgba(255,255,255,0.03)" }}>
-                  <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <div key={u.id} className="dashboardRowCard">
+                  <div className="dashboardUsageTop">
                     <Badge>{fmt(u.ts)}</Badge>
-                    <div style={{ fontWeight: 1000 }}>{u.jobName}</div>
-                    <div style={{ color: muted }}>•</div>
-                    <div style={{ fontWeight: 1000 }}>{u.itemName}</div>
-                    <Badge>Qty: {u.qty}</Badge>
+                    <div className="dashboardStrong">{u.jobName}</div>
+                    <div className="dashboardDot">•</div>
+                    <div className="dashboardStrong">{u.itemName}</div>
+                    <Badge>Quantity: {u.qty}</Badge>
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: muted }}>
-                    PN: {u.partNumber || "—"} {u.note ? `• Note: ${u.note}` : ""}
+                  <div className="dashboardUsageMeta">
+                    Part Number: {u.partNumber || "—"} {u.note ? `• Note: ${u.note}` : ""}
                   </div>
                 </div>
               ))}
-              {usage.length === 0 ? <div style={{ color: muted }}>No job usage logged yet.</div> : null}
+              {usage.length === 0 ? <div className="dashboardMuted">No job usage logged yet.</div> : null}
             </div>
           </div>
         </Card>
 
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="dashboardStack">
           <Card title="Restock list (worst first)">
             {restock.length === 0 ? (
-              <div style={{ color: muted }}>No low-stock items. You’re good.</div>
+              <div className="dashboardMuted">No low-stock items. You’re good.</div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="dashboardStack">
                 {restock.map(({ it, t, low, need }) => (
-                  <div key={it.id} style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 10, background: "rgba(255,0,0,0.10)", display: "flex", gap: 10, alignItems: "center" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 1000, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.name}</div>
-                      <div style={{ fontSize: 12, color: muted }}>{categoryLabel(it)}</div>
-                      <div style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Badge>In: {t}</Badge>
+                  <div key={it.id} className="dashboardRestockRow">
+                    <div className="dashboardItemMain">
+                      <div className="dashboardItemName">{it.name}</div>
+                      <div className="dashboardItemMeta">{categoryLabel(it)}</div>
+                      <div className="dashboardPills">
+                        <Badge>In Stock: {t}</Badge>
                         <Badge>Low: {low}</Badge>
-                        <Badge>Need: {need}</Badge>
+                        <Badge>Need to Reorder: {need}</Badge>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12, color: muted }}>PN</div>
-                      <div style={{ fontWeight: 1000 }}>{it.partNumber || "—"}</div>
+                    <div className="dashboardRightMeta">
+                      <div className="dashboardItemMeta">Part Number</div>
+                      <div className="dashboardStrong">{it.partNumber || "—"}</div>
                     </div>
                   </div>
                 ))}
@@ -382,12 +379,12 @@ export default function DashboardScreen() {
 
           <Card title="Recent activity (audit log)">
             {activity.length === 0 ? (
-              <div style={{ color: muted }}>No activity yet.</div>
+              <div className="dashboardMuted">No activity yet.</div>
             ) : (
-              <div style={{ border: `1px solid ${border}`, borderRadius: 14, overflow: "hidden", background: "rgba(255,255,255,0.03)" }}>
+              <div className="dashboardAuditList">
                 {activity.slice(0, 12).map((ev) => (
-                  <div key={ev.id} style={{ padding: 10, borderBottom: `1px solid ${border}`, fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" }}>
-                    {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Qty ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
+                  <div key={ev.id} className="dashboardAuditRow">
+                    {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Quantity ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
                   </div>
                 ))}
               </div>

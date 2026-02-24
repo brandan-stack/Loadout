@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { useCategories } from "../hooks/useCategories";
 
-export default function CategoryManager() {
+type CategoryManagerProps = {
+  embedded?: boolean;
+};
+
+export default function CategoryManager({ embedded = false }: CategoryManagerProps) {
   const cats = useCategories();
 
   const [newCatName, setNewCatName] = useState("");
@@ -60,29 +64,33 @@ export default function CategoryManager() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2 style={{ marginTop: 0 }}>Category Manager</h2>
+    <div className={"screenWrap managerPage" + (embedded ? " managerEmbedded" : " page") }>
+      {!embedded ? (
+        <div className="screenHeader managerHeader">
+          <div>
+            <h2>Category Manager</h2>
+            <div className="muted">Manage category labels and subcategory structure.</div>
+          </div>
+          <div className="chips">
+            <span className="chip">Categories: {categories.length}</span>
+            <span className="chip">Subcategories: {categories.reduce((sum, cat) => sum + (cat.subcategories?.length ?? 0), 0)}</span>
+            {selectedCat ? <span className="chip">Selected: {selectedCat.name}</span> : <span className="chip">Selected: None</span>}
+          </div>
+        </div>
+      ) : null}
 
       {/* Add Category */}
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.14)",
-          borderRadius: 14,
-          padding: 12,
-          background: "rgba(255,255,255,0.03)",
-          marginBottom: 12,
-        }}
-      >
-        <div style={{ fontWeight: 1000, marginBottom: 8 }}>Add category</div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div className="cardSoft managerCard">
+        <div className="managerCardTitle">Add category</div>
+        <div className="rowWrap">
           <input
             value={newCatName}
             onChange={(e) => setNewCatName(e.target.value)}
             placeholder="e.g., Fasteners, Electrical, Tools…"
-            style={{ padding: 10, minWidth: 260, flex: 1 }}
+            className="managerGrowInput"
           />
           <button
-            style={{ fontWeight: 1000 }}
+            className="btn primary"
             onClick={() => {
               const name = newCatName.trim();
               if (!name) return;
@@ -90,81 +98,57 @@ export default function CategoryManager() {
               setNewCatName("");
             }}
           >
-            Add
+            Add Category
           </button>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 12 }}>
+      <div className="split2">
         {/* Categories list */}
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 14,
-            padding: 12,
-            background: "rgba(255,255,255,0.03)",
-            minHeight: 320,
-          }}
-        >
-          <div style={{ fontWeight: 1000, marginBottom: 8 }}>Categories</div>
+        <div className="cardSoft managerCard managerMinHeight">
+          <div className="managerCardTitle">Categories</div>
 
           {categories.length === 0 ? (
-            <div style={{ opacity: 0.75 }}>No categories yet.</div>
+            <div className="managerEmpty">No categories yet.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="managerList">
               {categories.map((c) => {
                 const selected = c.id === selectedCatId;
                 const isEditing = c.id === editingCatId;
 
                 return (
-                  <div
-                    key={c.id}
-                    style={{
-                      border: selected ? "2px solid rgba(255,255,255,0.55)" : "1px solid rgba(255,255,255,0.14)",
-                      borderRadius: 12,
-                      padding: 10,
-                      background: "rgba(255,255,255,0.02)",
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
+                  <div key={c.id} className={"managerRow " + (selected ? "active" : "")}> 
                     <button
+                      className="btn"
                       onClick={() => setSelectedCatId(c.id)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        fontWeight: 1000,
-                        opacity: selected ? 1 : 0.9,
-                      }}
                     >
                       Select
                     </button>
 
-                    <div style={{ flex: 1 }}>
+                    <div className="managerMain">
                       {isEditing ? (
                         <input
                           value={editingCatName}
                           onChange={(e) => setEditingCatName(e.target.value)}
-                          style={{ width: "100%", padding: 8 }}
+                          className="managerInlineInput"
                         />
                       ) : (
-                        <div style={{ fontWeight: 1000 }}>{c.name}</div>
+                        <div className="managerStrong">{c.name}</div>
                       )}
-                      <div style={{ fontSize: 12, opacity: 0.75 }}>
+                      <div className="managerMeta">
                         Subcategories: {(c.subcategories ?? []).length}
                       </div>
                     </div>
 
                     {isEditing ? (
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div className="managerActions">
                         <button onClick={cancelEditCategory}>Cancel</button>
-                        <button onClick={saveEditCategory} style={{ fontWeight: 1000 }}>
+                        <button className="btn primary" onClick={saveEditCategory}>
                           Save
                         </button>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div className="managerActions">
                         <button onClick={() => startEditCategory(c.id, c.name)}>Edit</button>
                         <button
                           onClick={() => {
@@ -172,7 +156,7 @@ export default function CategoryManager() {
                             cats.deleteCategory(c.id);
                             if (selectedCatId === c.id) setSelectedCatId("");
                           }}
-                          style={{ color: "tomato" }}
+                          className="btn danger"
                         >
                           Delete
                         </button>
@@ -186,31 +170,23 @@ export default function CategoryManager() {
         </div>
 
         {/* Subcategories */}
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 14,
-            padding: 12,
-            background: "rgba(255,255,255,0.03)",
-            minHeight: 320,
-          }}
-        >
-          <div style={{ fontWeight: 1000, marginBottom: 8 }}>Subcategories</div>
+        <div className="cardSoft managerCard managerMinHeight">
+          <div className="managerCardTitle">Subcategories</div>
 
           {!selectedCat ? (
-            <div style={{ opacity: 0.75 }}>Select a category to manage its subcategories.</div>
+            <div className="managerEmpty">Select a category to manage its subcategories.</div>
           ) : (
             <>
               {/* Add sub */}
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <div className="rowWrap managerRowGapBottom">
                 <input
                   value={newSubName}
                   onChange={(e) => setNewSubName(e.target.value)}
                   placeholder={`Add subcategory under "${selectedCat.name}"`}
-                  style={{ padding: 10, minWidth: 260, flex: 1 }}
+                  className="managerGrowInput"
                 />
                 <button
-                  style={{ fontWeight: 1000 }}
+                  className="btn primary"
                   onClick={() => {
                     const name = newSubName.trim();
                     if (!name) return;
@@ -218,59 +194,48 @@ export default function CategoryManager() {
                     setNewSubName("");
                   }}
                 >
-                  Add sub
+                  Add Subcategory
                 </button>
               </div>
 
               {subs.length === 0 ? (
-                <div style={{ opacity: 0.75 }}>No subcategories yet.</div>
+                <div className="managerEmpty">No subcategories yet.</div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="managerList">
                   {subs.map((s) => {
                     const isEditing = s.id === editingSubId;
 
                     return (
-                      <div
-                        key={s.id}
-                        style={{
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          borderRadius: 12,
-                          padding: 10,
-                          background: "rgba(255,255,255,0.02)",
-                          display: "flex",
-                          gap: 10,
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ flex: 1 }}>
+                      <div key={s.id} className="managerRow">
+                        <div className="managerMain">
                           {isEditing ? (
                             <input
                               value={editingSubName}
                               onChange={(e) => setEditingSubName(e.target.value)}
-                              style={{ width: "100%", padding: 8 }}
+                              className="managerInlineInput"
                             />
                           ) : (
-                            <div style={{ fontWeight: 1000 }}>{s.name}</div>
+                            <div className="managerStrong">{s.name}</div>
                           )}
-                          <div style={{ fontSize: 12, opacity: 0.75 }}>ID: {s.id}</div>
+                          <div className="managerMeta">ID: {s.id}</div>
                         </div>
 
                         {isEditing ? (
-                          <div style={{ display: "flex", gap: 8 }}>
+                          <div className="managerActions">
                             <button onClick={cancelEditSub}>Cancel</button>
-                            <button onClick={saveEditSub} style={{ fontWeight: 1000 }}>
+                            <button className="btn primary" onClick={saveEditSub}>
                               Save
                             </button>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", gap: 8 }}>
+                          <div className="managerActions">
                             <button onClick={() => startEditSub(s.id, s.name)}>Edit</button>
                             <button
                               onClick={() => {
                                 if (!confirm(`Delete subcategory "${s.name}"?`)) return;
                                 cats.deleteSubcategory(selectedCat.id, s.id);
                               }}
-                              style={{ color: "tomato" }}
+                              className="btn danger"
                             >
                               Delete
                             </button>
@@ -287,9 +252,11 @@ export default function CategoryManager() {
       </div>
 
       {/* Tip */}
-      <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-        Tip: Categories/Subcategories are labels. Items won’t be deleted if you remove a category — they’ll just show as Uncategorized.
-      </div>
+      {!embedded ? (
+        <div className="managerNote">
+          Tip: Categories/Subcategories are labels. Items won’t be deleted if you remove a category — they’ll just show as Uncategorized.
+        </div>
+      ) : null}
     </div>
   );
 }
