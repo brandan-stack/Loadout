@@ -18,6 +18,13 @@ function findChildrenByPath(roots: LocationNode[], path: string[]) {
 }
 
 export default function LocationPicker({ roots, value, onChange }: Props) {
+  const selectStyle = {
+    padding: 10,
+    minWidth: 0,
+    flex: "1 1 220px",
+    maxWidth: "100%",
+  } as const;
+
   const levels = useMemo(() => {
     const arr: LocationNode[][] = [];
     arr.push(roots);
@@ -37,7 +44,7 @@ export default function LocationPicker({ roots, value, onChange }: Props) {
           const id = e.target.value;
           onChange(id ? [id] : []);
         }}
-        style={{ padding: 10, minWidth: 220 }}
+        style={selectStyle}
       >
         <option value="">Missing Location</option>
         {roots.map((r) => (
@@ -60,7 +67,7 @@ export default function LocationPicker({ roots, value, onChange }: Props) {
               if (id) next.push(id);
               onChange(next);
             }}
-            style={{ padding: 10, minWidth: 220 }}
+            style={selectStyle}
           >
             <option value="">{nodes.length ? "Select sub-location…" : "No sub-locations"}</option>
             {nodes.map((n) => (

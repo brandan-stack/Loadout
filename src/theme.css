@@ -108,6 +108,7 @@ input, select, textarea {
   border-radius: 12px;
   padding: 10px 12px;
   outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
 [data-theme="light"] input,
@@ -135,6 +136,7 @@ textarea { min-height: 90px; resize: vertical; }
   color: var(--text);
   cursor: pointer;
   user-select: none;
+  transition: transform 0.12s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .btn:hover { background: rgba(255,255,255,0.12); }
@@ -162,9 +164,29 @@ textarea { min-height: 90px; resize: vertical; }
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 .iconBtn:hover { background: rgba(255,255,255,0.12); }
+.iconBtn:active { transform: translateY(1px); }
 .iconBtn.danger { border-color: rgba(255,59,59,0.42); background: rgba(255,59,59,0.10); }
+
+button:focus-visible,
+.btn:focus-visible,
+.btnPrimary:focus-visible,
+.iconBtn:focus-visible,
+.appNavBtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--focus) 78%, transparent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .btn:hover,
+  .btnPrimary:hover,
+  .appNavBtn:hover,
+  .iconBtn:hover {
+    transform: translateY(-1px);
+  }
+}
 
 .badges {
   display: flex;
@@ -1010,10 +1032,12 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 .appTopbarInner {
+  width: min(var(--maxw), 100%);
+  margin: 0 auto;
   padding: 8px 10px;
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
 }
 
@@ -1029,7 +1053,15 @@ textarea { min-height: 90px; resize: vertical; }
 .appNavGroup {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.appDesktopNav {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1041,6 +1073,63 @@ textarea { min-height: 90px; resize: vertical; }
   flex-wrap: wrap;
 }
 
+.appMobileNav {
+  display: none;
+  width: 100%;
+}
+
+.appMobileNavToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+}
+
+.appMobileNavMenu {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: max-height 0.22s ease, opacity 0.16s ease, transform 0.16s ease, margin-top 0.16s ease;
+}
+
+.appMobileNavMenu.open {
+  margin-top: 6px;
+  max-height: 280px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.appMobileNavMenu .appNavBtn {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.appMobileNavBackdrop {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appMobileNavMenu,
+  .btn,
+  .btnPrimary,
+  .iconBtn,
+  .appNavBtn,
+  input,
+  select,
+  textarea {
+    transition: none;
+  }
+}
+
 .appNavBtn {
   padding: 8px 10px;
   border-radius: 14px;
@@ -1049,10 +1138,15 @@ textarea { min-height: 90px; resize: vertical; }
   color: var(--text);
   font-weight: 900;
   cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .appNavBtn.active {
   background: var(--panel2);
+}
+
+.appNavBtn:active {
+  transform: translateY(1px);
 }
 
 .appSettingsBtn {
@@ -1084,10 +1178,14 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 .appContent {
-  padding: 10px;
+  width: min(var(--maxw), 100%);
+  margin: 0 auto;
+  padding: 12px;
 }
 
 .appFooter {
+  width: min(var(--maxw), 100%);
+  margin: 0 auto;
   padding: 14px;
   text-align: center;
   opacity: 0.65;
@@ -1127,52 +1225,59 @@ textarea { min-height: 90px; resize: vertical; }
 
 @media (max-width: 980px) {
   .appTopbarInner {
-    padding: 8px;
-    gap: 6px;
+    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .appBrand {
-    font-size: 20px;
-    width: 100%;
-    margin-right: 0;
-    margin-bottom: 2px;
+    font-size: 19px;
+    width: auto;
+    margin-right: auto;
+    margin-bottom: 0;
   }
 
-  .appNavGroup {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+  .appDesktopNav {
+    display: none;
   }
 
-  .appTopbarRight {
+  .appMobileNav {
+    display: block;
     width: 100%;
-    justify-content: flex-end;
   }
 
-  .appSettingsBtn {
-    width: 100%;
-    justify-content: center;
+  .appMobileNavBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.32);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 45;
+    transition: opacity 0.16s ease;
   }
 
-  .appNavBtn {
-    width: 100%;
-    justify-content: center;
-    min-height: 40px;
+  .appMobileNavBackdrop.open {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .appContent {
-    padding: 8px;
+    padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .appFooter {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 }
 
 @media (max-width: 560px) {
   .appBrand {
-    font-size: 18px;
-  }
-
-  .appNavGroup {
-    grid-template-columns: 1fr;
+    font-size: 17px;
   }
 
   .appTopbar {
@@ -1180,8 +1285,19 @@ textarea { min-height: 90px; resize: vertical; }
     top: 0;
   }
 
+  .appTopbarInner {
+    padding: max(8px, env(safe-area-inset-top)) 8px 8px;
+    gap: 6px;
+  }
+
+  .appContent {
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
   .appFooter {
     padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
     font-size: 11px;
   }
 }
@@ -1756,6 +1872,44 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 @media (max-width: 560px) {
+  .card,
+  .cardSoft,
+  .card-soft,
+  .settingsCard,
+  .adminCard,
+  .locationsFormCard,
+  .locationsFilterCard,
+  .inventoryAddCard,
+  .inventoryFilterCard,
+  .managementSectionCard {
+    padding: 12px;
+  }
+
+  input,
+  select,
+  textarea,
+  .btn,
+  .btnPrimary,
+  .appNavBtn {
+    min-height: 44px;
+  }
+
+  .stack,
+  .locationsPage,
+  .managerPage,
+  .adminPanel,
+  .settingsPage,
+  .settingsChecks {
+    gap: 12px;
+  }
+
+  .field,
+  .rowWrap,
+  .managerActions,
+  .dashboardHeaderActions {
+    gap: 10px;
+  }
+
   .appGateCard {
     padding: 12px;
     gap: 10px;
@@ -1836,6 +1990,28 @@ textarea { min-height: 90px; resize: vertical; }
     min-height: 44px;
   }
 
+  .inventoryFilterCard .searchBlock {
+    display: grid;
+    gap: 10px;
+  }
+
+  .inventoryFilterCard .searchBlock input,
+  .locationsFilterCard .searchBlock input {
+    min-height: 46px;
+    padding: 12px 14px;
+  }
+
+  .inventoryFilterCard .searchHints,
+  .locationsFilterCard .searchHints {
+    gap: 8px;
+    margin-top: 0;
+  }
+
+  .inventoryFilterCard .searchHint,
+  .locationsFilterCard .searchHint {
+    padding: 4px 9px;
+  }
+
   .inventoryResultsMeta {
     font-size: 11px;
   }
@@ -1855,3 +2031,56 @@ textarea { min-height: 90px; resize: vertical; }
     height: 56px;
   }
 }
+
+  @media (max-width: 380px) {
+    .appTopbarInner,
+    .appContent {
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+
+    .appBrand {
+      font-size: 16px;
+    }
+
+    .appMobileNavToggle {
+      font-size: 13px;
+    }
+
+    .dashboardTitle,
+    .inventoryHeader h1,
+    .managementHeader h2,
+    .screenHeader h2 {
+      font-size: 20px;
+    }
+
+    .itemName,
+    .dashboardItemName,
+    .managerCardTitle {
+      font-size: 14px;
+    }
+
+    .pill,
+    .searchHint,
+    .badge,
+    .dashboardBadge {
+      font-size: 11px;
+      padding: 3px 7px;
+    }
+
+    .inventoryPage .thumb,
+    .inventoryPage .thumb img,
+    .inventoryPage .thumbEmpty {
+      width: 52px;
+      height: 52px;
+    }
+
+    .inventoryPage .itemSub,
+    .dashboardItemMeta,
+    .dashboardUsageMeta,
+    .managerMeta,
+    .adminMeta,
+    .settingsFootnote {
+      font-size: 12px;
+    }
+  }

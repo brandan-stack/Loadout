@@ -51,7 +51,9 @@ function safeLoad(storageKey: string): AuditEntry[] {
 function safeSave(storageKey: string, value: unknown) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(value));
-  } catch {}
+  } catch {
+    void 0;
+  }
 }
 
 function snapshotKeys(keys: string[]) {

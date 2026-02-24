@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 
 import DashboardScreen from "./components/DashboardScreen";
 import InventoryScreen from "./components/InventoryScreen";
@@ -16,7 +16,14 @@ import {
   lockNow,
 } from "./lib/authStore";
 
+ensureDefaults();
+lockNow();
+
 type Tab = "dashboard" | "inventory" | "management" | "settings";
+
+function isTab(value: string | null): value is Tab {
+  return value === "dashboard" || value === "inventory" || value === "management" || value === "settings";
+}
 
 function GearIcon({ size = 20 }: { size?: number }) {
   return (
@@ -33,31 +40,67 @@ function GearIcon({ size = 20 }: { size?: number }) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [tick, setTick] = useState(0);
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("loadout.activeTab") : null;
+    return isTab(saved) ? saved : "dashboard";
+  });
+  const [, refresh] = useReducer((value: number) => value + 1, 0);
   const [pin, setPin] = useState("");
-  const [bootReady, setBootReady] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Ensure defaults exist (users/session/security settings)
+  const tabLabel =
+    tab === "dashboard"
+      ? "Dashboard"
+      : tab === "inventory"
+      ? "Inventory"
+      : tab === "management"
+      ? "Management"
+      : "Settings";
+
+  const setActiveTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    setMobileNavOpen(false);
+  };
+
   useEffect(() => {
-    ensureDefaults();
-    lockNow();
-    setTick((x) => x + 1);
-    setBootReady(true);
-
     const id = window.setInterval(() => {
-      setTick((x) => x + 1);
+      refresh();
     }, 15_000);
 
     return () => window.clearInterval(id);
   }, []);
 
-  const users = useMemo(() => loadUsers().filter((u) => u.isActive), [tick]);
-  const session = useMemo(() => loadSession(), [tick]);
-  const me = useMemo(() => currentUser(), [tick]);
+  const users = loadUsers().filter((u) => u.isActive);
+  const session = loadSession();
+  const me = currentUser();
   const unlocked = isUnlocked();
 
-  if (!bootReady || !unlocked) {
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth > 980) {
+        setMobileNavOpen(false);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("loadout.activeTab", tab);
+  }, [tab]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileNavOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileNavOpen]);
+
+  if (!unlocked) {
     return (
       <div className="appShell appGateShell">
         <div className="appGateCard cardSoft">
@@ -73,7 +116,7 @@ export default function App() {
                 onClick={() => {
                   setCurrentUser(u.id);
                   setPin("");
-                  setTick((x) => x + 1);
+                  refresh();
                 }}
               >
                 <span style={{ display: "grid" }}>
@@ -94,7 +137,7 @@ export default function App() {
                 if (e.key !== "Enter") return;
                 const ok = unlockWithPin(pin || "", undefined);
                 setPin("");
-                setTick((x) => x + 1);
+                refresh();
                 if (!ok) alert("Wrong password (PIN).");
               }}
               placeholder="Password / PIN"
@@ -106,7 +149,7 @@ export default function App() {
               onClick={() => {
                 const ok = unlockWithPin(pin || "", undefined);
                 setPin("");
-                setTick((x) => x + 1);
+                refresh();
                 if (!ok) alert("Wrong password (PIN).");
               }}
             >
@@ -129,39 +172,93 @@ export default function App() {
         <div className="appTopbarInner">
           <div className="appBrand">Loadout</div>
 
-          <div className="appNavGroup">
-            <button
-              className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
-              onClick={() => setTab("dashboard")}
-            >
-              Dashboard
-            </button>
-            <button
-              className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
-              onClick={() => setTab("inventory")}
-            >
-              Inventory
-            </button>
-            <button
-              className={"appNavBtn " + (tab === "management" ? "active" : "")}
-              onClick={() => setTab("management")}
-            >
-              Management
-            </button>
+          <div className="appDesktopNav">
+            <div className="appNavGroup">
+              <button
+                className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                Dashboard
+              </button>
+              <button
+                className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
+                onClick={() => setActiveTab("inventory")}
+              >
+                Inventory
+              </button>
+              <button
+                className={"appNavBtn " + (tab === "management" ? "active" : "")}
+                onClick={() => setActiveTab("management")}
+              >
+                Management
+              </button>
+            </div>
+
+            <div className="appTopbarRight">
+              <button
+                className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
+                onClick={() => setActiveTab("settings")}
+                title="Settings"
+              >
+                <GearIcon />
+                Settings
+              </button>
+            </div>
           </div>
 
-          <div className="appTopbarRight">
+          <div className="appMobileNav">
             <button
-              className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
-              onClick={() => setTab("settings")}
-              title="Settings"
+              className={"appNavBtn appMobileNavToggle " + (mobileNavOpen ? "active" : "")}
+              type="button"
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-main-nav"
+              onClick={() => setMobileNavOpen((open) => !open)}
             >
-              <GearIcon />
-              Settings
+              <span>{tabLabel}</span>
+              <span>{mobileNavOpen ? "Close" : "Menu"}</span>
             </button>
+
+            <div
+              id="mobile-main-nav"
+              className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}
+            >
+              <button
+                className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                Dashboard
+              </button>
+              <button
+                className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
+                onClick={() => setActiveTab("inventory")}
+              >
+                Inventory
+              </button>
+              <button
+                className={"appNavBtn " + (tab === "management" ? "active" : "")}
+                onClick={() => setActiveTab("management")}
+              >
+                Management
+              </button>
+              <button
+                className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
+                onClick={() => setActiveTab("settings")}
+                title="Settings"
+              >
+                <GearIcon />
+                Settings
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        className={"appMobileNavBackdrop " + (mobileNavOpen ? "open" : "")}
+        aria-label="Close navigation menu"
+        onClick={() => setMobileNavOpen(false)}
+      />
 
       {/* Content */}
       <div className="appContent">

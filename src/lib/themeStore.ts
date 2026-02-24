@@ -7,14 +7,18 @@ export function loadThemeMode(): ThemeMode {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw === "system" || raw === "dark" || raw === "light") return raw;
-  } catch {}
+  } catch {
+    void 0;
+  }
   return "system";
 }
 
 export function saveThemeMode(mode: ThemeMode) {
   try {
     localStorage.setItem(KEY, mode);
-  } catch {}
+  } catch {
+    void 0;
+  }
 }
 
 export function getResolvedTheme(mode: ThemeMode): "dark" | "light" {

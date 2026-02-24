@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const USERS_KEY = "users.list.v1";
 const CURRENT_KEY = "users.current.v1";
@@ -8,7 +8,9 @@ function safeLoadList(): string[] {
     const raw = localStorage.getItem(USERS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (Array.isArray(parsed) && parsed.length) return parsed.map(String);
-  } catch {}
+  } catch {
+    return ["Brandan"];
+  }
   return ["Brandan"];
 }
 
@@ -22,30 +24,36 @@ export function useUser() {
   const [users, setUsers] = useState<string[]>(() => safeLoadList());
   const [currentUser, setCurrentUser] = useState<string>(() => safeLoadCurrent(safeLoadList()));
 
+  const setActiveUser = (name: string) => {
+    setCurrentUser((prev) => (users.includes(name) ? name : (users[0] ?? prev)));
+  };
+
   useEffect(() => {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    if (!users.includes(currentUser)) setCurrentUser(users[0] ?? "Brandan");
   }, [users]);
 
   useEffect(() => {
     localStorage.setItem(CURRENT_KEY, currentUser);
   }, [currentUser]);
 
-  return useMemo(() => {
-    return {
-      users,
-      currentUser,
-      setCurrentUser,
+  return {
+    users,
+    currentUser,
+    setCurrentUser: setActiveUser,
 
-      addUser(name: string) {
-        const n = name.trim();
-        if (!n) return;
-        setUsers((prev) => (prev.includes(n) ? prev : [...prev, n]));
-      },
+    addUser(name: string) {
+      const n = name.trim();
+      if (!n) return;
+      setUsers((prev) => (prev.includes(n) ? prev : [...prev, n]));
+    },
 
-      removeUser(name: string) {
-        setUsers((prev) => prev.filter((u) => u !== name));
-      },
-    };
-  }, [users, currentUser]);
+    removeUser(name: string) {
+      const nextUsers = users.filter((u) => u !== name);
+      const normalized = nextUsers.length ? nextUsers : ["Brandan"];
+      setUsers(normalized);
+      if (!normalized.includes(currentUser)) {
+        setCurrentUser(normalized[0]);
+      }
+    },
+  };
 }
