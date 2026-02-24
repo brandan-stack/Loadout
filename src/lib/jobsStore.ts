@@ -22,7 +22,8 @@ export type Job = {
   po?: string;
   createdAt: number;
   closedAt?: number;
-  status: "open" | "closed";
+  completedAt?: number;
+  status: "open" | "closed" | "completed";
   notes?: string;
 };
 
@@ -86,7 +87,14 @@ export function closeJob(jobId: string) {
 }
 
 export function reopenJob(jobId: string) {
-  const jobs = loadJobs().map((j) => (j.id === jobId ? { ...j, status: "open" as const, closedAt: undefined } : j));
+  const jobs = loadJobs().map((j) => (j.id === jobId ? { ...j, status: "open" as const, closedAt: undefined, completedAt: undefined } : j));
+  saveJobs(jobs);
+}
+
+export function completeJob(jobId: string) {
+  const jobs = loadJobs().map((j) =>
+    j.id === jobId ? { ...j, status: "completed" as const, completedAt: Date.now(), closedAt: Date.now() } : j
+  );
   saveJobs(jobs);
 }
 

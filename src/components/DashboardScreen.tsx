@@ -7,6 +7,7 @@ import { loadActivity, type ActivityEvent } from "../lib/activityStore";
 import {
   createJob,
   closeJob,
+  completeJob,
   reopenJob,
   exportJobCSV,
   loadJobs,
@@ -194,7 +195,7 @@ export default function DashboardScreen() {
     itemsApi.adjustAtLocation(item.id, useLoc ?? "", -qty);
 
     // log to job usage
-    logJobUsage({
+    const line = logJobUsage({
       job: selectedJob,
       item,
       qty,
@@ -205,6 +206,43 @@ export default function DashboardScreen() {
     setUsage(loadJobUsage());
     setRefresh((x) => x + 1);
     setUseNote("");
+
+    // Notify invoice/parts person about the parts used
+    alert(
+      `📦 Parts Used — Notification\n\n` +
+      `Job: ${selectedJob.name}` +
+      (selectedJob.customer ? `\nCustomer: ${selectedJob.customer}` : "") +
+      (selectedJob.po ? `\nPO / WO: ${selectedJob.po}` : "") +
+      `\n\nItem: ${item.name}` +
+      (item.partNumber ? `\nPart Number: ${item.partNumber}` : "") +
+      `\nQuantity Used: ${qty}` +
+      (line.note ? `\nNote: ${line.note}` : "") +
+      `\n\nPlease update the invoice / parts order accordingly.`
+    );
+  }
+
+  function submitJob() {
+    if (!selectedJob) return;
+    if (selectedJob.status === "completed") {
+      alert("This job is already marked as completed.");
+      return;
+    }
+    const confirmed = confirm(
+      `Mark job "${selectedJob.name}" as Completed?\n\n` +
+      `This will close the job and notify that it has been completed.\n` +
+      (selectedJob.customer ? `Customer: ${selectedJob.customer}\n` : "") +
+      (selectedJob.po ? `PO / WO: ${selectedJob.po}` : "")
+    );
+    if (!confirmed) return;
+    completeJob(selectedJob.id);
+    setJobs(loadJobs());
+    alert(
+      `✅ Job Completed\n\n` +
+      `Job "${selectedJob.name}" has been marked as completed.\n` +
+      (selectedJob.customer ? `Customer: ${selectedJob.customer}\n` : "") +
+      (selectedJob.po ? `PO / WO: ${selectedJob.po}\n` : "") +
+      `\nThe invoice/parts person has been notified.`
+    );
   }
 
   return (
@@ -260,7 +298,7 @@ export default function DashboardScreen() {
               ) : (
                 jobs.map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.status === "open" ? "🟢" : "⚫"} {j.name}
+                    {j.status === "open" ? "🟢" : j.status === "completed" ? "✅" : "⚫"} {j.name}
                   </option>
                 ))
               )}
@@ -272,9 +310,17 @@ export default function DashboardScreen() {
                 if (!selectedJob) return;
                 toggleJobStatus(selectedJob);
               }}
-              disabled={!selectedJob}
+              disabled={!selectedJob || selectedJob.status === "completed"}
             >
               {selectedJob?.status === "open" ? "Close Job" : "Reopen Job"}
+            </button>
+
+            <button
+              className="btn primary"
+              onClick={submitJob}
+              disabled={!selectedJob || selectedJob.status === "completed"}
+            >
+              Submit Job
             </button>
 
             <button className="btn" onClick={exportSelectedJob} disabled={!selectedJob}>
