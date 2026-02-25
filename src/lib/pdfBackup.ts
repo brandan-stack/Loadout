@@ -18,6 +18,8 @@ const STORE_NAME = "handles";
 const HANDLE_ID = "backup-file";
 const DEFAULT_FILE_NAME = "loadout-backup-latest.pdf";
 const AUTO_SYNC_MS = 30 * 60 * 1000;
+const BACKUP_MARKER_BEGIN = "LOADOUT_BACKUP_B64_BEGIN";
+const BACKUP_MARKER_END = "LOADOUT_BACKUP_B64_END";
 
 let syncTimerId: number | null = null;
 let running = false;
@@ -107,6 +109,14 @@ function snapshotPayload(appVersion: string) {
   };
 }
 
+function toBase64Utf8(value: string) {
+  return btoa(unescape(encodeURIComponent(value)));
+}
+
+function fromBase64Utf8(value: string) {
+  return decodeURIComponent(escape(atob(value)));
+}
+
 function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight = 6) {
   const lines = doc.splitTextToSize(text, maxWidth) as string[];
   let curY = y;
@@ -123,6 +133,7 @@ function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth
 
 function buildPdfBlob(appVersion: string) {
   const payload = snapshotPayload(appVersion);
+  const payloadB64 = toBase64Utf8(JSON.stringify(payload.entries));
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
   doc.setFont("helvetica", "bold");
@@ -157,6 +168,16 @@ function buildPdfBlob(appVersion: string) {
   doc.setFont("courier", "normal");
   doc.setFontSize(8);
   y = addWrappedText(doc, JSON.stringify(payload.entries, null, 2), 14, y, 182, 4);
+
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  y = addWrappedText(doc, "Backup Restore Marker", 14, y, 182);
+  doc.setFont("courier", "normal");
+  doc.setFontSize(7);
+  y = addWrappedText(doc, BACKUP_MARKER_BEGIN, 14, y, 182, 4);
+  y = addWrappedText(doc, payloadB64, 14, y, 182, 4);
+  addWrappedText(doc, BACKUP_MARKER_END, 14, y, 182, 4);
 
   return {
     blob: doc.output("blob"),
@@ -256,6 +277,72 @@ export async function downloadBackupPdfNow(appVersion: string) {
   setStoredString(LAST_HASH_KEY, hash);
   setStoredNumber(LAST_SYNC_KEY, generatedAt);
   setStoredString(LAST_ERROR_KEY, "");
+}
+
+function parseEntriesFromPdfText(rawText: string): Record<string, string> {
+  const beginIndex = rawText.indexOf(BACKUP_MARKER_BEGIN);
+  const endIndex = rawText.indexOf(BACKUP_MARKER_END);
+
+  if (beginIndex >= 0 && endIndex > beginIndex) {
+    const encoded = rawText
+      .slice(beginIndex + BACKUP_MARKER_BEGIN.length, endIndex)
+      .replace(/[^A-Za-z0-9+/=]/g, "");
+    if (encoded) {
+      const decoded = fromBase64Utf8(encoded);
+      const parsed = JSON.parse(decoded) as Record<string, string>;
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  }
+
+  const firstBrace = rawText.indexOf("{");
+  const lastBrace = rawText.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const candidate = rawText.slice(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(candidate) as Record<string, string>;
+    if (parsed && typeof parsed === "object") return parsed;
+  }
+
+  throw new Error("Could not find a valid Loadout backup payload in this PDF.");
+}
+
+function normalizeBackupEntries(entries: Record<string, string>) {
+  const out: Record<string, string> = {};
+  for (const key of PROTECTED_KEYS) {
+    const raw = entries[key];
+    if (typeof raw !== "string") continue;
+    out[key] = raw;
+  }
+  return out;
+}
+
+function restoreEntries(entries: Record<string, string>) {
+  const normalized = normalizeBackupEntries(entries);
+  let restored = 0;
+  for (const [key, value] of Object.entries(normalized)) {
+    window.localStorage.setItem(key, value);
+    restored += 1;
+  }
+  return restored;
+}
+
+export async function importBackupPdf(file: File) {
+  if (!file) throw new Error("No file selected.");
+
+  const buf = await file.arrayBuffer();
+  const text = new TextDecoder("latin1").decode(new Uint8Array(buf));
+
+  const entries = parseEntriesFromPdfText(text);
+  const restoredCount = restoreEntries(entries);
+  if (!restoredCount) {
+    throw new Error("Backup loaded but no protected keys were found.");
+  }
+
+  const normalized = JSON.stringify(normalizeBackupEntries(entries), Object.keys(normalizeBackupEntries(entries)).sort());
+  const hash = stableHash(normalized);
+  setStoredString(LAST_HASH_KEY, hash);
+  setStoredNumber(LAST_SYNC_KEY, Date.now());
+  setStoredString(LAST_ERROR_KEY, "");
+  return { restoredCount };
 }
 
 export async function enableAutoPdfBackup(appVersion: string) {

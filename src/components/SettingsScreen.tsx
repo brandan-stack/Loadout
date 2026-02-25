@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AdminPanel from "./AdminPanel";
 import {
   loadUsers,
@@ -21,6 +21,7 @@ import {
   disableAutoPdfBackup,
   downloadBackupPdfNow,
   enableAutoPdfBackup,
+  importBackupPdf,
   refreshPdfBackupStatus,
   resetAutoPdfBackupState,
   runAutoPdfBackupNow,
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
   });
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfFeedback, setPdfFeedback] = useState("");
+  const pdfUploadRef = useRef<HTMLInputElement | null>(null);
 
   const users = loadUsers();
   const session = loadSession();
@@ -184,6 +186,25 @@ export default function SettingsScreen() {
       setPdfFeedback(error instanceof Error ? error.message : "Failed to reset auto PDF sync state.");
     } finally {
       setPdfBusy(false);
+    }
+  }
+
+  async function handleUploadRestorePdf(file: File | null) {
+    if (!file) return;
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      const { restoredCount } = await importBackupPdf(file);
+      await refreshBackupStatusNow();
+      setPdfFeedback(`Backup restored from PDF. Restored ${restoredCount} data keys. Reloading...`);
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Failed to restore backup PDF.");
+    } finally {
+      setPdfBusy(false);
+      if (pdfUploadRef.current) {
+        pdfUploadRef.current.value = "";
+      }
     }
   }
 
@@ -380,11 +401,23 @@ export default function SettingsScreen() {
 
         <div className="settingsUserCards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
           <button className="btn" disabled={pdfBusy} onClick={handleDownloadPdfNow}>Download Backup PDF Now</button>
+          <button className="btn" disabled={pdfBusy} onClick={() => pdfUploadRef.current?.click()}>Upload Backup PDF Restore</button>
           <button className="btn" disabled={pdfBusy} onClick={handleEnableAutoPdfSync}>Enable Auto PDF Sync</button>
           <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleRunAutoNow}>Run Auto Sync Now</button>
           <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleDisableAuto}>Disable Auto Sync</button>
           <button className="btn" disabled={pdfBusy} onClick={handleResetAutoState}>Reset Auto Sync File</button>
         </div>
+
+        <input
+          ref={pdfUploadRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            void handleUploadRestorePdf(file);
+          }}
+        />
 
         <div className="muted settingsSubtleGap">
           Auto Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.enabled ? "Enabled" : "Disabled"}</b> •
