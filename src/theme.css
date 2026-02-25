@@ -638,6 +638,25 @@ button:focus-visible,
   background: rgba(255,200,120,.08);
   margin-bottom: 10px;
 }
+
+.stockFeedback {
+  font-weight: 700;
+}
+
+.stockFeedback--success {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.stockFeedback--warning {
+  border-color: color-mix(in srgb, var(--warn) 58%, var(--border));
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.stockFeedback--error {
+  border-color: color-mix(in srgb, #ff6d6d 58%, var(--border));
+  background: color-mix(in srgb, #ff6d6d 18%, transparent);
+}
 .empty { opacity:.8; padding: 16px; text-align:center; }
 
 /* App-wide polish helpers */

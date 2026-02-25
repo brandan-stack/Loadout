@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocationNode } from "../hooks/useLocations";
+
+type ModalFeedback = {
+  tone: "success" | "warning" | "error";
+  message: string;
+};
 
 type StockModalItem = {
   id?: string;
@@ -99,6 +104,7 @@ export default function StockModal({
   const [receiveQty, setReceiveQty] = useState<string>("");
   const [takeQty, setTakeQty] = useState<string>("");
   const [moveQtyStr, setMoveQtyStr] = useState<string>("");
+  const [feedback, setFeedback] = useState<ModalFeedback | null>(null);
 
   const [moveFrom, setMoveFrom] = useState<string>("");
   const [moveTo, setMoveTo] = useState<string>("");
@@ -129,45 +135,83 @@ export default function StockModal({
   function doReceive() {
     if (stockLocked) return;
     const q = parseQty(receiveQty);
-    if (!q) return;
-    if (!adjustAtLocation) return alert("adjustAtLocation not wired.");
+    if (!q) {
+      setFeedback({ tone: "warning", message: "Enter a valid quantity to receive." });
+      return;
+    }
+    if (!adjustAtLocation) {
+      setFeedback({ tone: "error", message: "Stock receive action is not available right now." });
+      return;
+    }
     adjustAtLocation(itemId, receiveLocation, +q);
     setReceiveQty("");
+    setFeedback({ tone: "success", message: `Received ${q} to selected location.` });
   }
 
   function doTake() {
     if (stockLocked) return;
     const q = parseQty(takeQty);
-    if (!q) return;
-    if (!adjustAtLocation) return alert("adjustAtLocation not wired.");
+    if (!q) {
+      setFeedback({ tone: "warning", message: "Enter a valid quantity to take out." });
+      return;
+    }
+    if (!adjustAtLocation) {
+      setFeedback({ tone: "error", message: "Stock take-out action is not available right now." });
+      return;
+    }
     adjustAtLocation(itemId, takeLocation, -q);
     setTakeQty("");
+    setFeedback({ tone: "success", message: `Took out ${q} from selected location.` });
   }
 
   function doMove() {
     if (stockLocked) return;
     const q = parseQty(moveQtyStr);
-    if (!q) return;
-    if (!moveQty) return alert("moveQty not wired.");
-    if (!moveFrom || !moveTo) return alert("Pick From and To locations.");
-    if (moveFrom === moveTo) return alert("From and To must be different.");
+    if (!q) {
+      setFeedback({ tone: "warning", message: "Enter a valid quantity to move." });
+      return;
+    }
+    if (!moveQty) {
+      setFeedback({ tone: "error", message: "Move action is not available right now." });
+      return;
+    }
+    if (!moveFrom || !moveTo) {
+      setFeedback({ tone: "warning", message: "Select both From and To locations." });
+      return;
+    }
+    if (moveFrom === moveTo) {
+      setFeedback({ tone: "warning", message: "From and To locations must be different." });
+      return;
+    }
     moveQty(itemId, moveFrom, moveTo, q);
     setMoveQtyStr("");
+    setFeedback({ tone: "success", message: `Moved ${q} from selected source to destination.` });
   }
+
+  const handleClose = useCallback(() => {
+    setFeedback(null);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") handleClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, handleClose]);
+
+  useEffect(() => {
+    if (!open || !feedback) return;
+    const id = window.setTimeout(() => setFeedback(null), 3000);
+    return () => window.clearTimeout(id);
+  }, [feedback, open]);
 
   if (!open) return null;
 
   return (
-    <div className="modalOverlay" onMouseDown={onClose}>
+    <div className="modalOverlay" onMouseDown={handleClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Stock actions" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modalHeader">
           <div>
@@ -176,7 +220,7 @@ export default function StockModal({
               Receive, take out, and move quantities without duplicates.
             </div>
           </div>
-          <button className="btn" onClick={onClose}>
+          <button className="btn" onClick={handleClose}>
             Close
           </button>
         </div>
@@ -187,6 +231,12 @@ export default function StockModal({
               {lockMessage || "Stock actions are locked. Unlock in Settings or request Admin access."}
             </div>
           )}
+
+          {feedback ? (
+            <div className={`hint stockFeedback stockFeedback--${feedback.tone}`} role="status" aria-live="polite">
+              {feedback.message}
+            </div>
+          ) : null}
 
           <div className="stockGrid">
             <div className="panel">
