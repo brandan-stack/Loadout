@@ -26,7 +26,7 @@ import {
 } from "./lib/authStore";
 import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
 import { getToolAlertsForUser } from "./lib/toolSignoutStore";
-import { readLiveCloudSyncStatus, type LiveCloudSyncStatus } from "./lib/liveCloudSync";
+import { readLiveCloudSyncStatus, requestLiveCloudSyncNow, type LiveCloudSyncStatus } from "./lib/liveCloudSync";
 
 declare const __APP_VERSION__: string;
 
@@ -495,9 +495,20 @@ export default function App() {
             <div className="appSyncPanelLine">State: {syncStateText}</div>
             <div className="appSyncPanelLine">Last Sync: {syncStatus.lastSyncAt > 0 ? fmt(syncStatus.lastSyncAt) : "—"}</div>
             <div className="appSyncPanelLine">Details: {syncStatus.lastError || "No active errors."}</div>
-            <button type="button" className="btn" onClick={() => setSyncPanelOpen(false)}>
-              Close
-            </button>
+            <div className="appSyncPanelActions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  requestLiveCloudSyncNow();
+                }}
+              >
+                Retry Sync
+              </button>
+              <button type="button" className="btn" onClick={() => setSyncPanelOpen(false)}>
+                Close
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

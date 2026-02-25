@@ -1539,6 +1539,12 @@ button:focus-visible,
   overflow-wrap: anywhere;
 }
 
+.appSyncPanelActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .appSyncPanel.connected {
   border-color: color-mix(in srgb, var(--ok) 55%, var(--border2));
 }

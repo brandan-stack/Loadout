@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const EVENT_NAME = "loadout:state-updated";
 const STATUS_EVENT_NAME = "loadout:sync-status";
+const SYNC_NOW_EVENT_NAME = "loadout:sync-now";
 const DEVICE_ID_KEY = "loadout.syncDeviceId.v1";
 const LAST_SYNC_TS_KEY = "loadout.syncLastTimestamp.v1";
 const STATUS_KEY = "loadout.syncStatus.v1";
@@ -80,6 +81,11 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
     return { state: "disabled", lastSyncAt: 0, lastError: "" };
   }
   return readStatusRaw();
+}
+
+export function requestLiveCloudSyncNow() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(SYNC_NOW_EVENT_NAME));
 }
 
 function writeStatus(next: Partial<LiveCloudSyncStatus>) {
@@ -415,6 +421,12 @@ export function startLiveCloudSync(appVersion: string) {
   window.addEventListener("focus", onVisibilityOrFocus);
   document.addEventListener("visibilitychange", onVisibilityOrFocus);
 
+  const onSyncNow = () => {
+    writeStatus({ state: "connecting", lastError: "" });
+    void syncTick();
+  };
+  window.addEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
+
   const onBeforeUnload = () => {
     void syncTick();
   };
@@ -423,6 +435,7 @@ export function startLiveCloudSync(appVersion: string) {
   const teardown = () => {
     window.removeEventListener("focus", onVisibilityOrFocus);
     document.removeEventListener("visibilitychange", onVisibilityOrFocus);
+    window.removeEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
     window.removeEventListener("beforeunload", onBeforeUnload);
     window.clearInterval(timer);
     void client.removeChannel(channel);
