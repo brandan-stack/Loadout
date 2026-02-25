@@ -15,6 +15,7 @@ const POLL_MS = 1000;
 const KEY_PREFIXES = ["inventory.", "loadout."];
 const EXCLUDED_KEYS = new Set([
   DEVICE_ID_KEY,
+  LAST_SYNC_TS_KEY,
   STATUS_KEY,
   "inventory.session.v1",
   "inventory.rememberDevice.v1",
