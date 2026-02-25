@@ -243,12 +243,17 @@ export function startLiveCloudSync(appVersion: string) {
       }
     });
 
+  const syncTick = async () => {
+    await pullRemoteValues();
+    await pushLocalValues();
+  };
+
   const timer = window.setInterval(() => {
-    void pushLocalValues();
+    void syncTick();
   }, POLL_MS);
 
   const onBeforeUnload = () => {
-    void pushLocalValues();
+    void syncTick();
   };
   window.addEventListener("beforeunload", onBeforeUnload);
 
