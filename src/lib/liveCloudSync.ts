@@ -13,6 +13,9 @@ const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "l
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
 const POLL_MS = 3000;
+const RETRY_DELAY_MS = 600;
+const PUSH_RETRIES = 2;
+const PULL_RETRIES = 2;
 const TRACKED_KEYS = new Set([
   "inventory.items.v2",
   "inventory.categories.v2",
@@ -31,6 +34,30 @@ type CloudSnapshot = {
   appVersion: string;
   values: Record<string, string>;
 };
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function withRetry<T>(action: () => Promise<T>, retries: number): Promise<T> {
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retries) {
+    try {
+      return await action();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) break;
+      await delay(RETRY_DELAY_MS * (attempt + 1));
+    }
+    attempt += 1;
+  }
+
+  throw lastError;
+}
 
 function sanitizeEnv(value?: string): string {
   if (!value) return "";
@@ -257,6 +284,8 @@ export function startLiveCloudSync(appVersion: string) {
   }
   let currentSignature = signatureFor(collectLocalValues());
   let applyingRemote = false;
+  let syncInFlight = false;
+  let syncQueued = false;
 
   async function pushLocalValues() {
     if (applyingRemote) return;
@@ -280,15 +309,21 @@ export function startLiveCloudSync(appVersion: string) {
 
     let error: { message?: string } | null = null;
 
-    const upsertResult = await client.from(SYNC_TABLE).upsert(row, { onConflict: "id" });
-    if (upsertResult.error) {
-      const updateResult = await client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE);
-      if (updateResult.error) {
-        const insertResult = await client.from(SYNC_TABLE).insert(row);
-        if (insertResult.error) {
-          error = insertResult.error;
+    try {
+      await withRetry(async () => {
+        const upsertResult = await client.from(SYNC_TABLE).upsert(row, { onConflict: "id" });
+        if (upsertResult.error) {
+          const updateResult = await client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE);
+          if (updateResult.error) {
+            const insertResult = await client.from(SYNC_TABLE).insert(row);
+            if (insertResult.error) {
+              throw insertResult.error;
+            }
+          }
         }
-      }
+      }, PUSH_RETRIES);
+    } catch (err) {
+      error = (err as { message?: string }) ?? { message: "Unknown push error" };
     }
 
     if (error) {
@@ -310,7 +345,21 @@ export function startLiveCloudSync(appVersion: string) {
       return;
     }
 
-    const { data, error } = await client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle();
+    let data: { payload?: unknown } | null = null;
+    let error: { message?: string } | null = null;
+    try {
+      const result = await withRetry(async () => {
+        const next = await client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle();
+        if (next.error) {
+          throw next.error;
+        }
+        return next;
+      }, PULL_RETRIES);
+      data = result.data;
+    } catch (err) {
+      error = (err as { message?: string }) ?? { message: "Unknown pull error" };
+    }
+
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
       writeStatus({ state: "error", lastError: `Pull failed: ${error.message}` });
@@ -343,6 +392,28 @@ export function startLiveCloudSync(appVersion: string) {
       applyingRemote = false;
     }
   }
+
+  const runSyncTick = async () => {
+    if (syncInFlight) {
+      syncQueued = true;
+      return;
+    }
+    syncInFlight = true;
+    try {
+      await pushLocalValues();
+      await pullRemoteValues();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown sync error";
+      console.error("[Loadout Sync] Sync tick failed:", error);
+      writeStatus({ state: "error", lastError: `Sync failed: ${message}` });
+    } finally {
+      syncInFlight = false;
+      if (syncQueued) {
+        syncQueued = false;
+        void runSyncTick();
+      }
+    }
+  };
 
   void pullRemoteValues().then(() => pushLocalValues()).catch(() => {
     // no-op: already logged by pull/push
@@ -382,47 +453,51 @@ export function startLiveCloudSync(appVersion: string) {
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         writeStatus({ state: "connected", lastError: "" });
-        void pullRemoteValues();
+        void runSyncTick();
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
+        void runSyncTick();
       }
     });
 
-  const syncTick = async () => {
-    try {
-      await pushLocalValues();
-      await pullRemoteValues();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown sync error";
-      console.error("[Loadout Sync] Sync tick failed:", error);
-      writeStatus({ state: "error", lastError: `Sync failed: ${message}` });
-    }
-  };
-
   const timer = window.setInterval(() => {
-    void syncTick();
+    void runSyncTick();
   }, POLL_MS);
 
   const onVisibilityOrFocus = () => {
-    void syncTick();
+    void runSyncTick();
   };
   window.addEventListener("focus", onVisibilityOrFocus);
   document.addEventListener("visibilitychange", onVisibilityOrFocus);
 
+  const onLocalStateUpdated = () => {
+    if (applyingRemote) return;
+    void runSyncTick();
+  };
+  window.addEventListener(EVENT_NAME, onLocalStateUpdated);
+
+  const onStorage = (event: StorageEvent) => {
+    if (!event.key || !shouldTrackKey(event.key)) return;
+    void runSyncTick();
+  };
+  window.addEventListener("storage", onStorage);
+
   const onSyncNow = () => {
     writeStatus({ state: "connecting", lastError: "" });
-    void syncTick();
+    void runSyncTick();
   };
   window.addEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
 
   const onBeforeUnload = () => {
-    void syncTick();
+    void runSyncTick();
   };
   window.addEventListener("beforeunload", onBeforeUnload);
 
   const teardown = () => {
     window.removeEventListener("focus", onVisibilityOrFocus);
     document.removeEventListener("visibilitychange", onVisibilityOrFocus);
+    window.removeEventListener(EVENT_NAME, onLocalStateUpdated);
+    window.removeEventListener("storage", onStorage);
     window.removeEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
     window.removeEventListener("beforeunload", onBeforeUnload);
     window.clearInterval(timer);
