@@ -1126,6 +1126,17 @@ button:focus-visible,
   opacity: 0.6;
 }
 
+.adminAccessSelect option,
+.adminAccessSelect optgroup {
+  color: #111214;
+  background: #ffffff;
+}
+
+.adminAccessSelect option:checked {
+  background: #dbe8ff;
+  color: #111214;
+}
+
 .adminInlineControls {
   display: grid;
   grid-template-columns: 1fr auto;
