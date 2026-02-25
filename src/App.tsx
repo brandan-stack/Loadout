@@ -19,6 +19,7 @@ import {
   canAccessPartsUsed,
   canAccessToolSignout,
   canManageToolSignout,
+  canReceiveLowStockAlerts,
 } from "./lib/authStore";
 import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
 import { getToolAlertsForUser } from "./lib/toolSignoutStore";
@@ -87,7 +88,7 @@ export default function App() {
   const canOpenToolSignoutTab = !!me && canAccessToolSignout(me);
   const canManageTools = !!me && canManageToolSignout(me);
   const toolPendingCount = me && canOpenToolSignoutTab ? getToolAlertsForUser(me.id, canManageTools) : 0;
-  const lowStockCount = typeof window !== "undefined" ? getLowStockCountFromStorage() : 0;
+  const lowStockCount = typeof window !== "undefined" && canReceiveLowStockAlerts(me) ? getLowStockCountFromStorage() : 0;
   const alertCount = mePendingCount + lowStockCount;
   const canOpenPartsUsedTab = !!me && (canAccessPartsUsed(me) || !!me.receivesJobNotifications);
   const activeTab: Tab =
@@ -112,6 +113,8 @@ export default function App() {
 
   const setActiveTab = (nextTab: Tab) => {
     if (nextTab === "partsUsed" && !canOpenPartsUsedTab) {
+      setTab("dashboard");
+    } else if (nextTab === "toolSignout" && !canOpenToolSignoutTab) {
       setTab("dashboard");
     } else {
       setTab(nextTab);

@@ -9,8 +9,8 @@ import {
   setUserCanAccessPartsUsed,
   setUserCanAccessToolSignout,
   setUserCanManageToolSignout,
+  setUserCanReceiveLowStockAlerts,
   setUserReceivesJobNotifications,
-  setUserCanViewPricingMargin,
   setUserAccessPreset,
   getAccessSummary,
   type AccessPreset,
@@ -286,6 +286,27 @@ export default function AdminPanel() {
 
                       <div className="adminAccessRow">
                         <div>
+                          <div className="adminStrong">Low Stock Alerts</div>
+                          <div className="muted adminMeta">Show dashboard low-stock alerts for this user</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.canReceiveLowStockAlerts || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserCanReceiveLowStockAlerts(u.id, !u.canReceiveLowStockAlerts);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.canReceiveLowStockAlerts
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
                           <div className="adminStrong">Job Notifications</div>
                           <div className="muted adminMeta">Allow this user to receive Parts Used billing notifications</div>
                         </div>
@@ -308,22 +329,20 @@ export default function AdminPanel() {
                       <div className="adminAccessRow">
                         <div>
                           <div className="adminStrong">Pricing & Margin View</div>
-                          <div className="muted adminMeta">Allow this user to view price and margin in inventory</div>
+                          <div className="muted adminMeta">Current: {getAccessSummary(u, "pricing")}</div>
                         </div>
-                        <button
-                          className={"btn " + (u.canViewPricingMargin || u.role === "admin" ? "primary" : "")}
+                        <select
+                          value={u.pricingAccessPreset}
                           disabled={u.role === "admin"}
-                          onClick={() => {
-                            setUserCanViewPricingMargin(u.id, !u.canViewPricingMargin);
+                          onChange={(e) => {
+                            setUserAccessPreset(u.id, "pricing", e.target.value as AccessPreset);
                             setTick((x) => x + 1);
                           }}
                         >
-                          {u.role === "admin"
-                            ? "Always allowed"
-                            : u.canViewPricingMargin
-                            ? "Allowed"
-                            : "Blocked"}
-                        </button>
+                          {accessOptions.map((v) => (
+                            <option key={`pricing-${v}`} value={v}>{accessLabel(v)}</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="adminAccessRow">

@@ -10,8 +10,7 @@ import {
   isUnlocked,
   canManageUsers,
   resetUsersToDefaults,
-  loadSecuritySettings,
-  saveSecuritySettings,
+  canReceiveLowStockAlerts,
   getAccessSummary,
   type Role,
 } from "../lib/authStore";
@@ -73,19 +72,19 @@ export default function SettingsScreen() {
   const unlocked = isUnlocked();
   const isAdmin = canManageUsers(me);
 
-  const sec = loadSecuritySettings();
-
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
 
   const activeUsers = users.filter((u) => u.isActive);
   const selectedUser = activeUsers.find((u) => u.id === session.currentUserId) ?? null;
   const accessAdd = me ? getAccessSummary(me, "add") : "Blocked";
   const accessEdit = me ? getAccessSummary(me, "edit") : "Blocked";
+  const accessPricingSummary = me ? getAccessSummary(me, "pricing") : "Blocked";
   const accessPartsUsed = me?.canAccessPartsUsed ? "Allowed" : "Blocked";
   const accessToolSignout = me?.canAccessToolSignout || me?.role === "admin" ? "Allowed" : "Blocked";
   const accessToolDashboard = me?.canManageToolSignout || me?.role === "admin" ? "Allowed" : "Blocked";
+  const accessLowStockAlerts = canReceiveLowStockAlerts(me) ? "Allowed" : "Blocked";
   const accessNotifications = me?.receivesJobNotifications ? "Allowed" : "Blocked";
-  const accessPricing = me?.canViewPricingMargin ? "Allowed" : "Blocked";
+  const accessPricing = me?.canViewPricingMargin || accessPricingSummary !== "Blocked" ? "Allowed" : "Blocked";
   const canManagePdf = !!isAdmin && unlocked;
   const pendingToolRequests = getPendingToolRequests();
   const activeToolSignouts = getActiveToolSignouts();
@@ -269,8 +268,9 @@ export default function SettingsScreen() {
           <span className="chip">Parts Used: {accessPartsUsed}</span>
           <span className="chip">Tool Signout: {accessToolSignout}</span>
           <span className="chip">Tool Dashboard: {accessToolDashboard}</span>
+          <span className="chip">Low Stock Alerts: {accessLowStockAlerts}</span>
           <span className="chip">Job Notifications: {accessNotifications}</span>
-          <span className="chip">Pricing/Margin: {accessPricing}</span>
+          <span className="chip">Pricing/Margin: {accessPricing} ({accessPricingSummary})</span>
           <span className="chip">Add Access: {accessAdd}</span>
           <span className="chip">Edit/Stock Access: {accessEdit}</span>
           {unlocked ? <span className="chip">Session: Unlocked</span> : <span className="chip">Session: Locked</span>}
@@ -362,7 +362,7 @@ export default function SettingsScreen() {
                 Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
                 {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
               </div>
-              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Tool Signout: {accessToolSignout} • Tool Dashboard: {accessToolDashboard} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricing} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
+              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Tool Signout: {accessToolSignout} • Tool Dashboard: {accessToolDashboard} • Low Stock Alerts: {accessLowStockAlerts} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricingSummary} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
             </div>
 
             <input
@@ -397,7 +397,7 @@ export default function SettingsScreen() {
             <div className="settingsSelectedUserCard">
               <div className="settingsStrong">Selected User Details</div>
               <div className="muted settingsCurrentAccess">
-                {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Tool Signout: {selectedUser.canAccessToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Tool Dashboard: {selectedUser.canManageToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {selectedUser.canViewPricingMargin ? "Allowed" : "Blocked"}
+                {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Tool Signout: {selectedUser.canAccessToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Tool Dashboard: {selectedUser.canManageToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Low Stock Alerts: {selectedUser.canReceiveLowStockAlerts || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {getAccessSummary(selectedUser, "pricing")}
               </div>
             </div>
           ) : null}
@@ -426,61 +426,6 @@ export default function SettingsScreen() {
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
               </select>
-            </div>
-          </div>
-
-          <div className="card cardSoft settingsCard settingsTabPanel">
-            <div className="label">Security</div>
-            <div className="muted settingsSubtleGap">
-              These rules apply on this device (local-first).
-            </div>
-
-            <div className="settingsRow2 settingsSecurityRow">
-              <div>
-                <div className="settingsStrong">Auto-lock (minutes)</div>
-                <div className="muted">After unlocking, lock again automatically.</div>
-              </div>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={sec.autoLockMinutes}
-                onChange={(e) => {
-                  const v = Math.max(0, Number(e.target.value || 0));
-                  saveSecuritySettings({ autoLockMinutes: v });
-                  setTick((x) => x + 1);
-                }}
-              />
-            </div>
-
-            <div className="settingsChecks">
-              <label className="settingsCheckLabel">
-                <input
-                  type="checkbox"
-                  checked={sec.requirePinForStock}
-                  onChange={(e) => {
-                    saveSecuritySettings({ requirePinForStock: e.target.checked });
-                    setTick((x) => x + 1);
-                  }}
-                />
-                <span>
-                  <b>Require PIN</b> for stock actions (receive/take out/move)
-                </span>
-              </label>
-
-              <label className="settingsCheckLabel">
-                <input
-                  type="checkbox"
-                  checked={sec.requirePinForCosts}
-                  onChange={(e) => {
-                    saveSecuritySettings({ requirePinForCosts: e.target.checked });
-                    setTick((x) => x + 1);
-                  }}
-                />
-                <span>
-                  <b>Require PIN</b> to view costs/profit fields
-                </span>
-              </label>
             </div>
           </div>
 

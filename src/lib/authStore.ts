@@ -1,7 +1,7 @@
 export type Role = "admin" | "stock" | "invoicing" | "viewer";
 export type AccessPreset = "blocked" | "permanent" | "1h" | "2h" | "4h" | "8h";
 
-type AccessField = "add" | "edit";
+type AccessField = "add" | "edit" | "pricing";
 
 export type User = {
   id: string;
@@ -9,11 +9,14 @@ export type User = {
   role: Role;
   pin?: string; // 4–8 digits recommended
   isActive: boolean;
+  canReceiveLowStockAlerts: boolean;
   canAccessPartsUsed: boolean;
   canAccessToolSignout: boolean;
   canManageToolSignout: boolean;
   receivesJobNotifications: boolean;
   canViewPricingMargin: boolean;
+  pricingAccessPreset: AccessPreset;
+  pricingAccessUntil: number;
   canAddInventory: boolean;
   addAccessPreset: AccessPreset;
   addAccessUntil: number;
@@ -107,6 +110,15 @@ function defaultPricingAccessForRole(role: Role): boolean {
   return role === "admin" || role === "invoicing";
 }
 
+function defaultPricingPresetForRole(role: Role): AccessPreset {
+  if (role === "admin" || role === "invoicing") return "permanent";
+  return "blocked";
+}
+
+function defaultLowStockAlertForRole(role: Role): boolean {
+  return role === "admin" || role === "stock";
+}
+
 function isAccessActive(preset: AccessPreset, until: number): boolean {
   if (preset === "permanent") return true;
   if (preset === "blocked") return false;
@@ -119,8 +131,10 @@ function normalizeUser(u: unknown): User {
   const legacyCanAdd = typeof rec.canAddInventory === "boolean" ? rec.canAddInventory : role === "admin";
   const addFallback = defaultAddPresetForRole(role, legacyCanAdd);
   const editFallback = defaultEditPresetForRole(role);
+  const pricingFallback = defaultPricingPresetForRole(role);
   const addAccessPreset = normalizePreset(rec.addAccessPreset, addFallback);
   const editAccessPreset = normalizePreset(rec.editAccessPreset, editFallback);
+  const pricingAccessPreset = normalizePreset(rec.pricingAccessPreset, pricingFallback);
   const canAccessPartsUsed =
     typeof rec.canAccessPartsUsed === "boolean"
       ? rec.canAccessPartsUsed
@@ -141,6 +155,10 @@ function normalizeUser(u: unknown): User {
     typeof rec.canViewPricingMargin === "boolean"
       ? rec.canViewPricingMargin
       : defaultPricingAccessForRole(role);
+  const canReceiveLowStockAlerts =
+    typeof rec.canReceiveLowStockAlerts === "boolean"
+      ? rec.canReceiveLowStockAlerts
+      : defaultLowStockAlertForRole(role);
   return {
     id: String(rec.id || newId()),
     name: String(rec.name || "User").trim() || "User",
@@ -148,11 +166,14 @@ function normalizeUser(u: unknown): User {
     pin: typeof rec.pin === "string" ? rec.pin : "",
     // KEY FIX: if old data has no isActive → treat as ACTIVE
     isActive: typeof rec.isActive === "boolean" ? rec.isActive : true,
+    canReceiveLowStockAlerts,
     canAccessPartsUsed,
     canAccessToolSignout,
     canManageToolSignout,
     receivesJobNotifications,
     canViewPricingMargin,
+    pricingAccessPreset,
+    pricingAccessUntil: Number(rec.pricingAccessUntil || 0),
     canAddInventory: legacyCanAdd,
     addAccessPreset,
     addAccessUntil: Number(rec.addAccessUntil || 0),
@@ -169,11 +190,14 @@ function defaultUsers(): User[] {
       role: "admin",
       pin: "1234",
       isActive: true,
+      canReceiveLowStockAlerts: true,
       canAccessPartsUsed: true,
       canAccessToolSignout: true,
       canManageToolSignout: true,
       receivesJobNotifications: true,
       canViewPricingMargin: true,
+      pricingAccessPreset: "permanent",
+      pricingAccessUntil: 0,
       canAddInventory: true,
       addAccessPreset: "permanent",
       addAccessUntil: 0,
@@ -186,11 +210,14 @@ function defaultUsers(): User[] {
       role: "stock",
       pin: "1111",
       isActive: true,
+      canReceiveLowStockAlerts: true,
       canAccessPartsUsed: false,
       canAccessToolSignout: true,
       canManageToolSignout: false,
       receivesJobNotifications: false,
       canViewPricingMargin: false,
+      pricingAccessPreset: "blocked",
+      pricingAccessUntil: 0,
       canAddInventory: false,
       addAccessPreset: "blocked",
       addAccessUntil: 0,
@@ -203,11 +230,14 @@ function defaultUsers(): User[] {
       role: "invoicing",
       pin: "2222",
       isActive: true,
+      canReceiveLowStockAlerts: false,
       canAccessPartsUsed: false,
       canAccessToolSignout: false,
       canManageToolSignout: false,
       receivesJobNotifications: true,
       canViewPricingMargin: true,
+      pricingAccessPreset: "permanent",
+      pricingAccessUntil: 0,
       canAddInventory: false,
       addAccessPreset: "blocked",
       addAccessUntil: 0,
@@ -220,11 +250,14 @@ function defaultUsers(): User[] {
       role: "viewer",
       pin: "",
       isActive: true,
+      canReceiveLowStockAlerts: false,
       canAccessPartsUsed: false,
       canAccessToolSignout: false,
       canManageToolSignout: false,
       receivesJobNotifications: false,
       canViewPricingMargin: false,
+      pricingAccessPreset: "blocked",
+      pricingAccessUntil: 0,
       canAddInventory: false,
       addAccessPreset: "blocked",
       addAccessUntil: 0,
@@ -253,11 +286,14 @@ export function ensureDefaults() {
         role: "admin",
         pin: "1234",
         isActive: true,
+        canReceiveLowStockAlerts: true,
         canAccessPartsUsed: true,
         canAccessToolSignout: true,
         canManageToolSignout: true,
         receivesJobNotifications: true,
         canViewPricingMargin: true,
+        pricingAccessPreset: "permanent",
+        pricingAccessUntil: 0,
         canAddInventory: true,
         addAccessPreset: "permanent",
         addAccessUntil: 0,
@@ -373,12 +409,18 @@ export function canAdjustStock(u: User | null) {
   return canEditInventory(u);
 }
 export function canSeeCosts(u: User | null) {
-  return !!u && (u.role === "admin" || u.role === "invoicing");
+  return canViewPricingMargin(u);
 }
 export function canViewPricingMargin(u: User | null) {
   if (!u) return false;
   if (u.role === "admin") return true;
+  if (isAccessActive(u.pricingAccessPreset, u.pricingAccessUntil)) return true;
   return !!u.canViewPricingMargin;
+}
+export function canReceiveLowStockAlerts(u: User | null) {
+  if (!u) return false;
+  if (u.role === "admin") return true;
+  return !!u.canReceiveLowStockAlerts;
 }
 export function canAccessPartsUsed(u: User | null) {
   if (!u) return false;
@@ -417,11 +459,14 @@ export function addUser(input: { name: string; role: Role; pin?: string }) {
     role: input.role,
     pin: (input.pin ?? "").trim(),
     isActive: true,
+    canReceiveLowStockAlerts: defaultLowStockAlertForRole(input.role),
     canAccessPartsUsed: defaultPartsUsedAccessForRole(input.role),
     canAccessToolSignout: defaultToolSignoutAccessForRole(input.role),
     canManageToolSignout: defaultToolSignoutManageForRole(input.role),
     receivesJobNotifications: defaultJobNotificationForRole(input.role),
     canViewPricingMargin: defaultPricingAccessForRole(input.role),
+    pricingAccessPreset: defaultPricingPresetForRole(input.role),
+    pricingAccessUntil: 0,
     canAddInventory: canAdd,
     addAccessPreset: defaultAddPresetForRole(input.role, canAdd),
     addAccessUntil: 0,
@@ -511,10 +556,25 @@ export function setUserCanViewPricingMargin(userId: string, allowed: boolean) {
   const target = users.find((u) => u.id === userId);
   if (!target) return;
   if (target.role === "admin") {
-    updateUser(userId, { canViewPricingMargin: true });
+    updateUser(userId, { canViewPricingMargin: true, pricingAccessPreset: "permanent", pricingAccessUntil: 0 });
     return;
   }
-  updateUser(userId, { canViewPricingMargin: !!allowed });
+  updateUser(userId, {
+    canViewPricingMargin: !!allowed,
+    pricingAccessPreset: allowed ? "permanent" : "blocked",
+    pricingAccessUntil: 0,
+  });
+}
+
+export function setUserCanReceiveLowStockAlerts(userId: string, allowed: boolean) {
+  const users = loadUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return;
+  if (target.role === "admin") {
+    updateUser(userId, { canReceiveLowStockAlerts: true });
+    return;
+  }
+  updateUser(userId, { canReceiveLowStockAlerts: !!allowed });
 }
 export function setUserCanAddInventory(userId: string, allowed: boolean) {
   const users = loadUsers();
@@ -541,6 +601,9 @@ export function setUserAccessPreset(userId: string, field: AccessField, preset: 
       canAddInventory: true,
       addAccessPreset: "permanent",
       addAccessUntil: 0,
+      canViewPricingMargin: true,
+      pricingAccessPreset: "permanent",
+      pricingAccessUntil: 0,
       editAccessPreset: "permanent",
       editAccessUntil: 0,
     });
@@ -557,6 +620,15 @@ export function setUserAccessPreset(userId: string, field: AccessField, preset: 
     return;
   }
 
+  if (field === "pricing") {
+    updateUser(userId, {
+      canViewPricingMargin: preset !== "blocked",
+      pricingAccessPreset: preset,
+      pricingAccessUntil: until,
+    });
+    return;
+  }
+
   updateUser(userId, {
     editAccessPreset: preset,
     editAccessUntil: until,
@@ -564,8 +636,8 @@ export function setUserAccessPreset(userId: string, field: AccessField, preset: 
 }
 
 export function getAccessSummary(user: User, field: AccessField) {
-  const preset = field === "add" ? user.addAccessPreset : user.editAccessPreset;
-  const until = field === "add" ? user.addAccessUntil : user.editAccessUntil;
+  const preset = field === "add" ? user.addAccessPreset : field === "edit" ? user.editAccessPreset : user.pricingAccessPreset;
+  const until = field === "add" ? user.addAccessUntil : field === "edit" ? user.editAccessUntil : user.pricingAccessUntil;
   if (preset === "blocked") return "Blocked";
   if (preset === "permanent") return "Permanent";
   const ms = Number(until || 0) - Date.now();
