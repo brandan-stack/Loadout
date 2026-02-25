@@ -317,7 +317,9 @@ export function startLiveCloudSync(appVersion: string) {
       return;
     }
 
-    writeStatus({ state: "connected", lastError: "" });
+    const heartbeatTs = Date.now();
+    writeLastSyncTimestamp(heartbeatTs);
+    writeStatus({ state: "connected", lastSyncAt: heartbeatTs, lastError: "" });
 
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) {
