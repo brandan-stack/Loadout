@@ -331,8 +331,12 @@ export function startLiveCloudSync(appVersion: string) {
       return;
     }
 
+    writeStatus({ state: "connected", lastError: "" });
+
     const snapshot = normalizeSnapshot(data?.payload);
-    if (!snapshot) return;
+    if (!snapshot) {
+      return;
+    }
 
     const mergedValues = mergeRemoteIntoLocal(localValues, snapshot.values);
     const remoteSignature = signatureFor(mergedValues);
@@ -392,7 +396,7 @@ export function startLiveCloudSync(appVersion: string) {
         writeStatus({ state: "connected", lastError: "" });
         void pullRemoteValues();
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        writeStatus({ state: "error", lastError: `Realtime status: ${status}` });
+        writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
       }
     });
 
