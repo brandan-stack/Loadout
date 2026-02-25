@@ -286,11 +286,24 @@ export function startLiveCloudSync(appVersion: string) {
       values,
     };
 
-    const { error } = await client.from(SYNC_TABLE).upsert({
+    const row = {
       id: SYNC_SPACE,
       payload: snapshot,
       updated_at: new Date(snapshot.updatedAt).toISOString(),
-    });
+    };
+
+    let error: { message?: string } | null = null;
+
+    const upsertResult = await client.from(SYNC_TABLE).upsert(row, { onConflict: "id" });
+    if (upsertResult.error) {
+      const updateResult = await client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE);
+      if (updateResult.error) {
+        const insertResult = await client.from(SYNC_TABLE).insert(row);
+        if (insertResult.error) {
+          error = insertResult.error;
+        }
+      }
+    }
 
     if (error) {
       console.warn("[Loadout Sync] Push failed:", error.message);
