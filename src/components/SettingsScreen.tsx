@@ -265,14 +265,14 @@ export default function SettingsScreen() {
         <div className="chips settingsChips">
           <span className="chip">Active Users: {activeUsers.length}</span>
           <span className="chip">Current: {me?.name ?? "None"}</span>
-          <span className="chip">Parts Used: {accessPartsUsed}</span>
-          <span className="chip">Tool Signout: {accessToolSignout}</span>
-          <span className="chip">Tool Dashboard: {accessToolDashboard}</span>
-          <span className="chip">Low Stock Alerts: {accessLowStockAlerts}</span>
-          <span className="chip">Job Notifications: {accessNotifications}</span>
-          <span className="chip">Pricing/Margin: {accessPricing} ({accessPricingSummary})</span>
-          <span className="chip">Add Access: {accessAdd}</span>
-          <span className="chip">Edit/Stock Access: {accessEdit}</span>
+          <span className="chip settingsMobileHideAccess">Parts Used: {accessPartsUsed}</span>
+          <span className="chip settingsMobileHideAccess">Tool Signout: {accessToolSignout}</span>
+          <span className="chip settingsMobileHideAccess">Tool Dashboard: {accessToolDashboard}</span>
+          <span className="chip settingsMobileHideAccess">Low Stock Alerts: {accessLowStockAlerts}</span>
+          <span className="chip settingsMobileHideAccess">Job Notifications: {accessNotifications}</span>
+          <span className="chip settingsMobileHideAccess">Pricing/Margin: {accessPricing} ({accessPricingSummary})</span>
+          <span className="chip settingsMobileHideAccess">Add Access: {accessAdd}</span>
+          <span className="chip settingsMobileHideAccess">Edit/Stock Access: {accessEdit}</span>
           {unlocked ? <span className="chip">Session: Unlocked</span> : <span className="chip">Session: Locked</span>}
         </div>
       </div>
@@ -347,7 +347,8 @@ export default function SettingsScreen() {
                   <span className="settingsUserMain">
                     <span className="settingsUserName">{u.name}</span>
                     <span className="muted settingsUserMeta">
-                      {roleLabel(u.role)} • Parts Used: {u.canAccessPartsUsed ? "Allowed" : "Blocked"}
+                      {roleLabel(u.role)}
+                      <span className="settingsMobileHideAccess"> • Parts Used: {u.canAccessPartsUsed ? "Allowed" : "Blocked"}</span>
                     </span>
                   </span>
                   <span className="pill">{u.id === session.currentUserId ? "Selected" : "Select"}</span>
@@ -362,7 +363,7 @@ export default function SettingsScreen() {
                 Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
                 {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
               </div>
-              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Tool Signout: {accessToolSignout} • Tool Dashboard: {accessToolDashboard} • Low Stock Alerts: {accessLowStockAlerts} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricingSummary} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
+              <div className="settingsCurrentAccess settingsMobileHideAccess">Parts Used: {accessPartsUsed} • Tool Signout: {accessToolSignout} • Tool Dashboard: {accessToolDashboard} • Low Stock Alerts: {accessLowStockAlerts} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricingSummary} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
             </div>
 
             <input
@@ -396,7 +397,7 @@ export default function SettingsScreen() {
           {selectedUser ? (
             <div className="settingsSelectedUserCard">
               <div className="settingsStrong">Selected User Details</div>
-              <div className="muted settingsCurrentAccess">
+              <div className="muted settingsCurrentAccess settingsMobileHideAccess">
                 {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Tool Signout: {selectedUser.canAccessToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Tool Dashboard: {selectedUser.canManageToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Low Stock Alerts: {selectedUser.canReceiveLowStockAlerts || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {getAccessSummary(selectedUser, "pricing")}
               </div>
             </div>

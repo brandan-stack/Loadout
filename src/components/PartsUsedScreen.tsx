@@ -8,6 +8,7 @@ import {
   addJobNotification,
   getNotificationsForUser,
   markAllJobNotificationsReadForUser,
+  markJobNotificationUnread,
   markJobNotificationsUnread,
   markJobNotificationRead,
 } from "../lib/jobNotificationsStore";
@@ -95,6 +96,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const [, bump] = useReducer((value: number) => value + 1, 0);
   const canUsePartsEntry = canAccessPartsUsed(me);
   const canViewNotifications = !!me && (me.role === "admin" || !!me.receivesJobNotifications);
+  const useCompactPartPicker = me?.role !== "invoicing";
 
   const draft = useMemo(() => loadDraft(), []);
 
@@ -120,6 +122,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(draft.savedAt ?? null);
   const [toast, setToast] = useState<InlineToast | null>(null);
   const [lastReadNotificationIds, setLastReadNotificationIds] = useState<string[]>([]);
+  const [notificationView, setNotificationView] = useState<"unread" | "read">("unread");
 
   const notifyUsers = useMemo(
     () =>
@@ -130,6 +133,26 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   );
   const myNotifications = me ? getNotificationsForUser(me.id).slice(0, 30) : [];
   const myUnreadNotifications = myNotifications.filter((n) => !n.read).slice(0, 10);
+  const myReadNotifications = myNotifications.filter((n) => n.read).slice(0, 20);
+  const myVisibleNotifications = notificationView === "unread" ? myUnreadNotifications : myReadNotifications;
+
+  const visibleJobTotals = useMemo(() => {
+    const byJob = new Map<string, { total: number; lines: number }>();
+    for (const n of myVisibleNotifications) {
+      const key = (n.jobNumber || "").trim();
+      if (!key) continue;
+      const entry = byJob.get(key) ?? { total: 0, lines: 0 };
+      entry.lines += 1;
+      if (typeof n.lineCost === "number" && Number.isFinite(n.lineCost)) {
+        entry.total += n.lineCost;
+      }
+      byJob.set(key, entry);
+    }
+    return Array.from(byJob.entries())
+      .map(([jobNumber, data]) => ({ jobNumber, ...data }))
+      .filter((row) => row.lines > 1)
+      .sort((a, b) => b.total - a.total);
+  }, [myVisibleNotifications]);
 
   useEffect(() => {
     if (!toast) return;
@@ -201,6 +224,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   ];
 
   const totalQueuedQty = queuedLines.reduce((sum, line) => sum + line.qty, 0);
+
+  function qtyForItem(itemId: string) {
+    if (selectedItemId === itemId) return useQty;
+    return "1";
+  }
 
   function addSelectedToQueue() {
     setAttemptedAdd(true);
@@ -419,7 +447,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                 <span className="searchHint">Serial Number</span>
               </div>
             </div>
-            <input className={attemptedAdd && !validQty ? "inputInvalid" : ""} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity for selected part" />
+            {useCompactPartPicker ? (
+              <div className="dashboardItemMeta">Select a part and enter quantity beside the Select button.</div>
+            ) : (
+              <input className={attemptedAdd && !validQty ? "inputInvalid" : ""} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity for selected part" />
+            )}
             <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
               <option value="">Missing Location</option>
               {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -452,9 +484,32 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                     <Badge>Low: {it.lowStock ?? "—"}</Badge>
                   </div>
                 </div>
-                <button className="btn" onClick={() => setSelectedItemId(it.id)}>
-                  {selectedItemId === it.id ? "Selected" : "Select Part"}
-                </button>
+                <div className={useCompactPartPicker ? "dashboardInlinePick" : undefined}>
+                  {useCompactPartPicker ? (
+                    <input
+                      className={attemptedAdd && selectedItemId === it.id && !validQty ? "inputInvalid dashboardQueueQty" : "dashboardQueueQty"}
+                      value={qtyForItem(it.id)}
+                      onChange={(e) => {
+                        const nextQty = e.target.value;
+                        setSelectedItemId(it.id);
+                        setUseQty(nextQty);
+                      }}
+                      inputMode="numeric"
+                      aria-label={`Quantity for ${it.name}`}
+                    />
+                  ) : null}
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setSelectedItemId(it.id);
+                      if (useCompactPartPicker) {
+                        setUseQty(qtyForItem(it.id));
+                      }
+                    }}
+                  >
+                    {selectedItemId === it.id ? "Selected" : "Select Part"}
+                  </button>
+                </div>
               </div>
             ))}
             {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
@@ -556,8 +611,22 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           <div className="dashboardCardTitle">My Billing Notifications</div>
           <div className="dashboardJobActions">
             <button
+              className={"btn " + (notificationView === "unread" ? "primary" : "")}
+              type="button"
+              onClick={() => setNotificationView("unread")}
+            >
+              Unread ({myUnreadNotifications.length})
+            </button>
+            <button
+              className={"btn " + (notificationView === "read" ? "primary" : "")}
+              type="button"
+              onClick={() => setNotificationView("read")}
+            >
+              Read ({myReadNotifications.length})
+            </button>
+            <button
               className="btn"
-              disabled={!me || myUnreadNotifications.length === 0}
+              disabled={!me || notificationView !== "unread" || myUnreadNotifications.length === 0}
               onClick={() => {
                 if (!me) return;
                 setLastReadNotificationIds(myUnreadNotifications.map((n) => n.id));
@@ -582,14 +651,32 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
               Undo
             </button>
           </div>
+
+          {visibleJobTotals.length > 0 ? (
+            <div className="dashboardStack">
+              <div className="dashboardSectionTitle">Total Cost by Job Number (multiple items)</div>
+              {visibleJobTotals.map((row) => (
+                <div key={row.jobNumber} className="dashboardRowCard">
+                  <div className="dashboardItemMain">
+                    <div className="dashboardUsageTop">
+                      <Badge>Job #{row.jobNumber}</Badge>
+                      <Badge>Items: {row.lines}</Badge>
+                    </div>
+                  </div>
+                  <div className="dashboardStrong">{money(row.total)}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <div className="dashboardStack">
-            {myUnreadNotifications.map((n) => (
+            {myVisibleNotifications.map((n) => (
               <div key={n.id} className="dashboardRowCard">
                 <div className="dashboardItemMain">
                   <div className="dashboardUsageTop">
                     <Badge>{fmt(n.ts)}</Badge>
                     <span className="pill pillRed">⚠ Billing Required</span>
-                    <Badge>Unread</Badge>
+                    <Badge>{n.read ? "Read" : "Unread"}</Badge>
                   </div>
                   <div className="dashboardUsageMeta">{n.message}</div>
                   <div className="dashboardUsageMeta">
@@ -613,17 +700,26 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                 <button
                   className="btn"
                   onClick={() => {
-                    markJobNotificationRead(n.id);
-                    setLastReadNotificationIds([n.id]);
+                    if (n.read) {
+                      markJobNotificationUnread(n.id);
+                      setLastReadNotificationIds([]);
+                    } else {
+                      markJobNotificationRead(n.id);
+                      setLastReadNotificationIds([n.id]);
+                    }
                     onChanged?.();
                     bump();
                   }}
                 >
-                  Mark as read
+                  {n.read ? "Mark as unread" : "Mark as read"}
                 </button>
               </div>
             ))}
-            {myUnreadNotifications.length === 0 ? <div className="dashboardMuted">No unread notifications for this user.</div> : null}
+            {myVisibleNotifications.length === 0 ? (
+              <div className="dashboardMuted">
+                {notificationView === "unread" ? "No unread notifications for this user." : "No read notifications for this user."}
+              </div>
+            ) : null}
           </div>
         </div>
         ) : null}

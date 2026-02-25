@@ -608,7 +608,7 @@ export default function InventoryScreen() {
 
       {/* Filters */}
       <div className="card inventoryFilterCard">
-        <div className="row rowBetween">
+        <div>
           <div className="filterControls">
             <div className="searchBlock">
               <input

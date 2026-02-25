@@ -1846,6 +1846,16 @@ button:focus-visible,
   width: 110px;
 }
 
+.dashboardInlinePick {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboardInlinePick .dashboardQueueQty {
+  width: 96px;
+}
+
 .dashboardItemMain {
   flex: 1;
   min-width: 0;
@@ -1992,6 +2002,15 @@ button:focus-visible,
 
   .dashboardRightMeta {
     text-align: left;
+  }
+
+  .dashboardInlinePick {
+    width: 100%;
+  }
+
+  .dashboardInlinePick .dashboardQueueQty {
+    width: 100%;
+    min-height: 44px;
   }
 }
 
@@ -2273,6 +2292,10 @@ button:focus-visible,
 }
 
 @media (max-width: 560px) {
+  .settingsMobileHideAccess {
+    display: none !important;
+  }
+
   .card,
   .cardSoft,
   .card-soft,
