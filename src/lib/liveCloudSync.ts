@@ -158,10 +158,6 @@ function getOrCreateDeviceId(): string {
   return created;
 }
 
-function readLastSyncTimestamp(): number {
-  return safeNumber(window.localStorage.getItem(LAST_SYNC_TS_KEY), 0);
-}
-
 function writeLastSyncTimestamp(timestamp: number) {
   window.localStorage.setItem(LAST_SYNC_TS_KEY, String(timestamp || 0));
 }
@@ -271,7 +267,8 @@ export function startLiveCloudSync(appVersion: string) {
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) return;
 
-    if (snapshot.updatedAt <= readLastSyncTimestamp()) {
+    const remoteSignature = signatureFor(snapshot.values);
+    if (remoteSignature === currentSignature) {
       return;
     }
 
@@ -300,8 +297,9 @@ export function startLiveCloudSync(appVersion: string) {
         const nextRow = payload.new as Record<string, unknown> | null;
         const snapshot = normalizeSnapshot(nextRow?.payload);
         if (!snapshot) return;
-        if (snapshot.updatedBy === deviceId) return;
-        if (snapshot.updatedAt <= readLastSyncTimestamp()) return;
+
+        const remoteSignature = signatureFor(snapshot.values);
+        if (remoteSignature === currentSignature) return;
 
         applyingRemote = true;
         try {
