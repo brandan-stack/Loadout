@@ -2,7 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 
 const EVENT_NAME = "loadout:state-updated";
 const STATUS_EVENT_NAME = "loadout:sync-status";
-const LOCAL_WRITE_EVENT_NAME = "loadout:local-write";
 const DEVICE_ID_KEY = "loadout.syncDeviceId.v1";
 const LAST_SYNC_TS_KEY = "loadout.syncLastTimestamp.v1";
 const STATUS_KEY = "loadout.syncStatus.v1";
@@ -12,7 +11,7 @@ const SYNC_ANON_KEY_RAW = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string 
 const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "loadout_sync";
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
-const POLL_MS = 2500;
+const POLL_MS = 1000;
 const KEY_PREFIXES = ["inventory.", "loadout."];
 const EXCLUDED_KEYS = new Set([
   "inventory.session.v1",
@@ -20,12 +19,6 @@ const EXCLUDED_KEYS = new Set([
   "loadout.pdfBackup.lastSyncAt.v1",
   "loadout.pdfBackup.lastError.v1",
 ]);
-
-declare global {
-  interface Window {
-    __loadoutSyncLocalStorageHookInstalled?: boolean;
-  }
-}
 
 type CloudSnapshot = {
   updatedAt: number;
@@ -129,38 +122,6 @@ function shouldTrackKey(key: string): boolean {
   return KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) && !EXCLUDED_KEYS.has(key);
 }
 
-function emitLocalWriteSignal(changedKey?: string | null) {
-  if (changedKey && !shouldTrackKey(changedKey)) return;
-  window.dispatchEvent(new Event(LOCAL_WRITE_EVENT_NAME));
-}
-
-function installLocalStorageHook() {
-  if (window.__loadoutSyncLocalStorageHookInstalled) return;
-  window.__loadoutSyncLocalStorageHookInstalled = true;
-
-  const rawSetItem = window.localStorage.setItem.bind(window.localStorage);
-  const rawRemoveItem = window.localStorage.removeItem.bind(window.localStorage);
-  const rawClear = window.localStorage.clear.bind(window.localStorage);
-
-  window.localStorage.setItem = (key: string, value: string) => {
-    rawSetItem(key, value);
-    emitLocalWriteSignal(key);
-  };
-
-  window.localStorage.removeItem = (key: string) => {
-    rawRemoveItem(key);
-    emitLocalWriteSignal(key);
-  };
-
-  window.localStorage.clear = () => {
-    const hadTrackedKeys = getTrackedKeys().length > 0;
-    rawClear();
-    if (hadTrackedKeys) {
-      emitLocalWriteSignal();
-    }
-  };
-}
-
 function getTrackedKeys(): string[] {
   const keys: string[] = [];
   for (let index = 0; index < window.localStorage.length; index += 1) {
@@ -226,7 +187,6 @@ function applyRemoteValues(values: Record<string, string>) {
 export function startLiveCloudSync(appVersion: string) {
   if (typeof window === "undefined") return;
   writeStatus({ state: "connecting", lastError: "" });
-  installLocalStorageHook();
 
   if (!SYNC_URL || !SYNC_ANON_KEY) {
     console.info("[Loadout Sync] Cloud sync disabled (missing VITE_SYNC_SUPABASE_URL or VITE_SYNC_SUPABASE_ANON_KEY).");
@@ -369,11 +329,11 @@ export function startLiveCloudSync(appVersion: string) {
     void syncTick();
   }, POLL_MS);
 
-  const onLocalWrite = () => {
-    if (applyingRemote) return;
+  const onVisibilityOrFocus = () => {
     void syncTick();
   };
-  window.addEventListener(LOCAL_WRITE_EVENT_NAME, onLocalWrite);
+  window.addEventListener("focus", onVisibilityOrFocus);
+  document.addEventListener("visibilitychange", onVisibilityOrFocus);
 
   const onBeforeUnload = () => {
     void syncTick();
@@ -381,7 +341,8 @@ export function startLiveCloudSync(appVersion: string) {
   window.addEventListener("beforeunload", onBeforeUnload);
 
   const teardown = () => {
-    window.removeEventListener(LOCAL_WRITE_EVENT_NAME, onLocalWrite);
+    window.removeEventListener("focus", onVisibilityOrFocus);
+    document.removeEventListener("visibilitychange", onVisibilityOrFocus);
     window.removeEventListener("beforeunload", onBeforeUnload);
     window.clearInterval(timer);
     void client.removeChannel(channel);
