@@ -1316,10 +1316,12 @@ button:focus-visible,
 
 .appMobileNavMenu.open {
   margin-top: 6px;
-  max-height: 280px;
+  max-height: min(520px, calc(100vh - 130px));
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .appMobileNavMenu .appNavBtn {
@@ -1450,6 +1452,12 @@ button:focus-visible,
   font-weight: 900;
   font-size: 13px;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.appMobileNavMenu .appSignedInPill {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .appUserSelect {
@@ -1877,6 +1885,7 @@ button:focus-visible,
 .dashboardUsageMeta {
   font-size: 13px;
   color: color-mix(in srgb, var(--text) 62%, var(--muted));
+  overflow-wrap: anywhere;
 }
 
 .dashboardPills {
@@ -1958,6 +1967,10 @@ button:focus-visible,
 @media (max-width: 900px) {
   .dashboardUseGrid {
     grid-template-columns: 1fr;
+  }
+
+  .appMobileNavMenu.open {
+    max-height: min(560px, calc(100vh - 112px));
   }
 
   .dashboardJobActions {
