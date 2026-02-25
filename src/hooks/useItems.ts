@@ -57,6 +57,16 @@ function save(items: InventoryItem[]) {
   localStorage.setItem(STORAGE_V2, JSON.stringify(items));
 }
 
+function loadCurrentItems(): InventoryItem[] {
+  const v2 = loadJSON(STORAGE_V2);
+  if (Array.isArray(v2)) {
+    return (v2 as InventoryItem[]).map(normalizeItem);
+  }
+  const migrated = migrateFromAnyLegacy();
+  save(migrated);
+  return migrated;
+}
+
 function toRecord(v: unknown): Record<string, unknown> {
   if (typeof v === "object" && v !== null) return v as Record<string, unknown>;
   return {};
@@ -149,15 +159,26 @@ function migrateFromAnyLegacy(): InventoryItem[] {
 }
 
 export function useItems() {
-  const [items, setItems] = useState<InventoryItem[]>(() => {
-    const migrated = migrateFromAnyLegacy();
-    save(migrated);
-    return migrated;
-  });
+  const [items, setItems] = useState<InventoryItem[]>(() => loadCurrentItems());
 
   useEffect(() => {
     save(items);
   }, [items]);
+
+  useEffect(() => {
+    const reloadFromStorage = () => setItems(loadCurrentItems());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== STORAGE_V2) return;
+      reloadFromStorage();
+    };
+
+    window.addEventListener("loadout:state-updated", reloadFromStorage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("loadout:state-updated", reloadFromStorage);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const byId = useMemo(() => {
     const m = new Map<string, InventoryItem>();

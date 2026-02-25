@@ -39,6 +39,21 @@ export function useLocations() {
 
   useEffect(() => save(roots), [roots]);
 
+  useEffect(() => {
+    const reloadFromStorage = () => setRoots(load());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== STORAGE) return;
+      reloadFromStorage();
+    };
+
+    window.addEventListener("loadout:state-updated", reloadFromStorage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("loadout:state-updated", reloadFromStorage);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
   function addRoot(name: string) {
     const n = name.trim();
     if (!n) return;
