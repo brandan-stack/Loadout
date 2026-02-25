@@ -350,6 +350,7 @@ export default function App() {
               </div>
 
               <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+                <span className={`appSyncDot ${syncStatus.state}`} aria-hidden="true" />
                 {syncLabel}
               </div>
 
@@ -387,16 +388,23 @@ export default function App() {
           </div>
 
           <div className="appMobileNav">
-            <button
-              className={"appNavBtn appMobileNavToggle " + (mobileNavOpen ? "active" : "")}
-              type="button"
-              aria-expanded={mobileNavOpen}
-              aria-controls="mobile-main-nav"
-              onClick={() => setMobileNavOpen((open) => !open)}
-            >
-              <span>{tabLabel}</span>
-              <span>{mobileNavOpen ? "Close" : "Menu"}</span>
-            </button>
+            <div className="appMobileTopRow">
+              <button
+                className={"appNavBtn appMobileNavToggle " + (mobileNavOpen ? "active" : "")}
+                type="button"
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-main-nav"
+                onClick={() => setMobileNavOpen((open) => !open)}
+              >
+                <span>{tabLabel}</span>
+                <span>{mobileNavOpen ? "Close" : "Menu"}</span>
+              </button>
+
+              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+                <span className={`appSyncDot ${syncStatus.state}`} aria-hidden="true" />
+                Sync
+              </div>
+            </div>
 
             <div id="mobile-main-nav" className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}>
               <div className="appMobileUserRow">
@@ -418,9 +426,6 @@ export default function App() {
               </div>
 
               <div className="appMobileQuickRow">
-                <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
-                  {syncLabel}
-                </div>
                 <button
                   type="button"
                   className={"appStatusPill " + (activeTab === "dashboard" ? "alert" : "")}
