@@ -16,6 +16,9 @@ import {
   isUnlocked,
   unlockWithPin,
   lockNow,
+  isDeviceRemembered,
+  loadRememberDevicePreference,
+  saveRememberDevicePreference,
   canAccessPartsUsed,
   canAccessToolSignout,
   canManageToolSignout,
@@ -28,7 +31,9 @@ import { readLiveCloudSyncStatus, type LiveCloudSyncStatus } from "./lib/liveClo
 declare const __APP_VERSION__: string;
 
 ensureDefaults();
-lockNow();
+if (!isDeviceRemembered()) {
+  lockNow();
+}
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -86,6 +91,7 @@ export default function App() {
   });
   const [, refresh] = useReducer((value: number) => value + 1, 0);
   const [pin, setPin] = useState("");
+  const [rememberDevice, setRememberDevice] = useState<boolean>(() => loadRememberDevicePreference());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [gateFeedback, setGateFeedback] = useState<string>("");
   const [syncStatus, setSyncStatus] = useState<LiveCloudSyncStatus>(() => readLiveCloudSyncStatus());
@@ -255,7 +261,7 @@ export default function App() {
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== "Enter") return;
-                const ok = unlockWithPin(pin || "", undefined);
+                const ok = unlockWithPin(pin || "", undefined, rememberDevice);
                 setPin("");
                 refresh();
                 if (!ok) setGateFeedback("Wrong password / PIN. Try again.");
@@ -268,7 +274,7 @@ export default function App() {
               className="btn primary"
               type="button"
               onClick={() => {
-                const ok = unlockWithPin(pin || "", undefined);
+                const ok = unlockWithPin(pin || "", undefined, rememberDevice);
                 setPin("");
                 refresh();
                 if (!ok) setGateFeedback("Wrong password / PIN. Try again.");
@@ -278,6 +284,19 @@ export default function App() {
               Enter Site
             </button>
           </div>
+
+          <label className="appGateRemember">
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setRememberDevice(checked);
+                saveRememberDevicePreference(checked);
+              }}
+            />
+            Remember this device
+          </label>
 
           <div className="muted appGateHint">
             {me?.pin ? "Use the selected user password / PIN from Settings." : "Selected user has no PIN set. Select a user with a PIN."}
@@ -347,18 +366,22 @@ export default function App() {
                 Alerts {alertCount}
               </button>
 
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "") + (lowStockCount > 0 ? " alert" : "")} onClick={() => setActiveTab("dashboard")}>
+              <button
+                type="button"
+                className={"appStatusPill " + (activeTab === "dashboard" ? "alert" : "")}
+                onClick={() => setActiveTab("dashboard")}
+                title="Open Dashboard"
+              >
                 Dashboard
-                {lowStockCount > 0 ? <span className="appAlertBadge appAlertBadgeRed" aria-hidden="true">{lowStockCount}</span> : null}
               </button>
 
               <button
-                className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")}
+                className={"appNavBtn appSettingsBtn appIconOnly " + (activeTab === "settings" ? "active" : "")}
                 onClick={() => setActiveTab("settings")}
                 title="Settings"
+                aria-label="Settings"
               >
                 <GearIcon />
-                Settings
               </button>
             </div>
           </div>
@@ -394,8 +417,18 @@ export default function App() {
                 </button>
               </div>
 
-              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
-                {syncLabel}
+              <div className="appMobileQuickRow">
+                <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+                  {syncLabel}
+                </div>
+                <button
+                  type="button"
+                  className={"appStatusPill " + (activeTab === "dashboard" ? "alert" : "")}
+                  onClick={() => setActiveTab("dashboard")}
+                  title="Open Dashboard"
+                >
+                  Dashboard
+                </button>
               </div>
 
               <button className={"appNavBtn " + (activeTab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>Inventory</button>
@@ -412,10 +445,8 @@ export default function App() {
                   {toolPendingCount > 0 ? <span className="appWarnDot appWarnDotYellow" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "") + (lowStockCount > 0 ? " alert" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appAlertBadge appAlertBadgeRed" aria-hidden="true">{lowStockCount}</span> : null}</button>
-              <button className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
+              <button className={"appNavBtn appSettingsBtn appIconOnly " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings" aria-label="Settings">
                 <GearIcon />
-                Settings
               </button>
             </div>
           </div>

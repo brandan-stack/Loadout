@@ -1387,6 +1387,14 @@ button:focus-visible,
   padding: 8px 12px;
 }
 
+.appSettingsBtn.appIconOnly {
+  width: 42px;
+  height: 42px;
+  padding: 8px;
+  justify-content: center;
+  gap: 0;
+}
+
 .appAlertBadge {
   min-width: 18px;
   height: 18px;
@@ -1513,6 +1521,12 @@ button:focus-visible,
   gap: 6px;
 }
 
+.appMobileQuickRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
 .appContent {
   width: min(var(--maxw), 100%);
   margin: 0 auto;
@@ -1557,6 +1571,19 @@ button:focus-visible,
 
 .appGateHint {
   font-size: 12px;
+}
+
+.appGateRemember {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.appGateRemember input {
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 980px) {
