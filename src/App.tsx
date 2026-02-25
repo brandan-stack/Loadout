@@ -28,6 +28,25 @@ const APP_VERSION = __APP_VERSION__;
 
 type Tab = "dashboard" | "inventory" | "management" | "partsUsed" | "settings";
 
+type StoredStockRow = { quantity?: number };
+type StoredInventoryItem = { lowStock?: number; stockByLocation?: StoredStockRow[] };
+
+function getLowStockCountFromStorage() {
+  try {
+    const raw = window.localStorage.getItem("inventory.items.v2");
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return 0;
+    return (parsed as StoredInventoryItem[]).filter((item) => {
+      if (typeof item.lowStock !== "number" || item.lowStock <= 0) return false;
+      const total = (item.stockByLocation ?? []).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+      return total <= item.lowStock;
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+
 function isTab(value: string | null): value is Tab {
   return value === "dashboard" || value === "inventory" || value === "management" || value === "partsUsed" || value === "settings";
 }
@@ -61,6 +80,8 @@ export default function App() {
   const me = currentUser();
   const unlocked = isUnlocked();
   const mePendingCount = me ? getUnreadCountForUser(me.id) : 0;
+  const lowStockCount = typeof window !== "undefined" ? getLowStockCountFromStorage() : 0;
+  const alertCount = mePendingCount + lowStockCount;
   const canOpenPartsUsedTab = !!me && (canAccessPartsUsed(me) || !!me.receivesJobNotifications);
   const activeTab: Tab = tab === "partsUsed" && !canOpenPartsUsedTab ? "dashboard" : tab;
 
@@ -88,6 +109,15 @@ export default function App() {
     setActiveTab("partsUsed");
     window.setTimeout(() => {
       const node = document.getElementById("recent-parts-used");
+      if (!node) return;
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
+  };
+
+  const jumpToDashboardRestock = () => {
+    setActiveTab("dashboard");
+    window.setTimeout(() => {
+      const node = document.getElementById("dashboard-restock-list");
       if (!node) return;
       node.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 40);
@@ -211,9 +241,6 @@ export default function App() {
 
           <div className="appDesktopNav">
             <div className="appNavGroup">
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
-                Dashboard
-              </button>
               <button className={"appNavBtn " + (activeTab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>
                 Inventory
               </button>
@@ -230,7 +257,7 @@ export default function App() {
 
             <div className="appTopbarRight">
               <select
-                className={"appUserSelect " + (mePendingCount > 0 ? "alert" : "")}
+                className={"appUserSelect " + (alertCount > 0 ? "alert" : "")}
                 value={session.currentUserId}
                 onChange={(e) => {
                   const userId = e.target.value;
@@ -253,14 +280,20 @@ export default function App() {
 
               <button
                 type="button"
-                className={"appStatusPill " + (mePendingCount > 0 ? "alert" : "")}
+                className={"appStatusPill " + (alertCount > 0 ? "alert" : "")}
                 onClick={() => {
-                  if (canOpenPartsUsedTab) jumpToRecentPartsUsed();
+                  if (lowStockCount > 0) jumpToDashboardRestock();
+                  else if (canOpenPartsUsedTab) jumpToRecentPartsUsed();
                   else setActiveTab("settings");
                 }}
-                title={canOpenPartsUsedTab ? (mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications") : "Enable notification access in Settings"}
+                title={lowStockCount > 0 ? `Low-stock alerts: ${lowStockCount}` : canOpenPartsUsedTab ? (mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications") : "Enable notification access in Settings"}
               >
-                Notifications {mePendingCount}
+                Alerts {alertCount}
+              </button>
+
+              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
+                Dashboard
+                {lowStockCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
               </button>
 
               <button
@@ -289,7 +322,7 @@ export default function App() {
             <div id="mobile-main-nav" className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}>
               <div className="appMobileUserRow">
                 <select
-                  className={"appUserSelect " + (mePendingCount > 0 ? "alert" : "")}
+                  className={"appUserSelect " + (alertCount > 0 ? "alert" : "")}
                   value={session.currentUserId}
                   onChange={(e) => {
                     const userId = e.target.value;
@@ -312,18 +345,18 @@ export default function App() {
                 </select>
                 <button
                   type="button"
-                  className={"appStatusPill " + (mePendingCount > 0 ? "alert" : "")}
+                  className={"appStatusPill " + (alertCount > 0 ? "alert" : "")}
                   onClick={() => {
-                    if (canOpenPartsUsedTab) jumpToRecentPartsUsed();
+                    if (lowStockCount > 0) jumpToDashboardRestock();
+                    else if (canOpenPartsUsedTab) jumpToRecentPartsUsed();
                     else setActiveTab("settings");
                   }}
-                  title={canOpenPartsUsedTab ? (mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications") : "Enable notification access in Settings"}
+                  title={lowStockCount > 0 ? `Low-stock alerts: ${lowStockCount}` : canOpenPartsUsedTab ? (mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications") : "Enable notification access in Settings"}
                 >
-                  Notifications {mePendingCount}
+                  Alerts {alertCount}
                 </button>
               </div>
 
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard</button>
               <button className={"appNavBtn " + (activeTab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>Inventory</button>
               <button className={"appNavBtn " + (activeTab === "management" ? "active" : "")} onClick={() => setActiveTab("management")}>Management</button>
               {canOpenPartsUsedTab ? (
@@ -332,6 +365,7 @@ export default function App() {
                   {mePendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
+              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}</button>
               <button className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
                 <GearIcon />
                 Settings

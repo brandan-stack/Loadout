@@ -34,11 +34,13 @@ const PARTS_USED_JOB: Job = {
 };
 
 type PartsUsedDraft = {
+  jobNumber?: string;
   useSearch?: string;
   useQty?: string;
   useLoc?: string;
   useNote?: string;
   notifyUserId?: string;
+  selectedItemId?: string;
   savedAt?: number;
 };
 
@@ -80,11 +82,14 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const draft = useMemo(() => loadDraft(), []);
 
   const [usage, setUsage] = useState<JobUsageLine[]>(() => loadJobUsage());
+  const [jobNumber, setJobNumber] = useState(draft.jobNumber ?? "");
   const [useSearch, setUseSearch] = useState(draft.useSearch ?? "");
   const [useQty, setUseQty] = useState(draft.useQty ?? "1");
   const [useLoc, setUseLoc] = useState(draft.useLoc ?? "");
   const [useNote, setUseNote] = useState(draft.useNote ?? "");
   const [notifyUserId, setNotifyUserId] = useState(draft.notifyUserId ?? "");
+  const [selectedItemId, setSelectedItemId] = useState(draft.selectedItemId ?? "");
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(draft.savedAt ?? null);
   const [toast, setToast] = useState<InlineToast | null>(null);
 
@@ -131,19 +136,34 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
       .slice(0, 20);
   }, [itemsApi.items, useSearch]);
 
+  const selectedItem = useMemo(
+    () => itemsApi.items.find((it) => it.id === selectedItemId) ?? null,
+    [itemsApi.items, selectedItemId]
+  );
+
+  const qtyNumber = Math.floor(Number(useQty));
+  const validQty = Number.isFinite(qtyNumber) && qtyNumber > 0;
+  const hasJobNumber = jobNumber.trim().length > 0;
+  const hasPart = !!selectedItem;
+  const canFinalizeLog = hasJobNumber && hasPart && validQty;
+
   function saveProgress() {
     const savedAt = Date.now();
-    saveDraft({ useSearch, useQty, useLoc, useNote, notifyUserId, savedAt });
+    saveDraft({ jobNumber, useSearch, useQty, useLoc, useNote, notifyUserId, selectedItemId, savedAt });
     setLastSavedAt(savedAt);
     setToast({ tone: "success", message: "Progress saved." });
   }
 
-  function logPartsUsed(item: InventoryItem) {
-    const qty = Math.floor(Number(useQty));
-    if (!Number.isFinite(qty) || qty <= 0) {
-      setToast({ tone: "error", message: "Enter a valid quantity." });
+  function finalizeLogPartsUsed() {
+    setAttemptedSubmit(true);
+    if (!canFinalizeLog || !selectedItem) {
+      setToast({ tone: "error", message: "Missing required fields. Enter Job Number, select Part, and enter valid Quantity." });
       return;
     }
+
+    const qty = qtyNumber;
+    const item = selectedItem;
+    const jobNumberText = jobNumber.trim();
 
     itemsApi.adjustAtLocation(item.id, useLoc ?? "", -qty);
 
@@ -152,7 +172,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
       item,
       qty,
       locationId: useLoc ?? "",
-      note: useNote.trim(),
+      note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
     });
 
     const targetUser = notifyUsers.find((u) => u.id === notifyUserId);
@@ -165,17 +185,19 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
         qty,
         note: line.note,
         title: "Parts used requires billing",
-        message: `${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.`,
+        message: `Job #${jobNumberText} • ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.`,
       });
     }
 
     setUsage(loadJobUsage());
     setUseNote("");
+    setSelectedItemId("");
+    setAttemptedSubmit(false);
     onChanged?.();
     setToast({
       tone: targetUser ? "success" : "warning",
       message:
-        `Parts Used logged: ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""}, qty ${qty}. ` +
+        `Job #${jobNumberText} • Parts Used logged: ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""}, qty ${qty}. ` +
         (targetUser ? `Notified ${targetUser.name}.` : "No notification recipient selected."),
     });
   }
@@ -221,6 +243,15 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
         <div className="dashboardUsePanel">
           <div className="dashboardSectionTitle">Use parts</div>
 
+          <div className="dashboardUseNote">
+            <input
+              className={attemptedSubmit && !hasJobNumber ? "inputInvalid" : ""}
+              value={jobNumber}
+              onChange={(e) => setJobNumber(e.target.value)}
+              placeholder="Job Number (required)"
+            />
+          </div>
+
           <div className="dashboardUseGrid">
             <div>
               <input value={useSearch} onChange={(e) => setUseSearch(e.target.value)} placeholder="Search item (Part Number, Brand, Model Number, Serial Number, Description…)" />
@@ -231,7 +262,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                 <span className="searchHint">Serial Number</span>
               </div>
             </div>
-            <input value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity" />
+            <input className={attemptedSubmit && !validQty ? "inputInvalid" : ""} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity (required)" />
             <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
               <option value="">Missing Location</option>
               {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -253,9 +284,9 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
           <div className="dashboardResultCount">Matching items: {filteredItems.length}</div>
 
-          <div className="dashboardItemsList">
+          <div className={`dashboardItemsList ${attemptedSubmit && !hasPart ? "requiredBlockMissing" : ""}`}>
             {filteredItems.map((it) => (
-              <div key={it.id} className="dashboardItemRow">
+              <div key={it.id} className={`dashboardItemRow ${selectedItemId === it.id ? "dashboardItemRowSelected" : ""}`}>
                 <div className="dashboardItemMain">
                   <div className="dashboardItemName">{it.name}</div>
                   <div className="dashboardItemMeta">{categoryLabel(it)} • Part Number: {it.partNumber || "—"}</div>
@@ -264,12 +295,23 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                     <Badge>Low: {it.lowStock ?? "—"}</Badge>
                   </div>
                 </div>
-                <button className="btn" onClick={() => logPartsUsed(it)}>
-                  Log Parts Used
+                <button className="btn" onClick={() => setSelectedItemId(it.id)}>
+                  {selectedItemId === it.id ? "Selected" : "Select Part"}
                 </button>
               </div>
             ))}
             {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
+          </div>
+
+          <div className="dashboardUseNote">
+            <div className={`dashboardFinalStep ${attemptedSubmit && !canFinalizeLog ? "requiredBlockMissing" : ""}`}>
+              <div className="dashboardResultCount">
+                Final Step: {hasPart ? `Part selected (${selectedItem?.name ?? "—"})` : "Select a part"} • {hasJobNumber ? `Job #${jobNumber.trim()}` : "Add Job Number"} • {validQty ? `Qty ${qtyNumber}` : "Enter valid quantity"}
+              </div>
+              <button className="btn primary" type="button" disabled={!canFinalizeLog} onClick={finalizeLogPartsUsed}>
+                Log Parts Used (Final Step)
+              </button>
+            </div>
           </div>
         </div>
       </div>

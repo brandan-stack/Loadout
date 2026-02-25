@@ -1633,6 +1633,28 @@ button:focus-visible,
   margin-top: 10px;
 }
 
+.inputInvalid {
+  border-color: color-mix(in srgb, #ff6d6d 62%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ff6d6d 42%, transparent) inset;
+}
+
+.requiredBlockMissing {
+  border: 1px solid color-mix(in srgb, #ff6d6d 58%, var(--border));
+  border-radius: 12px;
+  padding: 8px;
+  background: color-mix(in srgb, #ff6d6d 12%, transparent);
+}
+
+.dashboardItemRowSelected {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent) inset;
+}
+
+.dashboardFinalStep {
+  display: grid;
+  gap: 10px;
+}
+
 .partsToast {
   margin-top: 0;
   font-size: 13px;

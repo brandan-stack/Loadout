@@ -101,6 +101,7 @@ export default function DashboardScreen() {
       </div>
 
       <div className="dashboardMain dashboardGapTop">
+        <div id="dashboard-restock-list">
         <Card title="Restock list (worst first)">
           {restock.length === 0 ? (
             <div className="dashboardMuted">No low-stock items. You’re good.</div>
@@ -126,6 +127,7 @@ export default function DashboardScreen() {
             </div>
           )}
         </Card>
+        </div>
 
         <Card title="Recent activity (audit log)">
           {activity.length === 0 ? (
