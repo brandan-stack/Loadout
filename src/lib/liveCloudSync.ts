@@ -13,6 +13,7 @@ const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "l
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
 const POLL_MS = 6000;
+const BACKGROUND_PULL_MS = 120000;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -342,6 +343,7 @@ export function startLiveCloudSync(appVersion: string) {
   }
   let currentSignature = signatureFor(collectLocalValues());
   let lastRemoteUpdatedAt = "";
+  let lastForcedPullAt = 0;
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
@@ -450,11 +452,20 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      writeStatus({
-        state: "error",
-        lastError: `Pull failed: ${error.message}`,
-        lastPullError: error.message || "Pull failed",
-      });
+      const current = readStatusRaw();
+      if (isRecentSync(current.lastSyncAt)) {
+        writeStatus({
+          state: "connected",
+          lastError: `Pull degraded (using realtime/push): ${error.message}`,
+          lastPullError: error.message || "Pull failed",
+        });
+      } else {
+        writeStatus({
+          state: "error",
+          lastError: `Pull failed: ${error.message}`,
+          lastPullError: error.message || "Pull failed",
+        });
+      }
       return;
     }
 
@@ -498,11 +509,20 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      writeStatus({
-        state: "error",
-        lastError: `Pull failed: ${error.message}`,
-        lastPullError: error.message || "Pull failed",
-      });
+      const current = readStatusRaw();
+      if (isRecentSync(current.lastSyncAt)) {
+        writeStatus({
+          state: "connected",
+          lastError: `Pull degraded (using realtime/push): ${error.message}`,
+          lastPullError: error.message || "Pull failed",
+        });
+      } else {
+        writeStatus({
+          state: "error",
+          lastError: `Pull failed: ${error.message}`,
+          lastPullError: error.message || "Pull failed",
+        });
+      }
       return;
     }
 
@@ -537,7 +557,8 @@ export function startLiveCloudSync(appVersion: string) {
     }
   }
 
-  const runSyncTick = async () => {
+  const runSyncTick = async (opts?: { forcePull?: boolean }) => {
+    const forcePull = !!opts?.forcePull;
     if (syncInFlight) {
       syncQueued = true;
       return;
@@ -545,7 +566,13 @@ export function startLiveCloudSync(appVersion: string) {
     syncInFlight = true;
     try {
       await pushLocalValues();
-      await pullRemoteValues();
+
+      const nowTs = Date.now();
+      const shouldRunPull = forcePull || nowTs - lastForcedPullAt >= BACKGROUND_PULL_MS;
+      if (shouldRunPull) {
+        lastForcedPullAt = nowTs;
+        await pullRemoteValues();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error";
       console.error("[Loadout Sync] Sync tick failed:", error);
@@ -554,7 +581,7 @@ export function startLiveCloudSync(appVersion: string) {
       syncInFlight = false;
       if (syncQueued) {
         syncQueued = false;
-        void runSyncTick();
+        void runSyncTick({ forcePull: false });
       }
     }
   };
@@ -610,7 +637,7 @@ export function startLiveCloudSync(appVersion: string) {
         if (current.state === "disabled") {
           writeStatus({ state: "connecting", lastError: "Realtime channel connected. Running sync..." });
         }
-        void runSyncTick();
+        void runSyncTick({ forcePull: true });
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         const current = readStatusRaw();
         if (isRecentSync(current.lastSyncAt)) {
@@ -618,40 +645,40 @@ export function startLiveCloudSync(appVersion: string) {
         } else {
           writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
         }
-        void runSyncTick();
+        void runSyncTick({ forcePull: true });
       }
     });
 
   const timer = window.setInterval(() => {
-    void runSyncTick();
+    void runSyncTick({ forcePull: false });
   }, POLL_MS);
 
   const onVisibilityOrFocus = () => {
-    void runSyncTick();
+    void runSyncTick({ forcePull: true });
   };
   window.addEventListener("focus", onVisibilityOrFocus);
   document.addEventListener("visibilitychange", onVisibilityOrFocus);
 
   const onLocalStateUpdated = () => {
     if (applyingRemote) return;
-    void runSyncTick();
+    void runSyncTick({ forcePull: false });
   };
   window.addEventListener(EVENT_NAME, onLocalStateUpdated);
 
   const onStorage = (event: StorageEvent) => {
     if (!event.key || !shouldTrackKey(event.key)) return;
-    void runSyncTick();
+    void runSyncTick({ forcePull: false });
   };
   window.addEventListener("storage", onStorage);
 
   const onSyncNow = () => {
     writeStatus({ state: "connecting", lastError: "" });
-    void runSyncTick();
+    void runSyncTick({ forcePull: true });
   };
   window.addEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
 
   const onBeforeUnload = () => {
-    void runSyncTick();
+    void runSyncTick({ forcePull: true });
   };
   window.addEventListener("beforeunload", onBeforeUnload);
 
