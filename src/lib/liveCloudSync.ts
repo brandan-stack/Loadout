@@ -457,7 +457,10 @@ export function startLiveCloudSync(appVersion: string) {
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
-        writeStatus({ state: "connected", lastError: "" });
+        const current = readStatusRaw();
+        if (current.state === "disabled") {
+          writeStatus({ state: "connecting", lastError: "Realtime channel connected. Running sync..." });
+        }
         void runSyncTick();
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         const current = readStatusRaw();
