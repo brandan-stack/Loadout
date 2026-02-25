@@ -12,17 +12,17 @@ const SYNC_ANON_KEY_RAW = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string 
 const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "loadout_sync";
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
-const POLL_MS = 1000;
-const KEY_PREFIXES = ["inventory."];
-const EXCLUDED_KEYS = new Set([
-  DEVICE_ID_KEY,
-  LAST_SYNC_TS_KEY,
-  STATUS_KEY,
-  "inventory.session.v1",
-  "inventory.rememberDevice.v1",
-  "loadout.activeTab",
-  "loadout.pdfBackup.lastSyncAt.v1",
-  "loadout.pdfBackup.lastError.v1",
+const POLL_MS = 3000;
+const TRACKED_KEYS = new Set([
+  "inventory.items.v2",
+  "inventory.categories.v2",
+  "inventory.locations.v1",
+  "inventory.users.v1",
+  "inventory.securitySettings.v1",
+  "inventory.jobNotifications.v1",
+  "inventory.jobs.v1",
+  "inventory.jobUsage.v1",
+  "inventory.toolSignoutRequests.v1",
 ]);
 
 type CloudSnapshot = {
@@ -129,7 +129,7 @@ function normalizeSnapshot(value: unknown): CloudSnapshot | null {
 }
 
 function shouldTrackKey(key: string): boolean {
-  return KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) && !EXCLUDED_KEYS.has(key);
+  return TRACKED_KEYS.has(key);
 }
 
 function getTrackedKeys(): string[] {
