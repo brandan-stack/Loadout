@@ -14,6 +14,7 @@ const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "d
 
 const POLL_MS = 6000;
 const BACKGROUND_PULL_MS = 120000;
+const FALLBACK_PULL_MS = 30000;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -347,6 +348,7 @@ export function startLiveCloudSync(appVersion: string) {
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
+  let realtimeDisabled = false;
 
   async function pushLocalValues() {
     if (applyingRemote) return;
@@ -568,7 +570,8 @@ export function startLiveCloudSync(appVersion: string) {
       await pushLocalValues();
 
       const nowTs = Date.now();
-      const shouldRunPull = forcePull || nowTs - lastForcedPullAt >= BACKGROUND_PULL_MS;
+      const pullInterval = realtimeDisabled ? FALLBACK_PULL_MS : BACKGROUND_PULL_MS;
+      const shouldRunPull = forcePull || nowTs - lastForcedPullAt >= pullInterval;
       if (shouldRunPull) {
         lastForcedPullAt = nowTs;
         await pullRemoteValues();
@@ -590,12 +593,13 @@ export function startLiveCloudSync(appVersion: string) {
     // no-op: already logged by pull/push
   });
 
-  const channel = client
+  let channel: ReturnType<typeof client.channel> | null = client
     .channel(`loadout-sync:${SYNC_SPACE}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: SYNC_TABLE, filter: `id=eq.${SYNC_SPACE}` },
       (payload) => {
+        if (realtimeDisabled) return;
         const localSignature = signatureFor(collectLocalValues());
         if (localSignature !== currentSignature) {
           return;
@@ -633,17 +637,23 @@ export function startLiveCloudSync(appVersion: string) {
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
+        realtimeDisabled = false;
         const current = readStatusRaw();
         if (current.state === "disabled") {
           writeStatus({ state: "connecting", lastError: "Realtime channel connected. Running sync..." });
         }
         void runSyncTick({ forcePull: true });
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        realtimeDisabled = true;
         const current = readStatusRaw();
         if (isRecentSync(current.lastSyncAt)) {
-          writeStatus({ state: "connected", lastError: `Realtime degraded, polling active: ${status}` });
+          writeStatus({ state: "connected", lastError: `Realtime unavailable, fallback polling active: ${status}` });
         } else {
-          writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
+          writeStatus({ state: "connecting", lastError: `Realtime unavailable, switching to fallback polling: ${status}` });
+        }
+        if (channel) {
+          void client.removeChannel(channel);
+          channel = null;
         }
         void runSyncTick({ forcePull: true });
       }
@@ -690,7 +700,10 @@ export function startLiveCloudSync(appVersion: string) {
     window.removeEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
     window.removeEventListener("beforeunload", onBeforeUnload);
     window.clearInterval(timer);
-    void client.removeChannel(channel);
+    if (channel) {
+      void client.removeChannel(channel);
+      channel = null;
+    }
   };
 
   window.addEventListener("unload", teardown, { once: true });
