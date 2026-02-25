@@ -160,10 +160,13 @@ function migrateFromAnyLegacy(): InventoryItem[] {
 
 export function useItems() {
   const [items, setItems] = useState<InventoryItem[]>(() => loadCurrentItems());
-
-  useEffect(() => {
-    save(items);
-  }, [items]);
+  const setItemsAndPersist = (updater: (prev: InventoryItem[]) => InventoryItem[]) => {
+    setItems((prev) => {
+      const next = updater(prev);
+      save(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const reloadFromStorage = () => setItems(loadCurrentItems());
@@ -229,7 +232,7 @@ export function useItems() {
       stockByLocation: initialQty > 0 ? [{ locationId: initialLocationId, quantity: initialQty }] : [],
     });
 
-    setItems((prev) => [...prev, item]);
+    setItemsAndPersist((prev) => [...prev, item]);
 
     logActivity({
       type: "ADD_ITEM",
@@ -244,7 +247,7 @@ export function useItems() {
   }
 
   function updateItem(itemId: string, patch: Partial<Omit<InventoryItem, "id" | "createdAt" | "stockByLocation">>) {
-    setItems((prev) =>
+    setItemsAndPersist((prev) =>
       prev.map((it) => {
         if (it.id !== itemId) return it;
         const updated = normalizeItem({
@@ -297,7 +300,7 @@ export function useItems() {
         note: "Deleted item",
       });
     }
-    setItems((prev) => prev.filter((x) => x.id !== itemId));
+    setItemsAndPersist((prev) => prev.filter((x) => x.id !== itemId));
   }
 
   /** Adjust stock at location by delta (+ receive, - take out) */
@@ -305,7 +308,7 @@ export function useItems() {
     const d = Math.floor(Number(delta));
     if (!Number.isFinite(d) || d === 0) return;
 
-    setItems((prev) =>
+    setItemsAndPersist((prev) =>
       prev.map((it) => {
         if (it.id !== itemId) return it;
 
@@ -348,7 +351,7 @@ export function useItems() {
     const toLoc = String(toLocationId ?? "");
     if (fromLoc === toLoc) return;
 
-    setItems((prev) =>
+    setItemsAndPersist((prev) =>
       prev.map((it) => {
         if (it.id !== itemId) return it;
 
