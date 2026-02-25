@@ -46,13 +46,15 @@ export default function InventoryScreen() {
   const locApi = useLocations();
   const catApi = useCategories();
 
+  const security = authStore.loadSecuritySettings();
   const locked = !authStore.isUnlocked();
-  const requirePinForStock = !!authStore.loadSecuritySettings().requirePinForStock;
+  const requirePinForStock = !!security.requirePinForStock;
+  const requirePinForCosts = !!security.requirePinForCosts;
   const me = authStore.currentUser();
   const canAddItems = authStore.canAddInventory(me);
   const canEditItems = authStore.canEditInventory(me);
   const canStockActions = authStore.canAdjustStock(me);
-  const canViewPricing = authStore.canViewPricingMargin(me);
+  const canViewPricing = authStore.canViewPricingMargin(me) && (!requirePinForCosts || !locked);
 
   const locationOptions = useMemo(
     () => flattenLocations(locApi.roots),
@@ -223,8 +225,8 @@ export default function InventoryScreen() {
     const qty = initialQty.trim() === "" ? 0 : Number(initialQty);
     const lowStockValue =
       lowStockAlert.trim() === "" ? undefined : Number(lowStockAlert);
-    const unitPriceValue = unitPrice.trim() === "" ? undefined : Number(unitPrice);
-    const marginPercentValue = marginPercent.trim() === "" ? undefined : Number(marginPercent);
+    const unitPriceValue = canViewPricing && unitPrice.trim() !== "" ? Number(unitPrice) : undefined;
+    const marginPercentValue = canViewPricing && marginPercent.trim() !== "" ? Number(marginPercent) : undefined;
 
     const locId =
       initialLocationId ||
@@ -289,7 +291,7 @@ export default function InventoryScreen() {
         itemsApi.updateItem(duplicate.id, { lowStock: Number(lowStockValue) });
       }
 
-      if (Number.isFinite(Number(unitPriceValue)) || Number.isFinite(Number(marginPercentValue))) {
+      if (canViewPricing && (Number.isFinite(Number(unitPriceValue)) || Number.isFinite(Number(marginPercentValue)))) {
         itemsApi.updateItem(duplicate.id, {
           unitPrice: Number.isFinite(Number(unitPriceValue)) ? Number(unitPriceValue) : duplicate.unitPrice,
           marginPercent: Number.isFinite(Number(marginPercentValue)) ? Number(marginPercentValue) : duplicate.marginPercent,
@@ -490,25 +492,34 @@ export default function InventoryScreen() {
             />
           </label>
 
-          <label className="field">
-            <span>Unit price</span>
-            <input
-              value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-              placeholder="blank = hidden"
-              inputMode="decimal"
-            />
-          </label>
+          {canViewPricing ? (
+            <>
+              <label className="field">
+                <span>Unit price</span>
+                <input
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
+                  placeholder="blank = hidden"
+                  inputMode="decimal"
+                />
+              </label>
 
-          <label className="field">
-            <span>Margin %</span>
-            <input
-              value={marginPercent}
-              onChange={(e) => setMarginPercent(e.target.value)}
-              placeholder="blank = hidden"
-              inputMode="decimal"
-            />
-          </label>
+              <label className="field">
+                <span>Margin %</span>
+                <input
+                  value={marginPercent}
+                  onChange={(e) => setMarginPercent(e.target.value)}
+                  placeholder="blank = hidden"
+                  inputMode="decimal"
+                />
+              </label>
+            </>
+          ) : (
+            <label className="field fieldWide">
+              <span>Pricing & margin</span>
+              <div className="muted">Hidden. Unlock and enable pricing access in Settings/Admin to view or edit.</div>
+            </label>
+          )}
 
           <label className="field">
             <span>Initial location</span>
