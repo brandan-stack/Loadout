@@ -389,21 +389,23 @@ export default function InventoryScreen() {
           </div>
         </div>
 
-        {canAddItems ? (
+        {canAddItems || (canEditItems && !!editingItemId) ? (
           <>
-            <div className={"rowWrap inventoryToggleRow" + (showAddPanel ? " open" : "")}>
-              <button
-                className="btnPrimary"
-                type="button"
-                onClick={() => setShowAddPanel((v) => !v)}
-              >
-                {showAddPanel
-                  ? editingItemId
-                    ? "Hide edit form"
-                    : "Hide add form"
-                  : "Add inventory item"}
-              </button>
-            </div>
+            {canAddItems ? (
+              <div className={"rowWrap inventoryToggleRow" + (showAddPanel ? " open" : "")}>
+                <button
+                  className="btnPrimary"
+                  type="button"
+                  onClick={() => setShowAddPanel((v) => !v)}
+                >
+                  {showAddPanel
+                    ? editingItemId
+                      ? "Hide edit form"
+                      : "Hide add form"
+                    : "Add inventory item"}
+                </button>
+              </div>
+            ) : null}
 
             {showAddPanel && (
               <>
