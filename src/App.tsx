@@ -17,6 +17,8 @@ import {
   unlockWithPin,
   lockNow,
   canAccessPartsUsed,
+  canAccessToolSignout,
+  canManageToolSignout,
 } from "./lib/authStore";
 import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
 import { getToolAlertsForUser } from "./lib/toolSignoutStore";
@@ -82,11 +84,18 @@ export default function App() {
   const me = currentUser();
   const unlocked = isUnlocked();
   const mePendingCount = me ? getUnreadCountForUser(me.id) : 0;
-  const toolPendingCount = me ? getToolAlertsForUser(me.id, me.role === "admin") : 0;
+  const canOpenToolSignoutTab = !!me && canAccessToolSignout(me);
+  const canManageTools = !!me && canManageToolSignout(me);
+  const toolPendingCount = me && canOpenToolSignoutTab ? getToolAlertsForUser(me.id, canManageTools) : 0;
   const lowStockCount = typeof window !== "undefined" ? getLowStockCountFromStorage() : 0;
   const alertCount = mePendingCount + lowStockCount;
   const canOpenPartsUsedTab = !!me && (canAccessPartsUsed(me) || !!me.receivesJobNotifications);
-  const activeTab: Tab = tab === "partsUsed" && !canOpenPartsUsedTab ? "dashboard" : tab;
+  const activeTab: Tab =
+    tab === "partsUsed" && !canOpenPartsUsedTab
+      ? "dashboard"
+      : tab === "toolSignout" && !canOpenToolSignoutTab
+      ? "dashboard"
+      : tab;
 
   const tabLabel =
     activeTab === "dashboard"
@@ -258,10 +267,12 @@ export default function App() {
                   {mePendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
-              <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
-                Tool Signout
-                {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
-              </button>
+              {canOpenToolSignoutTab ? (
+                <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
+                  Tool Signout
+                  {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
+                </button>
+              ) : null}
             </div>
 
             <div className="appTopbarRight">
@@ -374,10 +385,12 @@ export default function App() {
                   {mePendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
-              <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
-                Tool Signout
-                {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
-              </button>
+              {canOpenToolSignoutTab ? (
+                <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
+                  Tool Signout
+                  {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
+                </button>
+              ) : null}
               <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}</button>
               <button className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
                 <GearIcon />
@@ -400,7 +413,7 @@ export default function App() {
         {activeTab === "inventory" && <InventoryScreen />}
         {activeTab === "management" && <ManagementScreen />}
         {activeTab === "partsUsed" && canOpenPartsUsedTab && <PartsUsedScreen onChanged={refresh} />}
-        {activeTab === "toolSignout" && <ToolSignoutScreen onChanged={refresh} />}
+        {activeTab === "toolSignout" && canOpenToolSignoutTab && <ToolSignoutScreen onChanged={refresh} />}
         {activeTab === "settings" && <SettingsScreen />}
       </div>
 

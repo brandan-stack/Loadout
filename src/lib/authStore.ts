@@ -10,6 +10,8 @@ export type User = {
   pin?: string; // 4–8 digits recommended
   isActive: boolean;
   canAccessPartsUsed: boolean;
+  canAccessToolSignout: boolean;
+  canManageToolSignout: boolean;
   receivesJobNotifications: boolean;
   canViewPricingMargin: boolean;
   canAddInventory: boolean;
@@ -93,6 +95,14 @@ function defaultJobNotificationForRole(role: Role): boolean {
   return role === "admin" || role === "invoicing";
 }
 
+function defaultToolSignoutAccessForRole(role: Role): boolean {
+  return role === "admin" || role === "stock";
+}
+
+function defaultToolSignoutManageForRole(role: Role): boolean {
+  return role === "admin";
+}
+
 function defaultPricingAccessForRole(role: Role): boolean {
   return role === "admin" || role === "invoicing";
 }
@@ -119,6 +129,14 @@ function normalizeUser(u: unknown): User {
     typeof rec.receivesJobNotifications === "boolean"
       ? rec.receivesJobNotifications
       : defaultJobNotificationForRole(role);
+  const canAccessToolSignout =
+    typeof rec.canAccessToolSignout === "boolean"
+      ? rec.canAccessToolSignout
+      : defaultToolSignoutAccessForRole(role);
+  const canManageToolSignout =
+    typeof rec.canManageToolSignout === "boolean"
+      ? rec.canManageToolSignout
+      : defaultToolSignoutManageForRole(role);
   const canViewPricingMargin =
     typeof rec.canViewPricingMargin === "boolean"
       ? rec.canViewPricingMargin
@@ -131,6 +149,8 @@ function normalizeUser(u: unknown): User {
     // KEY FIX: if old data has no isActive → treat as ACTIVE
     isActive: typeof rec.isActive === "boolean" ? rec.isActive : true,
     canAccessPartsUsed,
+    canAccessToolSignout,
+    canManageToolSignout,
     receivesJobNotifications,
     canViewPricingMargin,
     canAddInventory: legacyCanAdd,
@@ -150,6 +170,8 @@ function defaultUsers(): User[] {
       pin: "1234",
       isActive: true,
       canAccessPartsUsed: true,
+      canAccessToolSignout: true,
+      canManageToolSignout: true,
       receivesJobNotifications: true,
       canViewPricingMargin: true,
       canAddInventory: true,
@@ -165,6 +187,8 @@ function defaultUsers(): User[] {
       pin: "1111",
       isActive: true,
       canAccessPartsUsed: false,
+      canAccessToolSignout: true,
+      canManageToolSignout: false,
       receivesJobNotifications: false,
       canViewPricingMargin: false,
       canAddInventory: false,
@@ -180,6 +204,8 @@ function defaultUsers(): User[] {
       pin: "2222",
       isActive: true,
       canAccessPartsUsed: false,
+      canAccessToolSignout: false,
+      canManageToolSignout: false,
       receivesJobNotifications: true,
       canViewPricingMargin: true,
       canAddInventory: false,
@@ -195,6 +221,8 @@ function defaultUsers(): User[] {
       pin: "",
       isActive: true,
       canAccessPartsUsed: false,
+      canAccessToolSignout: false,
+      canManageToolSignout: false,
       receivesJobNotifications: false,
       canViewPricingMargin: false,
       canAddInventory: false,
@@ -226,6 +254,8 @@ export function ensureDefaults() {
         pin: "1234",
         isActive: true,
         canAccessPartsUsed: true,
+        canAccessToolSignout: true,
+        canManageToolSignout: true,
         receivesJobNotifications: true,
         canViewPricingMargin: true,
         canAddInventory: true,
@@ -355,6 +385,16 @@ export function canAccessPartsUsed(u: User | null) {
   if (u.role === "admin") return true;
   return !!u.canAccessPartsUsed;
 }
+export function canAccessToolSignout(u: User | null) {
+  if (!u) return false;
+  if (u.role === "admin") return true;
+  return !!u.canAccessToolSignout;
+}
+export function canManageToolSignout(u: User | null) {
+  if (!u) return false;
+  if (u.role === "admin") return true;
+  return !!u.canManageToolSignout;
+}
 export function canAddInventory(u: User | null) {
   if (!u) return false;
   if (u.role === "admin") return true;
@@ -378,6 +418,8 @@ export function addUser(input: { name: string; role: Role; pin?: string }) {
     pin: (input.pin ?? "").trim(),
     isActive: true,
     canAccessPartsUsed: defaultPartsUsedAccessForRole(input.role),
+    canAccessToolSignout: defaultToolSignoutAccessForRole(input.role),
+    canManageToolSignout: defaultToolSignoutManageForRole(input.role),
     receivesJobNotifications: defaultJobNotificationForRole(input.role),
     canViewPricingMargin: defaultPricingAccessForRole(input.role),
     canAddInventory: canAdd,
@@ -426,6 +468,31 @@ export function setUserCanAccessPartsUsed(userId: string, allowed: boolean) {
     return;
   }
   updateUser(userId, { canAccessPartsUsed: !!allowed });
+}
+
+export function setUserCanAccessToolSignout(userId: string, allowed: boolean) {
+  const users = loadUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return;
+  if (target.role === "admin") {
+    updateUser(userId, { canAccessToolSignout: true, canManageToolSignout: true });
+    return;
+  }
+  updateUser(userId, { canAccessToolSignout: !!allowed });
+}
+
+export function setUserCanManageToolSignout(userId: string, allowed: boolean) {
+  const users = loadUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return;
+  if (target.role === "admin") {
+    updateUser(userId, { canManageToolSignout: true, canAccessToolSignout: true });
+    return;
+  }
+  updateUser(userId, {
+    canManageToolSignout: !!allowed,
+    canAccessToolSignout: !!allowed || !!target.canAccessToolSignout,
+  });
 }
 
 export function setUserReceivesJobNotifications(userId: string, allowed: boolean) {

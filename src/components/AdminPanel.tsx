@@ -7,6 +7,8 @@ import {
   setUserPin,
   renameUser,
   setUserCanAccessPartsUsed,
+  setUserCanAccessToolSignout,
+  setUserCanManageToolSignout,
   setUserReceivesJobNotifications,
   setUserCanViewPricingMargin,
   setUserAccessPreset,
@@ -235,6 +237,48 @@ export default function AdminPanel() {
                           {u.role === "admin"
                             ? "Always allowed"
                             : u.canAccessPartsUsed
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Tool Signout Tab</div>
+                          <div className="muted adminMeta">Allow this user to request/signout tools</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.canAccessToolSignout || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserCanAccessToolSignout(u.id, !u.canAccessToolSignout);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.canAccessToolSignout
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Tool Dashboard / Approvals</div>
+                          <div className="muted adminMeta">Allow this user to review and approve tool requests</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.canManageToolSignout || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserCanManageToolSignout(u.id, !u.canManageToolSignout);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.canManageToolSignout
                             ? "Allowed"
                             : "Blocked"}
                         </button>

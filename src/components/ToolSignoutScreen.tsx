@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useItems, type InventoryItem } from "../hooks/useItems";
-import { currentUser } from "../lib/authStore";
+import { canAccessToolSignout, canManageToolSignout, currentUser } from "../lib/authStore";
 import {
   approveToolRequest,
   createToolRequest,
@@ -36,7 +36,8 @@ function Badge({ children }: { children: React.ReactNode }) {
 export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => void }) {
   const itemsApi = useItems();
   const me = currentUser();
-  const isAdmin = me?.role === "admin";
+  const canUseToolSignout = canAccessToolSignout(me);
+  const canManageToolRequests = canManageToolSignout(me);
 
   const [, force] = useReducer((n: number) => n + 1, 0);
   const [search, setSearch] = useState("");
@@ -79,9 +80,22 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
   const pending = allRequests.filter((row) => row.status === "pending");
   const active = getActiveToolSignouts();
   const mine = me ? allRequests.filter((row) => row.requestedByUserId === me.id) : [];
-  const myPendingCount = me ? getToolAlertsForUser(me.id, !!isAdmin) : 0;
+  const myPendingCount = me ? getToolAlertsForUser(me.id, !!canManageToolRequests) : 0;
   const adminReviewRows =
     adminFilter === "all" ? allRequests : allRequests.filter((row) => row.status === adminFilter);
+
+  if (!canUseToolSignout) {
+    return (
+      <div className="page dashboardPage">
+        <div className="dashboardHeader">
+          <div>
+            <h2 className="dashboardTitle">Tool Signout</h2>
+            <div className="dashboardSubtitle">Access is blocked for this user. Ask Admin to enable Tool Signout in Access Controls.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function requestTool() {
     setAttemptedRequest(true);
@@ -195,9 +209,9 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
 
         <div className="dashboardCard">
           <div className="dashboardCardTitle">
-            {isAdmin ? `Request Review Queue (${adminReviewRows.length})` : `Pending Requests (Mine ${myPendingCount})`}
+            {canManageToolRequests ? `Request Review Queue (${adminReviewRows.length})` : `Pending Requests (Mine ${myPendingCount})`}
           </div>
-          {isAdmin ? (
+          {canManageToolRequests ? (
             <div className="dashboardPills">
               <button className={`btn ${adminFilter === "pending" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("pending")}>Pending</button>
               <button className={`btn ${adminFilter === "approved" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("approved")}>Approved</button>
@@ -207,7 +221,7 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
             </div>
           ) : null}
           <div className="dashboardStack">
-            {(isAdmin ? adminReviewRows : pending.filter((row) => row.requestedByUserId === me?.id)).map((row) => (
+            {(canManageToolRequests ? adminReviewRows : pending.filter((row) => row.requestedByUserId === me?.id)).map((row) => (
               <div key={row.id} className="dashboardRowCard">
                 <div className="dashboardItemMain">
                   <div className="dashboardItemName">{row.itemName}</div>
@@ -217,29 +231,29 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
                     {row.note ? ` • Note: ${row.note}` : ""}
                   </div>
                 </div>
-                {isAdmin && row.status === "pending" ? (
+                {canManageToolRequests && row.status === "pending" ? (
                   <div className="dashboardJobActions">
                     <button className="btn" type="button" onClick={() => handleApprove(row)}>Accept</button>
                     <button className="btn" type="button" onClick={() => handleReject(row)}>Reject</button>
                   </div>
-                ) : isAdmin ? (
+                ) : canManageToolRequests ? (
                   <Badge>{row.status.toUpperCase()}</Badge>
                 ) : (
                   <Badge>Waiting Admin</Badge>
                 )}
               </div>
             ))}
-            {isAdmin && !adminReviewRows.length ? <div className="dashboardMuted">No requests in this filter.</div> : null}
-            {!isAdmin && !pending.length ? <div className="dashboardMuted">No pending tool requests.</div> : null}
+            {canManageToolRequests && !adminReviewRows.length ? <div className="dashboardMuted">No requests in this filter.</div> : null}
+            {!canManageToolRequests && !pending.length ? <div className="dashboardMuted">No pending tool requests.</div> : null}
           </div>
         </div>
 
-        {isAdmin ? (
+        {canManageToolRequests ? (
           <div className="dashboardCard" id="tools-active-signout">
             <div className="dashboardCardTitle">Who Has the Tool</div>
             <div className="dashboardStack">
               {active.map((row) => {
-                const canReturn = isAdmin || row.requestedByUserId === me?.id;
+                const canReturn = canManageToolRequests || row.requestedByUserId === me?.id;
                 return (
                   <div key={row.id} className="dashboardRowCard">
                     <div className="dashboardItemMain">

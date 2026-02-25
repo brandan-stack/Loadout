@@ -80,6 +80,8 @@ export default function SettingsScreen() {
   const accessAdd = me ? getAccessSummary(me, "add") : "Blocked";
   const accessEdit = me ? getAccessSummary(me, "edit") : "Blocked";
   const accessPartsUsed = me?.canAccessPartsUsed ? "Allowed" : "Blocked";
+  const accessToolSignout = me?.canAccessToolSignout || me?.role === "admin" ? "Allowed" : "Blocked";
+  const accessToolDashboard = me?.canManageToolSignout || me?.role === "admin" ? "Allowed" : "Blocked";
   const accessNotifications = me?.receivesJobNotifications ? "Allowed" : "Blocked";
   const accessPricing = me?.canViewPricingMargin ? "Allowed" : "Blocked";
   const canManagePdf = !!isAdmin && unlocked;
@@ -225,6 +227,8 @@ export default function SettingsScreen() {
           <span className="chip">Active Users: {activeUsers.length}</span>
           <span className="chip">Current: {me?.name ?? "None"}</span>
           <span className="chip">Parts Used: {accessPartsUsed}</span>
+          <span className="chip">Tool Signout: {accessToolSignout}</span>
+          <span className="chip">Tool Dashboard: {accessToolDashboard}</span>
           <span className="chip">Job Notifications: {accessNotifications}</span>
           <span className="chip">Pricing/Margin: {accessPricing}</span>
           <span className="chip">Add Access: {accessAdd}</span>
@@ -318,7 +322,7 @@ export default function SettingsScreen() {
                 Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
                 {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
               </div>
-              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricing} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
+              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Tool Signout: {accessToolSignout} • Tool Dashboard: {accessToolDashboard} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricing} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
             </div>
 
             <input
@@ -353,7 +357,7 @@ export default function SettingsScreen() {
             <div className="settingsSelectedUserCard">
               <div className="settingsStrong">Selected User Details</div>
               <div className="muted settingsCurrentAccess">
-                {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {selectedUser.canViewPricingMargin ? "Allowed" : "Blocked"}
+                {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Tool Signout: {selectedUser.canAccessToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Tool Dashboard: {selectedUser.canManageToolSignout || selectedUser.role === "admin" ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {selectedUser.canViewPricingMargin ? "Allowed" : "Blocked"}
               </div>
             </div>
           ) : null}
