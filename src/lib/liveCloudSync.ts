@@ -16,6 +16,7 @@ const POLL_MS = 3000;
 const RETRY_DELAY_MS = 600;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 2;
+const REQUEST_TIMEOUT_MS = 8000;
 const TRACKED_KEYS = new Set([
   "inventory.items.v2",
   "inventory.categories.v2",
@@ -57,6 +58,17 @@ async function withRetry<T>(action: () => Promise<T>, retries: number): Promise<
   }
 
   throw lastError;
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
+  return await Promise.race<T>([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 function sanitizeEnv(value?: string): string {
@@ -316,11 +328,23 @@ export function startLiveCloudSync(appVersion: string) {
 
     try {
       await withRetry(async () => {
-        const upsertResult = await client.from(SYNC_TABLE).upsert(row, { onConflict: "id" });
+        const upsertResult: { error: { message?: string } | null } = await withTimeout(
+          client.from(SYNC_TABLE).upsert(row, { onConflict: "id" }),
+          REQUEST_TIMEOUT_MS,
+          "push upsert"
+        );
         if (upsertResult.error) {
-          const updateResult = await client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE);
+          const updateResult: { error: { message?: string } | null } = await withTimeout(
+            client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE),
+            REQUEST_TIMEOUT_MS,
+            "push update"
+          );
           if (updateResult.error) {
-            const insertResult = await client.from(SYNC_TABLE).insert(row);
+            const insertResult: { error: { message?: string } | null } = await withTimeout(
+              client.from(SYNC_TABLE).insert(row),
+              REQUEST_TIMEOUT_MS,
+              "push insert"
+            );
             if (insertResult.error) {
               throw insertResult.error;
             }
@@ -353,8 +377,12 @@ export function startLiveCloudSync(appVersion: string) {
     let data: { payload?: unknown } | null = null;
     let error: { message?: string } | null = null;
     try {
-      const result = await withRetry(async () => {
-        const next = await client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle();
+      const result = await withRetry(async (): Promise<{ data: { payload?: unknown } | null; error: { message?: string } | null }> => {
+        const next: { data: { payload?: unknown } | null; error: { message?: string } | null } = await withTimeout(
+          client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle(),
+          REQUEST_TIMEOUT_MS,
+          "pull select"
+        );
         if (next.error) {
           throw next.error;
         }
