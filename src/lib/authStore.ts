@@ -38,6 +38,7 @@ export type SecuritySettings = {
 const USERS_KEY = "inventory.users.v1";
 const SESSION_KEY = "inventory.session.v1";
 const SETTINGS_KEY = "inventory.securitySettings.v1";
+const REMEMBER_DEVICE_KEY = "inventory.rememberDevice.v1";
 
 function newId() {
   return Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
@@ -347,6 +348,26 @@ export function loadSecuritySettings(): SecuritySettings {
   return rawLoad<SecuritySettings>(SETTINGS_KEY, { autoLockMinutes: 60, requirePinForStock: true, requirePinForCosts: true });
 }
 
+export function loadRememberDevicePreference(): boolean {
+  try {
+    return localStorage.getItem(REMEMBER_DEVICE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveRememberDevicePreference(enabled: boolean) {
+  try {
+    localStorage.setItem(REMEMBER_DEVICE_KEY, enabled ? "1" : "0");
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function isDeviceRemembered(): boolean {
+  return loadRememberDevicePreference();
+}
+
 export function saveSecuritySettings(patch: Partial<SecuritySettings>) {
   const cur = loadSecuritySettings();
   rawSave(SETTINGS_KEY, { ...cur, ...patch });
@@ -380,7 +401,7 @@ export function lockNow() {
   saveSession({ ...s, unlockedUntil: 0 });
 }
 
-export function unlockWithPin(pin: string, minutesOverride?: number): boolean {
+export function unlockWithPin(pin: string, minutesOverride?: number, rememberDeviceOverride?: boolean): boolean {
   const users = loadUsers();
   const s = loadSession();
   const u = users.find((x) => x.id === s.currentUserId);
@@ -388,6 +409,7 @@ export function unlockWithPin(pin: string, minutesOverride?: number): boolean {
 
   const settings = loadSecuritySettings();
   const minutes = minutesOverride ?? Math.max(1, Number(settings.autoLockMinutes) || 60);
+  const rememberDevice = rememberDeviceOverride ?? loadRememberDevicePreference();
 
   // require a real PIN for unlock
   if (!u.pin || !String(u.pin).trim()) {
@@ -395,7 +417,9 @@ export function unlockWithPin(pin: string, minutesOverride?: number): boolean {
   }
 
   if (String(pin).trim() === String(u.pin).trim()) {
-    saveSession({ ...s, unlockedUntil: Date.now() + minutes * 60_000 });
+    saveRememberDevicePreference(rememberDevice);
+    const unlockedUntil = rememberDevice ? Date.now() + 5 * 365 * 24 * 60 * 60_000 : Date.now() + minutes * 60_000;
+    saveSession({ ...s, unlockedUntil });
     return true;
   }
   return false;
