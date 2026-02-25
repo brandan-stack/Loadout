@@ -26,8 +26,11 @@ import {
   resetAutoPdfBackupState,
   runAutoPdfBackupNow,
 } from "../lib/pdfBackup";
+import { getActiveToolSignouts, getPendingToolRequests } from "../lib/toolSignoutStore";
 
 declare const __APP_VERSION__: string;
+
+type SettingsTab = "users" | "system" | "admin";
 
 function roleLabel(r: Role) {
   if (r === "admin") return "Admin";
@@ -44,6 +47,7 @@ export default function SettingsScreen() {
     typeof window !== "undefined" ? window.innerWidth <= 980 : false
   );
   const [adminExpanded, setAdminExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("users");
   const [pdfBackupStatus, setPdfBackupStatus] = useState<{
     enabled: boolean;
     hasFileHandle: boolean;
@@ -72,11 +76,15 @@ export default function SettingsScreen() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
 
   const activeUsers = users.filter((u) => u.isActive);
+  const selectedUser = activeUsers.find((u) => u.id === session.currentUserId) ?? null;
   const accessAdd = me ? getAccessSummary(me, "add") : "Blocked";
   const accessEdit = me ? getAccessSummary(me, "edit") : "Blocked";
   const accessPartsUsed = me?.canAccessPartsUsed ? "Allowed" : "Blocked";
   const accessNotifications = me?.receivesJobNotifications ? "Allowed" : "Blocked";
   const accessPricing = me?.canViewPricingMargin ? "Allowed" : "Blocked";
+  const canManagePdf = !!isAdmin && unlocked;
+  const pendingToolRequests = getPendingToolRequests();
+  const activeToolSignouts = getActiveToolSignouts();
 
   function refreshScreen() {
     setTick((x) => x + 1);
@@ -212,7 +220,7 @@ export default function SettingsScreen() {
     <div className="page screenWrap settingsPage">
       <div className="settingsHeader">
         <div className="settingsTitle">Settings</div>
-        <div className="muted">Theme, users, security, and admin permissions.</div>
+        <div className="muted">Clean controls for users, system settings, and admin permissions.</div>
         <div className="chips settingsChips">
           <span className="chip">Active Users: {activeUsers.length}</span>
           <span className="chip">Current: {me?.name ?? "None"}</span>
@@ -225,241 +233,318 @@ export default function SettingsScreen() {
         </div>
       </div>
 
-      {/* Appearance */}
-      <div className="card cardSoft settingsCard">
-        <div className="label">Appearance</div>
-        <div className="muted settingsSubtleGap">
-          Choose how the app looks on this device.
-        </div>
-
-        <div className="settingsRow2">
-          <div className="muted">Theme mode</div>
-          <select
-            value={themeMode}
-            onChange={(e) => {
-              const v = e.target.value as ThemeMode;
-              setThemeMode(v);
-              saveThemeMode(v);
-            }}
-          >
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </div>
+      <div className="settingsTabs" role="tablist" aria-label="Settings sections">
+        <button
+          className={`btn settingsTab ${activeTab === "users" ? "active" : ""}`}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "users"}
+          onClick={() => setActiveTab("users")}
+        >
+          Users
+        </button>
+        <button
+          className={`btn settingsTab ${activeTab === "system" ? "active" : ""}`}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "system"}
+          onClick={() => setActiveTab("system")}
+        >
+          System Settings
+        </button>
+        <button
+          className={`btn settingsTab ${activeTab === "admin" ? "active" : ""}`}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "admin"}
+          onClick={() => setActiveTab("admin")}
+        >
+          Admin
+        </button>
       </div>
 
-      {/* User & PIN */}
-      <div className="card cardSoft settingsCard">
-        <div className="label">User & password (PIN)</div>
-        <div className="muted settingsSubtleGap">
-          Select a user, enter password / PIN, then unlock.
-        </div>
-
-        {activeUsers.length === 0 ? (
-          <div style={{ display: "grid", gap: 10 }}>
-            <div className="muted">
-              No active users are visible (old save format). Click below to rebuild defaults.
-              <br />
-              <b>Inventory is NOT touched.</b>
-            </div>
-            <button
-              className="btn"
-              onClick={() => {
-                if (!confirm("Reset users to defaults with the same passwords (Admin 1234, Stock 1111, Invoicing 2222)? Inventory will NOT be touched.")) return;
-                resetUsersToDefaults();
-                refreshScreen();
-              }}
-            >
-              Reset Users (same passwords)
-            </button>
+      {activeTab === "users" ? (
+        <div className="card cardSoft settingsCard settingsTabPanel">
+          <div className="label">User & password (PIN)</div>
+          <div className="muted settingsSubtleGap">
+            View users independently, then unlock with the selected user password / PIN.
           </div>
-        ) : (
-          <div className="settingsUserCards">
-            {activeUsers.map((u) => (
+
+          {activeUsers.length === 0 ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div className="muted">
+                No active users are visible (old save format). Click below to rebuild defaults.
+                <br />
+                <b>Inventory is NOT touched.</b>
+              </div>
               <button
-                key={u.id}
-                className={"btn settingsUserCard" + (u.id === session.currentUserId ? " selected" : "")}
+                className="btn"
                 onClick={() => {
-                  setCurrentUser(u.id);
-                  setPin("");
+                  if (!confirm("Reset users to defaults with the same passwords (Admin 1234, Stock 1111, Invoicing 2222)? Inventory will NOT be touched.")) return;
+                  resetUsersToDefaults();
                   refreshScreen();
                 }}
               >
+                Reset Users (same passwords)
+              </button>
+            </div>
+          ) : (
+            <div className="settingsUserCards">
+              {activeUsers.map((u) => (
+                <button
+                  key={u.id}
+                  className={"btn settingsUserCard" + (u.id === session.currentUserId ? " selected" : "")}
+                  onClick={() => {
+                    setCurrentUser(u.id);
+                    setPin("");
+                    refreshScreen();
+                  }}
+                >
                   <span className="settingsUserMain">
                     <span className="settingsUserName">{u.name}</span>
                     <span className="muted settingsUserMeta">
-                    {roleLabel(u.role)} • Parts Used: {u.canAccessPartsUsed ? "Allowed" : "Blocked"}
+                      {roleLabel(u.role)} • Parts Used: {u.canAccessPartsUsed ? "Allowed" : "Blocked"}
+                    </span>
                   </span>
-                </span>
-                <span className="pill">{u.id === session.currentUserId ? "Selected" : "Select"}</span>
-              </button>
-            ))}
-          </div>
-        )}
+                  <span className="pill">{u.id === session.currentUserId ? "Selected" : "Select"}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        <div className="settingsUnlockGrid">
+          <div className="settingsUnlockGrid">
             <div className="muted settingsCurrentStatus">
               <div>
                 Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
                 {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
               </div>
               <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricing} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
-          </div>
+            </div>
 
-          <input
-            className="input"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleUnlock();
-            }}
-            placeholder="password / PIN"
-            inputMode="numeric"
-          />
-
-          <button className="btn" onClick={handleUnlock}>
-            Unlock
-          </button>
-
-          <button className="btn" onClick={handleLock}>
-            Lock Session
-          </button>
-        </div>
-
-        {unlockFeedback ? (
-          <div className="bannerFeedback bannerFeedback--error" role="status" aria-live="polite">{unlockFeedback}</div>
-        ) : null}
-
-        <div className="muted settingsFootnote">
-          Default passwords (unchanged): Admin 1234 • Stock 1111 • Invoicing 2222
-        </div>
-      </div>
-
-      {/* Security */}
-      <div className="card cardSoft settingsCard">
-        <div className="label">Security</div>
-        <div className="muted settingsSubtleGap">
-          These rules apply on this device (local-first).
-        </div>
-
-        <div className="settingsRow2 settingsSecurityRow">
-          <div>
-            <div className="settingsStrong">Auto-lock (minutes)</div>
-            <div className="muted">After unlocking, lock again automatically.</div>
-          </div>
-          <input
-            className="input"
-            type="number"
-            min={0}
-            value={sec.autoLockMinutes}
-            onChange={(e) => {
-              const v = Math.max(0, Number(e.target.value || 0));
-              saveSecuritySettings({ autoLockMinutes: v });
-              setTick((x) => x + 1);
-            }}
-          />
-        </div>
-
-        <div className="settingsChecks">
-          <label className="settingsCheckLabel">
             <input
-              type="checkbox"
-              checked={sec.requirePinForStock}
-              onChange={(e) => {
-                saveSecuritySettings({ requirePinForStock: e.target.checked });
-                setTick((x) => x + 1);
+              className="input"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleUnlock();
               }}
+              placeholder="password / PIN"
+              inputMode="numeric"
             />
-            <span>
-              <b>Require PIN</b> for stock actions (receive/take out/move)
-            </span>
-          </label>
 
-          <label className="settingsCheckLabel">
-            <input
-              type="checkbox"
-              checked={sec.requirePinForCosts}
-              onChange={(e) => {
-                saveSecuritySettings({ requirePinForCosts: e.target.checked });
-                setTick((x) => x + 1);
-              }}
-            />
-            <span>
-              <b>Require PIN</b> to view costs/profit fields
-            </span>
-          </label>
-        </div>
-      </div>
-
-      {/* Data Backup */}
-      <div className="card cardSoft settingsCard">
-        <div className="label">Data Backup (PDF)</div>
-        <div className="muted settingsSubtleGap">
-          Download a full data snapshot PDF now. You can also enable auto-overwrite sync every 30 minutes when data changes.
-        </div>
-
-        <div className="settingsUserCards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-          <button className="btn" disabled={pdfBusy} onClick={handleDownloadPdfNow}>Download Backup PDF Now</button>
-          <button className="btn" disabled={pdfBusy} onClick={() => pdfUploadRef.current?.click()}>Upload Backup PDF Restore</button>
-          <button className="btn" disabled={pdfBusy} onClick={handleEnableAutoPdfSync}>Enable Auto PDF Sync</button>
-          <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleRunAutoNow}>Run Auto Sync Now</button>
-          <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleDisableAuto}>Disable Auto Sync</button>
-          <button className="btn" disabled={pdfBusy} onClick={handleResetAutoState}>Reset Auto Sync File</button>
-        </div>
-
-        <input
-          ref={pdfUploadRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          style={{ display: "none" }}
-          onChange={(event) => {
-            const file = event.target.files?.[0] ?? null;
-            void handleUploadRestorePdf(file);
-          }}
-        />
-
-        <div className="muted settingsSubtleGap">
-          Auto Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.enabled ? "Enabled" : "Disabled"}</b> •
-          File Linked: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.hasFileHandle ? "Yes" : "No"}</b> •
-          Last Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastSyncedAt ? new Date(pdfBackupStatus.lastSyncedAt).toLocaleString() : "Never"}</b>
-        </div>
-
-        <div className="muted settingsSubtleGap" style={{ wordBreak: "break-all" }}>
-          Last Data Hash: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastHash || "—"}</b>
-        </div>
-
-        {pdfBackupStatus.lastError ? (
-          <div className="bannerFeedback bannerFeedback--warning" role="status" aria-live="polite">{pdfBackupStatus.lastError}</div>
-        ) : null}
-
-        {pdfFeedback ? (
-          <div className="bannerFeedback bannerFeedback--success" role="status" aria-live="polite">{pdfFeedback}</div>
-        ) : null}
-      </div>
-
-      {/* Admin */}
-      <div className="card cardSoft settingsCard">
-        <div className="settingsAdminHeader">
-          <div className="label">Admin</div>
-          {isAdmin && unlocked && compactAdmin ? (
-            <button
-              className="btn settingsAdminToggle"
-              type="button"
-              onClick={() => setAdminExpanded((v) => !v)}
-            >
-              {adminExpanded ? "Hide Admin Tools" : "Show Admin Tools"}
+            <button className="btn" onClick={handleUnlock}>
+              Unlock
             </button>
+
+            <button className="btn" onClick={handleLock}>
+              Lock Session
+            </button>
+          </div>
+
+          {unlockFeedback ? (
+            <div className="bannerFeedback bannerFeedback--error" role="status" aria-live="polite">{unlockFeedback}</div>
+          ) : null}
+
+          <div className="muted settingsFootnote">
+            Default passwords (unchanged): Admin 1234 • Stock 1111 • Invoicing 2222
+          </div>
+
+          {selectedUser ? (
+            <div className="settingsSelectedUserCard">
+              <div className="settingsStrong">Selected User Details</div>
+              <div className="muted settingsCurrentAccess">
+                {selectedUser.name} • {roleLabel(selectedUser.role)} • Parts Used: {selectedUser.canAccessPartsUsed ? "Allowed" : "Blocked"} • Job Notifications: {selectedUser.receivesJobNotifications ? "Allowed" : "Blocked"} • Pricing/Margin: {selectedUser.canViewPricingMargin ? "Allowed" : "Blocked"}
+              </div>
+            </div>
           ) : null}
         </div>
-        {isAdmin && unlocked ? (
-          !compactAdmin || adminExpanded ? <AdminPanel /> : null
-        ) : (
-          <div className="muted">
-            Select <b style={{ color: "var(--text)" }}>Admin</b> above and press <b style={{ color: "var(--text)" }}>Unlock</b> to manage users & PINs.
+      ) : null}
+
+      {activeTab === "system" ? (
+        <>
+          <div className="card cardSoft settingsCard settingsTabPanel">
+            <div className="label">Appearance</div>
+            <div className="muted settingsSubtleGap">
+              Choose how the app looks on this device.
+            </div>
+
+            <div className="settingsRow2">
+              <div className="muted">Theme mode</div>
+              <select
+                value={themeMode}
+                onChange={(e) => {
+                  const v = e.target.value as ThemeMode;
+                  setThemeMode(v);
+                  saveThemeMode(v);
+                }}
+              >
+                <option value="system">System</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="card cardSoft settingsCard settingsTabPanel">
+            <div className="label">Security</div>
+            <div className="muted settingsSubtleGap">
+              These rules apply on this device (local-first).
+            </div>
+
+            <div className="settingsRow2 settingsSecurityRow">
+              <div>
+                <div className="settingsStrong">Auto-lock (minutes)</div>
+                <div className="muted">After unlocking, lock again automatically.</div>
+              </div>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                value={sec.autoLockMinutes}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value || 0));
+                  saveSecuritySettings({ autoLockMinutes: v });
+                  setTick((x) => x + 1);
+                }}
+              />
+            </div>
+
+            <div className="settingsChecks">
+              <label className="settingsCheckLabel">
+                <input
+                  type="checkbox"
+                  checked={sec.requirePinForStock}
+                  onChange={(e) => {
+                    saveSecuritySettings({ requirePinForStock: e.target.checked });
+                    setTick((x) => x + 1);
+                  }}
+                />
+                <span>
+                  <b>Require PIN</b> for stock actions (receive/take out/move)
+                </span>
+              </label>
+
+              <label className="settingsCheckLabel">
+                <input
+                  type="checkbox"
+                  checked={sec.requirePinForCosts}
+                  onChange={(e) => {
+                    saveSecuritySettings({ requirePinForCosts: e.target.checked });
+                    setTick((x) => x + 1);
+                  }}
+                />
+                <span>
+                  <b>Require PIN</b> to view costs/profit fields
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="card cardSoft settingsCard settingsTabPanel">
+            <div className="label">Data Backup (PDF)</div>
+            <div className="muted settingsSubtleGap">
+              Download and upload backup PDFs, with optional auto-overwrite sync every 30 minutes when data changes.
+            </div>
+
+            {!canManagePdf ? (
+              <div className="bannerFeedback bannerFeedback--warning" role="status" aria-live="polite">
+                Only an unlocked Admin can download or upload backup PDFs.
+              </div>
+            ) : null}
+
+            <div className="settingsUserCards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <button className="btn" disabled={pdfBusy || !canManagePdf} onClick={handleDownloadPdfNow}>Download Backup PDF Now</button>
+              <button className="btn" disabled={pdfBusy || !canManagePdf} onClick={() => pdfUploadRef.current?.click()}>Upload Backup PDF Restore</button>
+              <button className="btn" disabled={pdfBusy || !canManagePdf} onClick={handleEnableAutoPdfSync}>Enable Auto PDF Sync</button>
+              <button className="btn" disabled={pdfBusy || !canManagePdf || !pdfBackupStatus.enabled} onClick={handleRunAutoNow}>Run Auto Sync Now</button>
+              <button className="btn" disabled={pdfBusy || !canManagePdf || !pdfBackupStatus.enabled} onClick={handleDisableAuto}>Disable Auto Sync</button>
+              <button className="btn" disabled={pdfBusy || !canManagePdf} onClick={handleResetAutoState}>Reset Auto Sync File</button>
+            </div>
+
+            <input
+              ref={pdfUploadRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              style={{ display: "none" }}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                void handleUploadRestorePdf(file);
+              }}
+            />
+
+            <div className="muted settingsSubtleGap">
+              Auto Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.enabled ? "Enabled" : "Disabled"}</b> •
+              File Linked: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.hasFileHandle ? "Yes" : "No"}</b> •
+              Last Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastSyncedAt ? new Date(pdfBackupStatus.lastSyncedAt).toLocaleString() : "Never"}</b>
+            </div>
+
+            <div className="muted settingsSubtleGap" style={{ wordBreak: "break-all" }}>
+              Last Data Hash: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastHash || "—"}</b>
+            </div>
+
+            {pdfBackupStatus.lastError ? (
+              <div className="bannerFeedback bannerFeedback--warning" role="status" aria-live="polite">{pdfBackupStatus.lastError}</div>
+            ) : null}
+
+            {pdfFeedback ? (
+              <div className="bannerFeedback bannerFeedback--success" role="status" aria-live="polite">{pdfFeedback}</div>
+            ) : null}
+          </div>
+
+          <div className="card cardSoft settingsCard settingsTabPanel">
+            <div className="label">Tools Dashboard</div>
+            <div className="muted settingsSubtleGap">
+              Live view of tool requests and who currently has each approved tool.
+            </div>
+
+            <div className="dashboardPills">
+              <span className="dashboardBadge">Pending Requests: {pendingToolRequests.length}</span>
+              <span className="dashboardBadge">Checked Out Tools: {activeToolSignouts.length}</span>
+            </div>
+
+            <div className="dashboardStack settingsSubtleGap">
+              {activeToolSignouts.slice(0, 20).map((row) => (
+                <div key={row.id} className="dashboardRowCard">
+                  <div className="dashboardItemMain">
+                    <div className="dashboardItemName">{row.itemName}</div>
+                    <div className="dashboardUsageMeta">
+                      Holder: {row.requestedByName} • Qty {row.qty}
+                      {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
+                      {row.decidedByName ? ` • Approved by ${row.decidedByName}` : ""}
+                    </div>
+                  </div>
+                  <span className="dashboardBadge">Checked Out</span>
+                </div>
+              ))}
+              {!activeToolSignouts.length ? <div className="dashboardMuted">No active tool signouts.</div> : null}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {activeTab === "admin" ? (
+        <div className="card cardSoft settingsCard settingsTabPanel">
+          <div className="settingsAdminHeader">
+            <div className="label">Admin</div>
+            {isAdmin && unlocked && compactAdmin ? (
+              <button
+                className="btn settingsAdminToggle"
+                type="button"
+                onClick={() => setAdminExpanded((v) => !v)}
+              >
+                {adminExpanded ? "Hide Admin Tools" : "Show Admin Tools"}
+              </button>
+            ) : null}
+          </div>
+          {isAdmin && unlocked ? (
+            !compactAdmin || adminExpanded ? <AdminPanel /> : null
+          ) : (
+            <div className="muted">
+              Select <b style={{ color: "var(--text)" }}>Admin</b> above and press <b style={{ color: "var(--text)" }}>Unlock</b> to manage users & PINs.
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
