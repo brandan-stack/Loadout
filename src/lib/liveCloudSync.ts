@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
 const EVENT_NAME = "loadout:state-updated";
+const STATUS_EVENT_NAME = "loadout:sync-status";
 const DEVICE_ID_KEY = "loadout.syncDeviceId.v1";
 const LAST_SYNC_TS_KEY = "loadout.syncLastTimestamp.v1";
+const STATUS_KEY = "loadout.syncStatus.v1";
 
 const SYNC_URL = import.meta.env.VITE_SYNC_SUPABASE_URL as string | undefined;
 const SYNC_ANON_KEY = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string | undefined;
@@ -24,6 +26,48 @@ type CloudSnapshot = {
   appVersion: string;
   values: Record<string, string>;
 };
+
+export type LiveCloudSyncStatus = {
+  state: "disabled" | "connecting" | "connected" | "error";
+  lastSyncAt: number;
+  lastError: string;
+};
+
+function readStatusRaw(): LiveCloudSyncStatus {
+  try {
+    const raw = window.localStorage.getItem(STATUS_KEY);
+    if (!raw) {
+      return { state: "disabled", lastSyncAt: 0, lastError: "" };
+    }
+    const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
+    const state = parsed.state;
+    return {
+      state: state === "disabled" || state === "connecting" || state === "connected" || state === "error" ? state : "disabled",
+      lastSyncAt: safeNumber(parsed.lastSyncAt, 0),
+      lastError: safeString(parsed.lastError, ""),
+    };
+  } catch {
+    return { state: "disabled", lastSyncAt: 0, lastError: "" };
+  }
+}
+
+export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
+  if (typeof window === "undefined") {
+    return { state: "disabled", lastSyncAt: 0, lastError: "" };
+  }
+  return readStatusRaw();
+}
+
+function writeStatus(next: Partial<LiveCloudSyncStatus>) {
+  const prev = readStatusRaw();
+  const merged: LiveCloudSyncStatus = {
+    state: next.state ?? prev.state,
+    lastSyncAt: typeof next.lastSyncAt === "number" ? next.lastSyncAt : prev.lastSyncAt,
+    lastError: typeof next.lastError === "string" ? next.lastError : prev.lastError,
+  };
+  window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
+  window.dispatchEvent(new Event(STATUS_EVENT_NAME));
+}
 
 function safeString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -122,14 +166,17 @@ function applyRemoteValues(values: Record<string, string>) {
 
 export function startLiveCloudSync(appVersion: string) {
   if (typeof window === "undefined") return;
+  writeStatus({ state: "connecting", lastError: "" });
 
   if (!SYNC_URL || !SYNC_ANON_KEY) {
     console.info("[Loadout Sync] Cloud sync disabled (missing VITE_SYNC_SUPABASE_URL or VITE_SYNC_SUPABASE_ANON_KEY).");
+    writeStatus({ state: "disabled", lastError: "Missing sync environment variables." });
     return;
   }
 
   if (!/^https?:\/\//i.test(SYNC_URL)) {
     console.warn("[Loadout Sync] Cloud sync disabled (invalid VITE_SYNC_SUPABASE_URL format).");
+    writeStatus({ state: "disabled", lastError: "Invalid sync URL format." });
     return;
   }
 
@@ -140,6 +187,7 @@ export function startLiveCloudSync(appVersion: string) {
       });
     } catch (error) {
       console.error("[Loadout Sync] Cloud sync failed to initialize:", error);
+      writeStatus({ state: "error", lastError: "Cloud sync client initialization failed." });
       return null;
     }
   })();
@@ -151,6 +199,7 @@ export function startLiveCloudSync(appVersion: string) {
     deviceId = getOrCreateDeviceId();
   } catch (error) {
     console.error("[Loadout Sync] Cloud sync disabled (device id setup failed):", error);
+    writeStatus({ state: "error", lastError: "Device sync identity setup failed." });
     return;
   }
   let currentSignature = signatureFor(collectLocalValues());
@@ -178,17 +227,20 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Push failed:", error.message);
+      writeStatus({ state: "error", lastError: `Push failed: ${error.message}` });
       return;
     }
 
     currentSignature = nextSignature;
     writeLastSyncTimestamp(snapshot.updatedAt);
+    writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
   }
 
   async function pullRemoteValues() {
     const { data, error } = await client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle();
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
+      writeStatus({ state: "error", lastError: `Pull failed: ${error.message}` });
       return;
     }
 
@@ -204,6 +256,7 @@ export function startLiveCloudSync(appVersion: string) {
       applyRemoteValues(snapshot.values);
       currentSignature = signatureFor(collectLocalValues());
       writeLastSyncTimestamp(snapshot.updatedAt);
+      writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
       notifyStateUpdated();
     } finally {
       applyingRemote = false;
@@ -231,6 +284,7 @@ export function startLiveCloudSync(appVersion: string) {
           applyRemoteValues(snapshot.values);
           currentSignature = signatureFor(collectLocalValues());
           writeLastSyncTimestamp(snapshot.updatedAt);
+          writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
           notifyStateUpdated();
         } finally {
           applyingRemote = false;
@@ -239,7 +293,10 @@ export function startLiveCloudSync(appVersion: string) {
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
+        writeStatus({ state: "connected", lastError: "" });
         void pullRemoteValues();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        writeStatus({ state: "error", lastError: `Realtime status: ${status}` });
       }
     });
 

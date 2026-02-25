@@ -1332,7 +1332,8 @@ button:focus-visible,
 
 .appMobileNavMenu .appUserSelect,
 .appMobileNavMenu .appSignedInPill,
-.appMobileNavMenu .appStatusPill {
+.appMobileNavMenu .appStatusPill,
+.appMobileNavMenu .appSyncPill {
   width: 100%;
   min-height: 44px;
 }
@@ -1439,6 +1440,38 @@ button:focus-visible,
   border-color: color-mix(in srgb, var(--warn) 65%, var(--border2));
   background: color-mix(in srgb, var(--warn) 24%, transparent);
   color: color-mix(in srgb, var(--text) 82%, #000 18%);
+}
+
+.appSyncPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: var(--panel2);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.appSyncPill.connected {
+  border-color: color-mix(in srgb, var(--ok) 65%, var(--border2));
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+}
+
+.appSyncPill.connecting {
+  border-color: color-mix(in srgb, var(--warn) 65%, var(--border2));
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.appSyncPill.error {
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border2));
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.appSyncPill.disabled {
+  opacity: 0.82;
 }
 
 .appSignedInPill {

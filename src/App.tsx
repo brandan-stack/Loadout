@@ -23,6 +23,7 @@ import {
 } from "./lib/authStore";
 import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
 import { getToolAlertsForUser } from "./lib/toolSignoutStore";
+import { readLiveCloudSyncStatus, type LiveCloudSyncStatus } from "./lib/liveCloudSync";
 
 declare const __APP_VERSION__: string;
 
@@ -56,6 +57,14 @@ function isTab(value: string | null): value is Tab {
   return value === "dashboard" || value === "inventory" || value === "management" || value === "partsUsed" || value === "toolSignout" || value === "settings";
 }
 
+function fmt(ts: number) {
+  try {
+    return new Date(ts).toLocaleString();
+  } catch {
+    return String(ts);
+  }
+}
+
 function GearIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -79,6 +88,7 @@ export default function App() {
   const [pin, setPin] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [gateFeedback, setGateFeedback] = useState<string>("");
+  const [syncStatus, setSyncStatus] = useState<LiveCloudSyncStatus>(() => readLiveCloudSyncStatus());
 
   const users = loadUsers().filter((u) => u.isActive);
   const session = loadSession();
@@ -157,6 +167,33 @@ export default function App() {
       window.removeEventListener("storage", onStateChanged);
     };
   }, []);
+
+  useEffect(() => {
+    const updateSyncStatus = () => setSyncStatus(readLiveCloudSyncStatus());
+    window.addEventListener("loadout:sync-status", updateSyncStatus);
+    window.addEventListener("loadout:state-updated", updateSyncStatus);
+    window.addEventListener("storage", updateSyncStatus);
+    return () => {
+      window.removeEventListener("loadout:sync-status", updateSyncStatus);
+      window.removeEventListener("loadout:state-updated", updateSyncStatus);
+      window.removeEventListener("storage", updateSyncStatus);
+    };
+  }, []);
+
+  const syncLabel =
+    syncStatus.state === "connected"
+      ? "Sync On"
+      : syncStatus.state === "connecting"
+      ? "Sync…"
+      : syncStatus.state === "error"
+      ? "Sync Error"
+      : "Sync Off";
+  const syncTitle =
+    syncStatus.state === "connected"
+      ? syncStatus.lastSyncAt > 0
+        ? `Live sync active. Last sync: ${fmt(syncStatus.lastSyncAt)}`
+        : "Live sync active."
+      : syncStatus.lastError || "Live sync is disabled.";
 
   useEffect(() => {
     const onResize = () => {
@@ -293,6 +330,10 @@ export default function App() {
                 Signed in: {me?.name ?? "None"}
               </div>
 
+              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+                {syncLabel}
+              </div>
+
               <button
                 type="button"
                 className={"appStatusPill " + (alertCount > 0 ? "alert" : "")}
@@ -351,6 +392,10 @@ export default function App() {
                 >
                   Alerts {alertCount}
                 </button>
+              </div>
+
+              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+                {syncLabel}
               </div>
 
               <button className={"appNavBtn " + (activeTab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>Inventory</button>
