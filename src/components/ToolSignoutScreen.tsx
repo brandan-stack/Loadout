@@ -45,6 +45,7 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
   const [selectedItemId, setSelectedItemId] = useState("");
   const [attemptedRequest, setAttemptedRequest] = useState(false);
   const [toast, setToast] = useState<InlineToast | null>(null);
+  const [adminFilter, setAdminFilter] = useState<ToolRequest["status"] | "all">("pending");
 
   useEffect(() => {
     if (!toast) return;
@@ -74,10 +75,13 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
       .slice(0, 30);
   }, [itemsApi.items, search]);
 
-  const pending = loadToolRequests().filter((row) => row.status === "pending");
+  const allRequests = loadToolRequests();
+  const pending = allRequests.filter((row) => row.status === "pending");
   const active = getActiveToolSignouts();
-  const mine = me ? loadToolRequests().filter((row) => row.requestedByUserId === me.id) : [];
+  const mine = me ? allRequests.filter((row) => row.requestedByUserId === me.id) : [];
   const myPendingCount = me ? getToolAlertsForUser(me.id, !!isAdmin) : 0;
+  const adminReviewRows =
+    adminFilter === "all" ? allRequests : allRequests.filter((row) => row.status === adminFilter);
 
   function requestTool() {
     setAttemptedRequest(true);
@@ -190,29 +194,43 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
         </div>
 
         <div className="dashboardCard">
-          <div className="dashboardCardTitle">Pending Requests {isAdmin ? `(All ${pending.length})` : `(Mine ${myPendingCount})`}</div>
+          <div className="dashboardCardTitle">
+            {isAdmin ? `Request Review Queue (${adminReviewRows.length})` : `Pending Requests (Mine ${myPendingCount})`}
+          </div>
+          {isAdmin ? (
+            <div className="dashboardPills">
+              <button className={`btn ${adminFilter === "pending" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("pending")}>Pending</button>
+              <button className={`btn ${adminFilter === "approved" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("approved")}>Approved</button>
+              <button className={`btn ${adminFilter === "rejected" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("rejected")}>Rejected</button>
+              <button className={`btn ${adminFilter === "returned" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("returned")}>Returned</button>
+              <button className={`btn ${adminFilter === "all" ? "primary" : ""}`} type="button" onClick={() => setAdminFilter("all")}>All</button>
+            </div>
+          ) : null}
           <div className="dashboardStack">
-            {(isAdmin ? pending : pending.filter((row) => row.requestedByUserId === me?.id)).map((row) => (
+            {(isAdmin ? adminReviewRows : pending.filter((row) => row.requestedByUserId === me?.id)).map((row) => (
               <div key={row.id} className="dashboardRowCard">
                 <div className="dashboardItemMain">
                   <div className="dashboardItemName">{row.itemName}</div>
                   <div className="dashboardUsageMeta">
-                    Requested by {row.requestedByName} • Qty {row.qty} • {fmt(row.ts)}
+                    Requested by {row.requestedByName} • Qty {row.qty} • {fmt(row.ts)} • Status: {row.status.toUpperCase()}
                     {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
                     {row.note ? ` • Note: ${row.note}` : ""}
                   </div>
                 </div>
-                {isAdmin ? (
+                {isAdmin && row.status === "pending" ? (
                   <div className="dashboardJobActions">
                     <button className="btn" type="button" onClick={() => handleApprove(row)}>Accept</button>
                     <button className="btn" type="button" onClick={() => handleReject(row)}>Reject</button>
                   </div>
+                ) : isAdmin ? (
+                  <Badge>{row.status.toUpperCase()}</Badge>
                 ) : (
                   <Badge>Waiting Admin</Badge>
                 )}
               </div>
             ))}
-            {!pending.length ? <div className="dashboardMuted">No pending tool requests.</div> : null}
+            {isAdmin && !adminReviewRows.length ? <div className="dashboardMuted">No requests in this filter.</div> : null}
+            {!isAdmin && !pending.length ? <div className="dashboardMuted">No pending tool requests.</div> : null}
           </div>
         </div>
 
