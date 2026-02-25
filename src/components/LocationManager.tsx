@@ -66,7 +66,7 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
   const flat = useMemo(() => flattenTree(roots), [roots]);
 
   const [newRootName, setNewRootName] = useState("");
-  const [managerFeedback, setManagerFeedback] = useState("");
+  const [managerFeedback, setManagerFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   const canAddRoot = useMemo(() => {
     return ["addRoot", "addRootLocation", "createRoot", "addLocation"].some((k) => typeof loc?.[k] === "function");
@@ -88,10 +88,10 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
     );
 
     if (!ok) {
-      setManagerFeedback("Your useLocations hook doesn't expose an add-root function. We can fix useLocations.ts next.");
+      setManagerFeedback({ tone: "error", message: "Your useLocations hook doesn't expose an add-root function. We can fix useLocations.ts next." });
       return;
     }
-    setManagerFeedback("Location added.");
+    setManagerFeedback({ tone: "success", message: "Location added." });
     setNewRootName("");
   }
 
@@ -117,7 +117,7 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
       ) : null}
 
       {managerFeedback ? (
-        <div className="bannerWarning" role="status" aria-live="polite">{managerFeedback}</div>
+        <div className={`bannerFeedback bannerFeedback--${managerFeedback.tone}`} role="status" aria-live="polite">{managerFeedback.message}</div>
       ) : null}
 
       <div className="split2 locationManagerSplit">

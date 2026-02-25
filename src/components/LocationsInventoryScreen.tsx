@@ -50,7 +50,7 @@ export default function InventoryScreen() {
 
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [imageViewSrc, setImageViewSrc] = useState("");
-  const [screenFeedback, setScreenFeedback] = useState("");
+  const [screenFeedback, setScreenFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   function getTotalQty(it: LocalInventoryItem) {
     if (typeof it.totalQty === "number") return Number(it.totalQty || 0);
@@ -141,16 +141,16 @@ export default function InventoryScreen() {
   function saveItem() {
     const cleanName = name.trim();
     if (!cleanName) {
-      setScreenFeedback("Name required.");
+      setScreenFeedback({ tone: "error", message: "Name required." });
       return;
     }
 
     if (!selectedId && !canAddItems) {
-      setScreenFeedback("You are not allowed to add inventory items.");
+      setScreenFeedback({ tone: "error", message: "You are not allowed to add inventory items." });
       return;
     }
     if (selectedId && !canEditItems) {
-      setScreenFeedback("You are not allowed to edit inventory items.");
+      setScreenFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
       return;
     }
 
@@ -186,7 +186,7 @@ export default function InventoryScreen() {
     }
 
     resetForm();
-    setScreenFeedback(selectedId ? "Item saved." : "Item added.");
+    setScreenFeedback({ tone: "success", message: selectedId ? "Item saved." : "Item added." });
   }
 
   function resetForm() {
@@ -205,7 +205,7 @@ export default function InventoryScreen() {
 
   function startEdit(item: LocalInventoryItem) {
     if (!canEditItems) {
-      setScreenFeedback("You are not allowed to edit inventory items.");
+      setScreenFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
       return;
     }
     setSelectedId(item.id);
@@ -238,10 +238,10 @@ export default function InventoryScreen() {
     try {
       const dataUrl = await imageFileToOptimizedDataUrl(file);
       setPhotoDataUrl(dataUrl);
-      setScreenFeedback("");
+      setScreenFeedback(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unable to process image.";
-      setScreenFeedback(msg);
+      setScreenFeedback({ tone: "error", message: msg });
     }
   }
 
@@ -261,7 +261,7 @@ export default function InventoryScreen() {
       </div>
 
       {screenFeedback ? (
-        <div className="bannerWarning" role="status" aria-live="polite">{screenFeedback}</div>
+        <div className={`bannerFeedback bannerFeedback--${screenFeedback.tone}`} role="status" aria-live="polite">{screenFeedback.message}</div>
       ) : null}
 
       {/* ===== ADD / EDIT ===== */}
@@ -442,11 +442,11 @@ export default function InventoryScreen() {
                   disabled={!canEditItems}
                   onClick={() => {
                     if (!canEditItems) {
-                      setScreenFeedback("You are not allowed to edit inventory items.");
+                      setScreenFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
                       return;
                     }
                     itemsApi.deleteItem?.(it.id);
-                    setScreenFeedback(`Deleted item "${it.name}".`);
+                    setScreenFeedback({ tone: "success", message: `Deleted item "${it.name}".` });
                   }}
                 >
                   🗑

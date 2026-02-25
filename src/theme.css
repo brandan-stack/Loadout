@@ -439,6 +439,31 @@ button:focus-visible,
   border: 1px solid rgba(255,180,0,.35); background: rgba(255,180,0,.12);
 }
 
+.bannerFeedback {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--border2) 82%, var(--border));
+  background: color-mix(in srgb, var(--panel2) 78%, transparent);
+}
+
+.bannerFeedback--success {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.bannerFeedback--warning {
+  border-color: color-mix(in srgb, var(--warn) 58%, var(--border));
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.bannerFeedback--error {
+  border-color: color-mix(in srgb, #ff6d6d 58%, var(--border));
+  background: color-mix(in srgb, #ff6d6d 18%, transparent);
+}
+
 .locList { margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
 .locRow {
   display:grid; grid-template-columns: 1fr auto auto; gap: 12px;

@@ -30,7 +30,7 @@ function isValidPin(pin: string) {
 
 export default function AdminPanel() {
   const [, setTick] = useState(0);
-  const [adminFeedback, setAdminFeedback] = useState("");
+  const [adminFeedback, setAdminFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   const users = loadUsers();
 
@@ -89,18 +89,18 @@ export default function AdminPanel() {
             onClick={() => {
               const name = newName.trim();
               if (!name) {
-                setAdminFeedback("Enter a name before creating a user.");
+                setAdminFeedback({ tone: "error", message: "Enter a name before creating a user." });
                 return;
               }
               if (newPin.trim() && !isValidPin(newPin)) {
-                setAdminFeedback("PIN must be 4–8 digits.");
+                setAdminFeedback({ tone: "error", message: "PIN must be 4–8 digits." });
                 return;
               }
               addUser({ name, role: newRole, pin: newPin.trim() });
               setNewName("");
               setNewRole("viewer");
               setNewPin("");
-              setAdminFeedback("User created.");
+              setAdminFeedback({ tone: "success", message: "User created." });
               setTick((x) => x + 1);
             }}
           >
@@ -113,7 +113,7 @@ export default function AdminPanel() {
         </div>
 
         {adminFeedback ? (
-          <div className="bannerWarning" role="status" aria-live="polite">{adminFeedback}</div>
+          <div className={`bannerFeedback bannerFeedback--${adminFeedback.tone}`} role="status" aria-live="polite">{adminFeedback.message}</div>
         ) : null}
       </div>
 
@@ -174,13 +174,13 @@ export default function AdminPanel() {
                   onClick={() => {
                     const p = currentPin.trim();
                     if (p && !isValidPin(p)) {
-                      setAdminFeedback("PIN must be 4–8 digits.");
+                      setAdminFeedback({ tone: "error", message: "PIN must be 4–8 digits." });
                       return;
                     }
                     if (!confirm(`Set PIN for ${u.name}?`)) return;
                     setUserPin(u.id, p);
                     setPinEdit((s) => ({ ...s, [u.id]: "" }));
-                    setAdminFeedback(`PIN updated for ${u.name}.`);
+                    setAdminFeedback({ tone: "success", message: `PIN updated for ${u.name}.` });
                     setTick((x) => x + 1);
                   }}
                 >

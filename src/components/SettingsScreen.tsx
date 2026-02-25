@@ -198,7 +198,7 @@ export default function SettingsScreen() {
         </div>
 
         {unlockFeedback ? (
-          <div className="bannerWarning" role="status" aria-live="polite">{unlockFeedback}</div>
+          <div className="bannerFeedback bannerFeedback--error" role="status" aria-live="polite">{unlockFeedback}</div>
         ) : null}
 
         <div className="muted settingsFootnote">

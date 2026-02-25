@@ -89,7 +89,7 @@ export default function InventoryScreen() {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string>("");
   const [imageViewSrc, setImageViewSrc] = useState<string>("");
-  const [inventoryFeedback, setInventoryFeedback] = useState<string>("");
+  const [inventoryFeedback, setInventoryFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   // --- Filters ---
   const [q, setQ] = useState("");
@@ -166,7 +166,7 @@ export default function InventoryScreen() {
 
   function startEditItem(item: InventoryItem) {
     if (!canEditItems) {
-      setInventoryFeedback("You are not allowed to edit inventory items.");
+      setInventoryFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
       return;
     }
     setEditingItemId(item.id);
@@ -204,20 +204,20 @@ export default function InventoryScreen() {
     try {
       const dataUrl = await imageFileToOptimizedDataUrl(file);
       setPhotoDataUrl(dataUrl);
-      setInventoryFeedback("");
+      setInventoryFeedback(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unable to process image.";
-      setInventoryFeedback(msg);
+      setInventoryFeedback({ tone: "error", message: msg });
     }
   }
 
   function createItem() {
     if (!editingItemId && !canAddItems) {
-      setInventoryFeedback("You are not allowed to add inventory items.");
+      setInventoryFeedback({ tone: "error", message: "You are not allowed to add inventory items." });
       return;
     }
     if (editingItemId && !canEditItems) {
-      setInventoryFeedback("You are not allowed to edit inventory items.");
+      setInventoryFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
       return;
     }
 
@@ -258,7 +258,7 @@ export default function InventoryScreen() {
 
       resetForm();
       setShowAddPanel(false);
-      setInventoryFeedback("Item updated.");
+      setInventoryFeedback({ tone: "success", message: "Item updated." });
       return;
     }
 
@@ -307,7 +307,7 @@ export default function InventoryScreen() {
 
       resetForm();
       setShowAddPanel(false);
-      setInventoryFeedback("Updated existing item quantity/details.");
+      setInventoryFeedback({ tone: "success", message: "Updated existing item quantity/details." });
       return;
     }
 
@@ -330,7 +330,7 @@ export default function InventoryScreen() {
 
     resetForm();
     setShowAddPanel(false);
-    setInventoryFeedback("Item added.");
+    setInventoryFeedback({ tone: "success", message: "Item added." });
   }
 
   function formatStockLocations(item: InventoryItem) {
@@ -386,7 +386,7 @@ export default function InventoryScreen() {
       </div>
 
       {inventoryFeedback ? (
-        <div className="bannerWarning" role="status" aria-live="polite">{inventoryFeedback}</div>
+        <div className={`bannerFeedback bannerFeedback--${inventoryFeedback.tone}`} role="status" aria-live="polite">{inventoryFeedback.message}</div>
       ) : null}
 
       {/* Add item */}
@@ -736,12 +736,12 @@ export default function InventoryScreen() {
                   disabled={!canEditItems}
                   onClick={() => {
                     if (!canEditItems) {
-                      setInventoryFeedback("You are not allowed to edit inventory items.");
+                      setInventoryFeedback({ tone: "error", message: "You are not allowed to edit inventory items." });
                       return;
                     }
                     if (!confirm(`Delete item "${it.name}"?`)) return;
                     itemsApi.deleteItem(it.id);
-                    setInventoryFeedback(`Deleted item "${it.name}".`);
+                    setInventoryFeedback({ tone: "success", message: `Deleted item "${it.name}".` });
                   }}
                   title="Delete"
                 >

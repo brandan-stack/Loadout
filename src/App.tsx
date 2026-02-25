@@ -190,7 +190,7 @@ export default function App() {
           </div>
 
           {gateFeedback ? (
-            <div className="bannerWarning" role="status" aria-live="polite">
+            <div className="bannerFeedback bannerFeedback--error" role="status" aria-live="polite">
               {gateFeedback}
             </div>
           ) : null}
