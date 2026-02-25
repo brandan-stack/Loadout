@@ -6,8 +6,8 @@ const DEVICE_ID_KEY = "loadout.syncDeviceId.v1";
 const LAST_SYNC_TS_KEY = "loadout.syncLastTimestamp.v1";
 const STATUS_KEY = "loadout.syncStatus.v1";
 
-const SYNC_URL = import.meta.env.VITE_SYNC_SUPABASE_URL as string | undefined;
-const SYNC_ANON_KEY = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string | undefined;
+const SYNC_URL_RAW = import.meta.env.VITE_SYNC_SUPABASE_URL as string | undefined;
+const SYNC_ANON_KEY_RAW = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string | undefined;
 const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "loadout_sync";
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
@@ -26,6 +26,26 @@ type CloudSnapshot = {
   appVersion: string;
   values: Record<string, string>;
 };
+
+function sanitizeEnv(value?: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function normalizeSyncUrl(value?: string): string {
+  const clean = sanitizeEnv(value);
+  if (!clean) return "";
+  if (/^https?:\/\//i.test(clean)) return clean;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(clean)) return `https://${clean}`;
+  return clean;
+}
+
+const SYNC_URL = normalizeSyncUrl(SYNC_URL_RAW);
+const SYNC_ANON_KEY = sanitizeEnv(SYNC_ANON_KEY_RAW);
 
 export type LiveCloudSyncStatus = {
   state: "disabled" | "connecting" | "connected" | "error";
