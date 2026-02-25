@@ -234,34 +234,36 @@ export default function ToolSignoutScreen({ onChanged }: { onChanged?: () => voi
           </div>
         </div>
 
-        <div className="dashboardCard" id="tools-active-signout">
-          <div className="dashboardCardTitle">Who Has the Tool</div>
-          <div className="dashboardStack">
-            {active.map((row) => {
-              const canReturn = isAdmin || row.requestedByUserId === me?.id;
-              return (
-                <div key={row.id} className="dashboardRowCard">
-                  <div className="dashboardItemMain">
-                    <div className="dashboardItemName">{row.itemName}</div>
-                    <div className="dashboardUsageMeta">
-                      Assigned to {row.requestedByName} • Qty {row.qty} • Approved {fmt(row.decisionAt || row.ts)}
-                      {row.decidedByName ? ` • Approved by ${row.decidedByName}` : ""}
-                      {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
+        {isAdmin ? (
+          <div className="dashboardCard" id="tools-active-signout">
+            <div className="dashboardCardTitle">Who Has the Tool</div>
+            <div className="dashboardStack">
+              {active.map((row) => {
+                const canReturn = isAdmin || row.requestedByUserId === me?.id;
+                return (
+                  <div key={row.id} className="dashboardRowCard">
+                    <div className="dashboardItemMain">
+                      <div className="dashboardItemName">{row.itemName}</div>
+                      <div className="dashboardUsageMeta">
+                        Assigned to {row.requestedByName} • Qty {row.qty} • Approved {fmt(row.decisionAt || row.ts)}
+                        {row.decidedByName ? ` • Approved by ${row.decidedByName}` : ""}
+                        {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
+                      </div>
                     </div>
+                    {canReturn ? (
+                      <button className="btn" type="button" onClick={() => handleReturn(row)}>
+                        Mark Returned
+                      </button>
+                    ) : (
+                      <Badge>Checked Out</Badge>
+                    )}
                   </div>
-                  {canReturn ? (
-                    <button className="btn" type="button" onClick={() => handleReturn(row)}>
-                      Mark Returned
-                    </button>
-                  ) : (
-                    <Badge>Checked Out</Badge>
-                  )}
-                </div>
-              );
-            })}
-            {!active.length ? <div className="dashboardMuted">No active tool signouts.</div> : null}
+                );
+              })}
+              {!active.length ? <div className="dashboardMuted">No active tool signouts.</div> : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="dashboardCard">
           <div className="dashboardCardTitle">My Tool Request History</div>

@@ -491,34 +491,36 @@ export default function SettingsScreen() {
             ) : null}
           </div>
 
-          <div className="card cardSoft settingsCard settingsTabPanel">
-            <div className="label">Tools Dashboard</div>
-            <div className="muted settingsSubtleGap">
-              Live view of tool requests and who currently has each approved tool.
-            </div>
+          {isAdmin ? (
+            <div className="card cardSoft settingsCard settingsTabPanel">
+              <div className="label">Tools Dashboard</div>
+              <div className="muted settingsSubtleGap">
+                Live view of tool requests and who currently has each approved tool.
+              </div>
 
-            <div className="dashboardPills">
-              <span className="dashboardBadge">Pending Requests: {pendingToolRequests.length}</span>
-              <span className="dashboardBadge">Checked Out Tools: {activeToolSignouts.length}</span>
-            </div>
+              <div className="dashboardPills">
+                <span className="dashboardBadge">Pending Requests: {pendingToolRequests.length}</span>
+                <span className="dashboardBadge">Checked Out Tools: {activeToolSignouts.length}</span>
+              </div>
 
-            <div className="dashboardStack settingsSubtleGap">
-              {activeToolSignouts.slice(0, 20).map((row) => (
-                <div key={row.id} className="dashboardRowCard">
-                  <div className="dashboardItemMain">
-                    <div className="dashboardItemName">{row.itemName}</div>
-                    <div className="dashboardUsageMeta">
-                      Holder: {row.requestedByName} • Qty {row.qty}
-                      {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
-                      {row.decidedByName ? ` • Approved by ${row.decidedByName}` : ""}
+              <div className="dashboardStack settingsSubtleGap">
+                {activeToolSignouts.slice(0, 20).map((row) => (
+                  <div key={row.id} className="dashboardRowCard">
+                    <div className="dashboardItemMain">
+                      <div className="dashboardItemName">{row.itemName}</div>
+                      <div className="dashboardUsageMeta">
+                        Holder: {row.requestedByName} • Qty {row.qty}
+                        {row.partNumber ? ` • Part Number: ${row.partNumber}` : ""}
+                        {row.decidedByName ? ` • Approved by ${row.decidedByName}` : ""}
+                      </div>
                     </div>
+                    <span className="dashboardBadge">Checked Out</span>
                   </div>
-                  <span className="dashboardBadge">Checked Out</span>
-                </div>
-              ))}
-              {!activeToolSignouts.length ? <div className="dashboardMuted">No active tool signouts.</div> : null}
+                ))}
+                {!activeToolSignouts.length ? <div className="dashboardMuted">No active tool signouts.</div> : null}
+              </div>
             </div>
-          </div>
+          ) : null}
         </>
       ) : null}
 
