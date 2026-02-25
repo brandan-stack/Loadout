@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useReducer, useState } from "react";
 import { useItems, type InventoryItem } from "../hooks/useItems";
 import { useCategories } from "../hooks/useCategories";
 import { useLocations } from "../hooks/useLocations";
 import { loadJobUsage, logJobUsage, type Job, type JobUsageLine } from "../lib/jobsStore";
-import { currentUser, loadUsers } from "../lib/authStore";
+import { canAccessPartsUsed, currentUser, loadUsers } from "../lib/authStore";
 import {
   addJobNotification,
   getNotificationsForUser,
@@ -68,6 +68,9 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const cats = useCategories();
   const { roots } = useLocations();
   const me = currentUser();
+  const [, bump] = useReducer((value: number) => value + 1, 0);
+  const canUsePartsEntry = canAccessPartsUsed(me);
+  const canViewNotifications = !!me && (me.role === "admin" || !!me.receivesJobNotifications);
 
   const draft = useMemo(() => loadDraft(), []);
 
@@ -168,6 +171,19 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
     );
   }
 
+  if (!canUsePartsEntry && !canViewNotifications) {
+    return (
+      <div className="page dashboardPage">
+        <div className="dashboardHeader">
+          <div>
+            <h2 className="dashboardTitle">Parts Used</h2>
+            <div className="dashboardSubtitle">Access is blocked for this user. Ask Admin to enable Parts Used or Job Notifications.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page dashboardPage">
       <div className="dashboardHeader">
@@ -177,6 +193,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
         </div>
       </div>
 
+      {canUsePartsEntry ? (
       <div className="dashboardCard dashboardGapTop">
         <div className="dashboardCardTitle">Parts Used Entry</div>
 
@@ -241,9 +258,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           </div>
         </div>
       </div>
+      ) : null}
 
       <div className="dashboardMain dashboardGapTop">
-        <div className="dashboardCard">
+        {canUsePartsEntry ? (
+        <div className="dashboardCard" id="recent-parts-used">
           <div className="dashboardSectionTitle">Recent Parts Used</div>
           <div className="dashboardStack">
             {usage.slice(0, 12).map((u) => (
@@ -261,8 +280,10 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
             {usage.length === 0 ? <div className="dashboardMuted">No Parts Used logged yet.</div> : null}
           </div>
         </div>
+        ) : null}
 
-        <div className="dashboardCard">
+        {canViewNotifications ? (
+        <div className="dashboardCard" id={!canUsePartsEntry ? "recent-parts-used" : undefined}>
           <div className="dashboardCardTitle">My Billing Notifications</div>
           <div className="dashboardJobActions">
             <button
@@ -272,7 +293,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                 if (!me) return;
                 markAllJobNotificationsReadForUser(me.id);
                 onChanged?.();
-                setUsage(loadJobUsage());
+                bump();
               }}
             >
               Mark all read
@@ -293,7 +314,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                     onClick={() => {
                       markJobNotificationRead(n.id);
                       onChanged?.();
-                      setUsage(loadJobUsage());
+                      bump();
                     }}
                   >
                     Mark read
@@ -304,6 +325,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
             {myNotifications.length === 0 ? <div className="dashboardMuted">No notifications for this user.</div> : null}
           </div>
         </div>
+        ) : null}
       </div>
     </div>
   );
