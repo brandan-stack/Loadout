@@ -13,6 +13,18 @@ export type JobUsageLine = {
   qty: number;
   locationId?: string; // optional
   note?: string;
+  submittedByUserId?: string;
+  submittedByName?: string;
+  unitPrice?: number;
+  marginPercent?: number;
+  estimatedSellPrice?: number;
+  lineCost?: number;
+  lineEstimatedSell?: number;
+  photoDataUrl?: string;
+  manufacturer?: string;
+  model?: string;
+  serial?: string;
+  description?: string;
 };
 
 export type Job = {
@@ -137,8 +149,17 @@ export function logJobUsage(opts: {
   qty: number;
   locationId?: string;
   note?: string;
+  submittedByUserId?: string;
+  submittedByName?: string;
 }) {
   const lines = loadJobUsage();
+  const unitPrice = typeof opts.item.unitPrice === "number" ? opts.item.unitPrice : undefined;
+  const marginPercent = typeof opts.item.marginPercent === "number" ? opts.item.marginPercent : undefined;
+  const estimatedSellPrice =
+    typeof unitPrice === "number" && typeof marginPercent === "number"
+      ? unitPrice * (1 + marginPercent / 100)
+      : undefined;
+  const qty = Math.floor(Number(opts.qty) || 0);
   const line: JobUsageLine = {
     id: newId(),
     ts: Date.now(),
@@ -147,9 +168,21 @@ export function logJobUsage(opts: {
     itemId: opts.item.id,
     itemName: opts.item.name,
     partNumber: opts.item.partNumber || "",
-    qty: Math.floor(Number(opts.qty) || 0),
+    qty,
     locationId: opts.locationId || "",
     note: opts.note || "",
+    submittedByUserId: opts.submittedByUserId || "",
+    submittedByName: opts.submittedByName || "",
+    unitPrice,
+    marginPercent,
+    estimatedSellPrice,
+    lineCost: typeof unitPrice === "number" ? unitPrice * qty : undefined,
+    lineEstimatedSell: typeof estimatedSellPrice === "number" ? estimatedSellPrice * qty : undefined,
+    photoDataUrl: opts.item.photoDataUrl || "",
+    manufacturer: opts.item.manufacturer || "",
+    model: opts.item.model || "",
+    serial: opts.item.serial || "",
+    description: opts.item.description || "",
   };
   lines.unshift(line);
   saveJobUsage(lines.slice(0, 1000));

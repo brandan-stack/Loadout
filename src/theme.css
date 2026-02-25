@@ -886,6 +886,25 @@ button:focus-visible,
   gap: 8px;
 }
 
+.settingsTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settingsTab {
+  width: 100%;
+}
+
+.settingsTab.active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+}
+
+.settingsTabPanel {
+  margin-top: 2px;
+}
+
 .settingsCard {
   display: grid;
   gap: 8px;
@@ -953,6 +972,14 @@ button:focus-visible,
 .settingsFootnote {
   margin-top: 10px;
   font-size: 12px;
+}
+
+.settingsSelectedUserCard {
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--border2) 72%, var(--border));
+  border-radius: 12px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--panel2) 72%, transparent);
 }
 
 .settingsStrong {
@@ -1144,6 +1171,10 @@ button:focus-visible,
   .adminCreateGrid,
   .adminUserRow,
   .locationManagerSplit {
+    grid-template-columns: 1fr;
+  }
+
+  .settingsTabs {
     grid-template-columns: 1fr;
   }
 
@@ -1713,9 +1744,42 @@ button:focus-visible,
   background: color-mix(in srgb, var(--panel2) 76%, transparent);
 }
 
+.dashboardQueueRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border2) 78%, var(--border));
+  border-radius: 14px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel2) 76%, transparent);
+}
+
+.dashboardQueueQty {
+  width: 110px;
+}
+
 .dashboardItemMain {
   flex: 1;
   min-width: 0;
+}
+
+.dashboardUsageThumbWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboardUsageThumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--border2) 70%, var(--border));
+  background: color-mix(in srgb, var(--panel2) 78%, transparent);
+}
+
+.dashboardUsageThumbPlaceholder {
+  background: color-mix(in srgb, var(--panel2) 88%, transparent);
 }
 
 .dashboardItemName,

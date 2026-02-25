@@ -23,6 +23,11 @@ function fmt(ts: number) {
   }
 }
 
+function money(n?: number) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n);
+}
+
 const PARTS_USED_JOB: Job = {
   id: "parts-used",
   name: "Parts Used",
@@ -41,6 +46,7 @@ type PartsUsedDraft = {
   useNote?: string;
   notifyUserId?: string;
   selectedItemId?: string;
+  queuedLines?: Array<{ itemId: string; qty: number }>;
   savedAt?: number;
 };
 
@@ -50,6 +56,16 @@ type InlineToast = {
   tone: "success" | "warning" | "error";
   message: string;
 };
+
+type QueuedPartLine = {
+  id: string;
+  itemId: string;
+  qty: number;
+};
+
+function draftLineId() {
+  return Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+}
 
 function loadDraft(): PartsUsedDraft {
   try {
@@ -89,11 +105,27 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const [useNote, setUseNote] = useState(draft.useNote ?? "");
   const [notifyUserId, setNotifyUserId] = useState(draft.notifyUserId ?? "");
   const [selectedItemId, setSelectedItemId] = useState(draft.selectedItemId ?? "");
+  const [queuedLines, setQueuedLines] = useState<QueuedPartLine[]>(() =>
+    (draft.queuedLines ?? [])
+      .map((line) => ({
+        id: draftLineId(),
+        itemId: String(line.itemId ?? ""),
+        qty: Math.floor(Number(line.qty ?? 0)),
+      }))
+      .filter((line) => !!line.itemId && Number.isFinite(line.qty) && line.qty > 0)
+  );
+  const [attemptedAdd, setAttemptedAdd] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(draft.savedAt ?? null);
   const [toast, setToast] = useState<InlineToast | null>(null);
 
-  const notifyUsers = loadUsers().filter((u) => u.isActive && u.receivesJobNotifications);
+  const notifyUsers = useMemo(
+    () =>
+      loadUsers()
+        .filter((u) => u.isActive && u.receivesJobNotifications)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  );
   const myNotifications = me ? getNotificationsForUser(me.id).slice(0, 10) : [];
 
   useEffect(() => {
@@ -106,6 +138,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
     const catName = cats.getCategoryName(it.categoryId);
     const subName = it.subcategoryId ? cats.getSubName(it.categoryId, it.subcategoryId) : "";
     return subName ? `${catName} › ${subName}` : catName;
+  }
+
+  function locationLabel(locationId?: string) {
+    if (!locationId) return "Missing Location";
+    return roots.find((l) => l.id === locationId)?.name ?? locationId;
   }
 
   const filteredItems = useMemo(() => {
@@ -144,65 +181,142 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const qtyNumber = Math.floor(Number(useQty));
   const validQty = Number.isFinite(qtyNumber) && qtyNumber > 0;
   const hasJobNumber = jobNumber.trim().length > 0;
-  const hasPart = !!selectedItem;
-  const canFinalizeLog = hasJobNumber && hasPart && validQty;
+  const hasQueuedParts = queuedLines.length > 0;
+  const hasValidQueuedLines = hasQueuedParts && queuedLines.every((line) => line.qty > 0 && !!itemsApi.items.find((it) => it.id === line.itemId));
+  const canFinalizeLog = hasJobNumber && hasValidQueuedLines;
   const missingRequired: string[] = [
     ...(hasJobNumber ? [] : ["Job Number"]),
-    ...(hasPart ? [] : ["Part"]),
-    ...(validQty ? [] : ["Quantity"]),
+    ...(hasQueuedParts ? [] : ["Part + Quantity"]),
+    ...(hasValidQueuedLines ? [] : ["Valid quantities"]),
   ];
+
+  const totalQueuedQty = queuedLines.reduce((sum, line) => sum + line.qty, 0);
+
+  function addSelectedToQueue() {
+    setAttemptedAdd(true);
+    if (!selectedItem || !validQty) {
+      setToast({ tone: "error", message: "Select a part and enter a valid quantity before adding." });
+      return;
+    }
+
+    const item = selectedItem;
+    const qty = qtyNumber;
+
+    setQueuedLines((prev) => {
+      const existing = prev.find((line) => line.itemId === item.id);
+      if (existing) {
+        return prev.map((line) => (line.id === existing.id ? { ...line, qty: line.qty + qty } : line));
+      }
+      return [...prev, { id: draftLineId(), itemId: item.id, qty }];
+    });
+
+    setUseQty("1");
+    setAttemptedAdd(false);
+    setToast({
+      tone: "success",
+      message: `Added ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} to this job log.`,
+    });
+  }
+
+  function removeQueuedLine(lineId: string) {
+    setQueuedLines((prev) => prev.filter((line) => line.id !== lineId));
+  }
+
+  function updateQueuedQty(lineId: string, value: string) {
+    const qty = Math.floor(Number(value));
+    setQueuedLines((prev) =>
+      prev.map((line) => (line.id === lineId ? { ...line, qty: Number.isFinite(qty) ? qty : 0 } : line))
+    );
+  }
 
   function saveProgress() {
     const savedAt = Date.now();
-    saveDraft({ jobNumber, useSearch, useQty, useLoc, useNote, notifyUserId, selectedItemId, savedAt });
+    saveDraft({
+      jobNumber,
+      useSearch,
+      useQty,
+      useLoc,
+      useNote,
+      notifyUserId,
+      selectedItemId,
+      queuedLines: queuedLines.map((line) => ({ itemId: line.itemId, qty: line.qty })),
+      savedAt,
+    });
     setLastSavedAt(savedAt);
     setToast({ tone: "success", message: "Progress saved." });
   }
 
   function finalizeLogPartsUsed() {
     setAttemptedSubmit(true);
-    if (!canFinalizeLog || !selectedItem) {
-      setToast({ tone: "error", message: "Missing required fields. Enter Job Number, select Part, and enter valid Quantity." });
+    if (!canFinalizeLog) {
+      setToast({ tone: "error", message: "Missing required fields. Enter Job Number and add valid parts with quantities." });
       return;
     }
 
-    const qty = qtyNumber;
-    const item = selectedItem;
     const jobNumberText = jobNumber.trim();
+    const validLines = queuedLines
+      .map((line) => {
+        const item = itemsApi.items.find((it) => it.id === line.itemId) ?? null;
+        if (!item || line.qty <= 0) return null;
+        return { line, item };
+      })
+      .filter(Boolean) as Array<{ line: QueuedPartLine; item: InventoryItem }>;
 
-    itemsApi.adjustAtLocation(item.id, useLoc ?? "", -qty);
+    if (!validLines.length) {
+      setToast({ tone: "error", message: "No valid parts queued. Add at least one part with quantity greater than zero." });
+      return;
+    }
 
-    const line = logJobUsage({
-      job: PARTS_USED_JOB,
-      item,
-      qty,
-      locationId: useLoc ?? "",
-      note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
-    });
+    let totalLoggedQty = 0;
+    const loggedItemNames: string[] = [];
+    for (const entry of validLines) {
+      const qty = entry.line.qty;
+      const item = entry.item;
+
+      itemsApi.adjustAtLocation(item.id, useLoc ?? "", -qty);
+
+      logJobUsage({
+        job: PARTS_USED_JOB,
+        item,
+        qty,
+        locationId: useLoc ?? "",
+        note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
+        submittedByUserId: me?.id || "",
+        submittedByName: me?.name || "",
+      });
+
+      totalLoggedQty += qty;
+      loggedItemNames.push(item.name + (item.partNumber ? ` (${item.partNumber})` : ""));
+    }
 
     const targetUser = notifyUsers.find((u) => u.id === notifyUserId);
     if (targetUser) {
+      const preview = loggedItemNames.slice(0, 4).join(", ");
+      const extra = loggedItemNames.length > 4 ? ` +${loggedItemNames.length - 4} more` : "";
       addJobNotification({
         userId: targetUser.id,
-        itemId: item.id,
-        itemName: item.name,
-        partNumber: item.partNumber,
-        qty,
-        note: line.note,
+        itemId: "parts-used-batch",
+        itemName: "Multiple parts",
+        partNumber: "",
+        qty: totalLoggedQty,
+        note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
         title: "Parts used requires billing",
-        message: `Job #${jobNumberText} • ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.`,
+        message: `Job #${jobNumberText} • ${validLines.length} part line${validLines.length === 1 ? "" : "s"} (total qty ${totalLoggedQty}) were used and require billing: ${preview}${extra}.`,
       });
     }
 
     setUsage(loadJobUsage());
     setUseNote("");
     setSelectedItemId("");
+    setQueuedLines([]);
+    setUseQty("1");
+    saveDraft({});
     setAttemptedSubmit(false);
     onChanged?.();
     setToast({
       tone: targetUser ? "success" : "warning",
       message:
-        `Job #${jobNumberText} • Parts Used logged: ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""}, qty ${qty}. ` +
+        `Job #${jobNumberText} • Logged ${validLines.length} part line${validLines.length === 1 ? "" : "s"} with total qty ${totalLoggedQty}. ` +
         (targetUser ? `Notified ${targetUser.name}.` : "No notification recipient selected."),
     });
   }
@@ -267,7 +381,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                 <span className="searchHint">Serial Number</span>
               </div>
             </div>
-            <input className={attemptedSubmit && !validQty ? "inputInvalid" : ""} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity (required)" />
+            <input className={attemptedAdd && !validQty ? "inputInvalid" : ""} value={useQty} onChange={(e) => setUseQty(e.target.value)} inputMode="numeric" placeholder="Quantity for selected part" />
             <select value={useLoc} onChange={(e) => setUseLoc(e.target.value)}>
               <option value="">Missing Location</option>
               {roots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -289,7 +403,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
           <div className="dashboardResultCount">Matching items: {filteredItems.length}</div>
 
-          <div className={`dashboardItemsList ${attemptedSubmit && !hasPart ? "requiredBlockMissing" : ""}`}>
+          <div className={`dashboardItemsList ${attemptedAdd && !selectedItem ? "requiredBlockMissing" : ""}`}>
             {filteredItems.map((it) => (
               <div key={it.id} className={`dashboardItemRow ${selectedItemId === it.id ? "dashboardItemRowSelected" : ""}`}>
                 <div className="dashboardItemMain">
@@ -308,6 +422,40 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
             {!filteredItems.length ? <div className="muted">No matching inventory items.</div> : null}
           </div>
 
+          <div className="dashboardJobActions">
+            <button className="btn" type="button" onClick={addSelectedToQueue}>
+              Add Selected Part + Quantity
+            </button>
+          </div>
+
+          <div className={`dashboardStack ${attemptedSubmit && !hasValidQueuedLines ? "requiredBlockMissing" : ""}`}>
+            <div className="dashboardSectionTitle">Parts queued for final log</div>
+            {queuedLines.map((line) => {
+              const item = itemsApi.items.find((it) => it.id === line.itemId);
+              if (!item) return null;
+              return (
+                <div key={line.id} className="dashboardQueueRow">
+                  <div className="dashboardItemMain">
+                    <div className="dashboardItemName">{item.name}</div>
+                    <div className="dashboardItemMeta">Part Number: {item.partNumber || "—"}</div>
+                  </div>
+                  <input
+                    className={attemptedSubmit && line.qty <= 0 ? "inputInvalid dashboardQueueQty" : "dashboardQueueQty"}
+                    value={String(line.qty)}
+                    onChange={(e) => updateQueuedQty(line.id, e.target.value)}
+                    inputMode="numeric"
+                    aria-label={`Quantity for ${item.name}`}
+                  />
+                  <button className="btn" type="button" onClick={() => removeQueuedLine(line.id)}>
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+            {!queuedLines.length ? <div className="dashboardMuted">No parts queued yet. Select part, set quantity, then add.</div> : null}
+            <div className="dashboardResultCount">Queued lines: {queuedLines.length} • Total quantity: {totalQueuedQty}</div>
+          </div>
+
           <div className="dashboardUseNote">
             <div className={`dashboardFinalStep ${attemptedSubmit && !canFinalizeLog ? "requiredBlockMissing" : ""}`}>
               <div className={`dashboardRequiredChecklist ${missingRequired.length ? "missing" : "valid"}`}>
@@ -316,7 +464,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                   : "All required fields valid. Ready to log parts."}
               </div>
               <div className="dashboardResultCount">
-                Final Step: {hasPart ? `Part selected (${selectedItem?.name ?? "—"})` : "Select a part"} • {hasJobNumber ? `Job #${jobNumber.trim()}` : "Add Job Number"} • {validQty ? `Qty ${qtyNumber}` : "Enter valid quantity"}
+                Final Step: {hasQueuedParts ? `${queuedLines.length} part line${queuedLines.length === 1 ? "" : "s"} queued` : "Add part lines"} • {hasJobNumber ? `Job #${jobNumber.trim()}` : "Add Job Number"} • {hasValidQueuedLines ? `Total qty ${totalQueuedQty}` : "Fix invalid quantities"}
               </div>
               <button className="btn primary" type="button" disabled={!canFinalizeLog} onClick={finalizeLogPartsUsed}>
                 Log Parts Used (Final Step)
@@ -334,13 +482,29 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           <div className="dashboardStack">
             {usage.slice(0, 12).map((u) => (
               <div key={u.id} className="dashboardRowCard">
-                <div className="dashboardUsageTop">
-                  <Badge>{fmt(u.ts)}</Badge>
-                  <div className="dashboardStrong">{u.itemName}</div>
-                  <Badge>Quantity: {u.qty}</Badge>
+                <div className="dashboardItemMain">
+                  <div className="dashboardUsageTop">
+                    <Badge>{fmt(u.ts)}</Badge>
+                    <div className="dashboardStrong">{u.itemName}</div>
+                    <Badge>Quantity: {u.qty}</Badge>
+                  </div>
+                  <div className="dashboardUsageMeta">
+                    Part Number: {u.partNumber || "—"} • Location: {locationLabel(u.locationId)} • Submitted By: {u.submittedByName || "—"}
+                  </div>
+                  <div className="dashboardUsageMeta">
+                    Unit Cost: {money(u.unitPrice)} • Line Cost: {money(u.lineCost)} • Margin: {typeof u.marginPercent === "number" ? `${u.marginPercent}%` : "—"} • Est. Sell: {money(u.lineEstimatedSell)}
+                  </div>
+                  <div className="dashboardUsageMeta">
+                    Manufacturer: {u.manufacturer || "—"} • Model: {u.model || "—"} • Serial: {u.serial || "—"}
+                    {u.note ? ` • Note: ${u.note}` : ""}
+                  </div>
                 </div>
-                <div className="dashboardUsageMeta">
-                  Part Number: {u.partNumber || "—"} {u.locationId ? `• Location: ${u.locationId}` : ""} {u.note ? `• Note: ${u.note}` : ""}
+                <div className="dashboardUsageThumbWrap">
+                  {u.photoDataUrl ? (
+                    <img className="dashboardUsageThumb" src={u.photoDataUrl} alt={`${u.itemName} photo`} />
+                  ) : (
+                    <div className="dashboardUsageThumb dashboardUsageThumbPlaceholder" aria-hidden="true" />
+                  )}
                 </div>
               </div>
             ))}
