@@ -304,6 +304,13 @@ export function startLiveCloudSync(appVersion: string) {
   }
 
   async function pullRemoteValues() {
+    const localValues = collectLocalValues();
+    const localSignature = signatureFor(localValues);
+    const hasUnsyncedLocalChanges = localSignature !== currentSignature;
+    if (hasUnsyncedLocalChanges) {
+      return;
+    }
+
     const { data, error } = await client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle();
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
@@ -314,7 +321,6 @@ export function startLiveCloudSync(appVersion: string) {
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) return;
 
-    const localValues = collectLocalValues();
     const mergedValues = mergeRemoteIntoLocal(localValues, snapshot.values);
     const remoteSignature = signatureFor(mergedValues);
     if (remoteSignature === currentSignature) {
@@ -343,6 +349,11 @@ export function startLiveCloudSync(appVersion: string) {
       "postgres_changes",
       { event: "*", schema: "public", table: SYNC_TABLE, filter: `id=eq.${SYNC_SPACE}` },
       (payload) => {
+        const localSignature = signatureFor(collectLocalValues());
+        if (localSignature !== currentSignature) {
+          return;
+        }
+
         const nextRow = payload.new as Record<string, unknown> | null;
         const snapshot = normalizeSnapshot(nextRow?.payload);
         if (!snapshot) return;
@@ -373,8 +384,8 @@ export function startLiveCloudSync(appVersion: string) {
     });
 
   const syncTick = async () => {
-    await pullRemoteValues();
     await pushLocalValues();
+    await pullRemoteValues();
   };
 
   const timer = window.setInterval(() => {
