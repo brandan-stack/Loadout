@@ -14,7 +14,10 @@ const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "d
 const POLL_MS = 1000;
 const KEY_PREFIXES = ["inventory.", "loadout."];
 const EXCLUDED_KEYS = new Set([
+  DEVICE_ID_KEY,
+  STATUS_KEY,
   "inventory.session.v1",
+  "inventory.rememberDevice.v1",
   "loadout.activeTab",
   "loadout.pdfBackup.lastSyncAt.v1",
   "loadout.pdfBackup.lastError.v1",
