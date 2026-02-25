@@ -1589,6 +1589,27 @@ button:focus-visible,
   margin-top: 10px;
 }
 
+.partsToast {
+  margin-top: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.partsToast--success {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.partsToast--warning {
+  border-color: color-mix(in srgb, var(--warn) 58%, var(--border));
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.partsToast--error {
+  border-color: color-mix(in srgb, #ff6d6d 58%, var(--border));
+  background: color-mix(in srgb, #ff6d6d 18%, transparent);
+}
+
 .dashboardResultCount {
   margin-top: 8px;
   font-size: 12px;

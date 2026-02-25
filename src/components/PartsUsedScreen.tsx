@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useItems, type InventoryItem } from "../hooks/useItems";
 import { useCategories } from "../hooks/useCategories";
 import { useLocations } from "../hooks/useLocations";
@@ -44,6 +44,11 @@ type PartsUsedDraft = {
 
 const DRAFT_KEY = "inventory.partsUsedDraft.v1";
 
+type InlineToast = {
+  tone: "success" | "warning" | "error";
+  message: string;
+};
+
 function loadDraft(): PartsUsedDraft {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -81,9 +86,16 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const [useNote, setUseNote] = useState(draft.useNote ?? "");
   const [notifyUserId, setNotifyUserId] = useState(draft.notifyUserId ?? "");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(draft.savedAt ?? null);
+  const [toast, setToast] = useState<InlineToast | null>(null);
 
   const notifyUsers = loadUsers().filter((u) => u.isActive && u.receivesJobNotifications);
   const myNotifications = me ? getNotificationsForUser(me.id).slice(0, 10) : [];
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   function categoryLabel(it: InventoryItem) {
     const catName = cats.getCategoryName(it.categoryId);
@@ -123,13 +135,13 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
     const savedAt = Date.now();
     saveDraft({ useSearch, useQty, useLoc, useNote, notifyUserId, savedAt });
     setLastSavedAt(savedAt);
-    alert("Progress saved.");
+    setToast({ tone: "success", message: "Progress saved." });
   }
 
   function logPartsUsed(item: InventoryItem) {
     const qty = Math.floor(Number(useQty));
     if (!Number.isFinite(qty) || qty <= 0) {
-      alert("Enter a valid quantity.");
+      setToast({ tone: "error", message: "Enter a valid quantity." });
       return;
     }
 
@@ -160,15 +172,12 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
     setUsage(loadJobUsage());
     setUseNote("");
     onChanged?.();
-
-    alert(
-      `⚠ Parts Used\n\n` +
-        `Item: ${item.name}` +
-        (item.partNumber ? `\nPart Number: ${item.partNumber}` : "") +
-        `\nQuantity Used: ${qty}` +
-        `\nBilling: Required` +
-        (targetUser ? `\nNotified User: ${targetUser.name}` : "\nNo notification recipient selected")
-    );
+    setToast({
+      tone: targetUser ? "success" : "warning",
+      message:
+        `Parts Used logged: ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""}, qty ${qty}. ` +
+        (targetUser ? `Notified ${targetUser.name}.` : "No notification recipient selected."),
+    });
   }
 
   if (!canUsePartsEntry && !canViewNotifications) {
@@ -192,6 +201,12 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           <div className="dashboardSubtitle">Track parts usage and notify billing users.</div>
         </div>
       </div>
+
+      {toast ? (
+        <div className={`bannerWarning partsToast partsToast--${toast.tone}`} role="status" aria-live="polite">
+          {toast.message}
+        </div>
+      ) : null}
 
       {canUsePartsEntry ? (
       <div className="dashboardCard dashboardGapTop">
