@@ -50,6 +50,7 @@ export default function InventoryScreen() {
 
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [imageViewSrc, setImageViewSrc] = useState("");
+  const [screenFeedback, setScreenFeedback] = useState("");
 
   function getTotalQty(it: LocalInventoryItem) {
     if (typeof it.totalQty === "number") return Number(it.totalQty || 0);
@@ -140,16 +141,16 @@ export default function InventoryScreen() {
   function saveItem() {
     const cleanName = name.trim();
     if (!cleanName) {
-      alert("Name required");
+      setScreenFeedback("Name required.");
       return;
     }
 
     if (!selectedId && !canAddItems) {
-      alert("You are not allowed to add inventory items.");
+      setScreenFeedback("You are not allowed to add inventory items.");
       return;
     }
     if (selectedId && !canEditItems) {
-      alert("You are not allowed to edit inventory items.");
+      setScreenFeedback("You are not allowed to edit inventory items.");
       return;
     }
 
@@ -185,6 +186,7 @@ export default function InventoryScreen() {
     }
 
     resetForm();
+    setScreenFeedback(selectedId ? "Item saved." : "Item added.");
   }
 
   function resetForm() {
@@ -203,7 +205,7 @@ export default function InventoryScreen() {
 
   function startEdit(item: LocalInventoryItem) {
     if (!canEditItems) {
-      alert("You are not allowed to edit inventory items.");
+      setScreenFeedback("You are not allowed to edit inventory items.");
       return;
     }
     setSelectedId(item.id);
@@ -236,9 +238,10 @@ export default function InventoryScreen() {
     try {
       const dataUrl = await imageFileToOptimizedDataUrl(file);
       setPhotoDataUrl(dataUrl);
+      setScreenFeedback("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unable to process image.";
-      alert(msg);
+      setScreenFeedback(msg);
     }
   }
 
@@ -256,6 +259,10 @@ export default function InventoryScreen() {
           <span className="chip">Low Alerts: {stats.lowCount}</span>
         </div>
       </div>
+
+      {screenFeedback ? (
+        <div className="bannerWarning" role="status" aria-live="polite">{screenFeedback}</div>
+      ) : null}
 
       {/* ===== ADD / EDIT ===== */}
       <div className="card addItemCard locationsFormCard">
@@ -435,10 +442,11 @@ export default function InventoryScreen() {
                   disabled={!canEditItems}
                   onClick={() => {
                     if (!canEditItems) {
-                      alert("You are not allowed to edit inventory items.");
+                      setScreenFeedback("You are not allowed to edit inventory items.");
                       return;
                     }
                     itemsApi.deleteItem?.(it.id);
+                    setScreenFeedback(`Deleted item "${it.name}".`);
                   }}
                 >
                   🗑

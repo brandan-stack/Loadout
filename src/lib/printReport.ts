@@ -279,7 +279,7 @@ export function openPrintReport(opts: {
 
   const w = window.open("", "_blank");
   if (!w) {
-    alert("Popup blocked. Allow popups to export PDF/print.");
+    console.warn("Popup blocked. Allow popups to export PDF/print.");
     return;
   }
   w.document.open();

@@ -54,6 +54,7 @@ export default function App() {
   const [, refresh] = useReducer((value: number) => value + 1, 0);
   const [pin, setPin] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [gateFeedback, setGateFeedback] = useState<string>("");
 
   const users = loadUsers().filter((u) => u.isActive);
   const session = loadSession();
@@ -163,7 +164,8 @@ export default function App() {
                 const ok = unlockWithPin(pin || "", undefined);
                 setPin("");
                 refresh();
-                if (!ok) alert("Wrong password (PIN).");
+                if (!ok) setGateFeedback("Wrong password / PIN. Try again.");
+                else setGateFeedback("");
               }}
               placeholder="password / PIN"
               inputMode="numeric"
@@ -175,7 +177,8 @@ export default function App() {
                 const ok = unlockWithPin(pin || "", undefined);
                 setPin("");
                 refresh();
-                if (!ok) alert("Wrong password (PIN).");
+                if (!ok) setGateFeedback("Wrong password / PIN. Try again.");
+                else setGateFeedback("");
               }}
             >
               Enter Site
@@ -185,6 +188,12 @@ export default function App() {
           <div className="muted appGateHint">
             {me?.pin ? "Use the selected user password / PIN from Settings." : "Selected user has no PIN set. Select a user with a PIN."}
           </div>
+
+          {gateFeedback ? (
+            <div className="bannerWarning" role="status" aria-live="polite">
+              {gateFeedback}
+            </div>
+          ) : null}
 
           <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
             v{APP_VERSION}

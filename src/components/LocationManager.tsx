@@ -66,6 +66,7 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
   const flat = useMemo(() => flattenTree(roots), [roots]);
 
   const [newRootName, setNewRootName] = useState("");
+  const [managerFeedback, setManagerFeedback] = useState("");
 
   const canAddRoot = useMemo(() => {
     return ["addRoot", "addRootLocation", "createRoot", "addLocation"].some((k) => typeof loc?.[k] === "function");
@@ -86,7 +87,11 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
       ]
     );
 
-    if (!ok) alert("Your useLocations hook doesn't expose an add-root function. We can fix useLocations.ts next.");
+    if (!ok) {
+      setManagerFeedback("Your useLocations hook doesn't expose an add-root function. We can fix useLocations.ts next.");
+      return;
+    }
+    setManagerFeedback("Location added.");
     setNewRootName("");
   }
 
@@ -109,6 +114,10 @@ export default function LocationManager({ embedded = false }: LocationManagerPro
           If buttons don’t work, it means your <code>useLocations.ts</code> is missing the matching function names. This
           manager won’t crash — it will tell you what’s missing.
         </div>
+      ) : null}
+
+      {managerFeedback ? (
+        <div className="bannerWarning" role="status" aria-live="polite">{managerFeedback}</div>
       ) : null}
 
       <div className="split2 locationManagerSplit">

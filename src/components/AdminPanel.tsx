@@ -30,6 +30,7 @@ function isValidPin(pin: string) {
 
 export default function AdminPanel() {
   const [, setTick] = useState(0);
+  const [adminFeedback, setAdminFeedback] = useState("");
 
   const users = loadUsers();
 
@@ -88,17 +89,18 @@ export default function AdminPanel() {
             onClick={() => {
               const name = newName.trim();
               if (!name) {
-                alert("Enter a name.");
+                setAdminFeedback("Enter a name before creating a user.");
                 return;
               }
               if (newPin.trim() && !isValidPin(newPin)) {
-                alert("PIN must be 4–8 digits.");
+                setAdminFeedback("PIN must be 4–8 digits.");
                 return;
               }
               addUser({ name, role: newRole, pin: newPin.trim() });
               setNewName("");
               setNewRole("viewer");
               setNewPin("");
+              setAdminFeedback("User created.");
               setTick((x) => x + 1);
             }}
           >
@@ -109,6 +111,10 @@ export default function AdminPanel() {
         <div className="muted adminHint">
           Tip: Give Admin/Stock/Invoicing a PIN. Viewer can be blank.
         </div>
+
+        {adminFeedback ? (
+          <div className="bannerWarning" role="status" aria-live="polite">{adminFeedback}</div>
+        ) : null}
       </div>
 
       {/* Manage users */}
@@ -168,12 +174,13 @@ export default function AdminPanel() {
                   onClick={() => {
                     const p = currentPin.trim();
                     if (p && !isValidPin(p)) {
-                      alert("PIN must be 4–8 digits.");
+                      setAdminFeedback("PIN must be 4–8 digits.");
                       return;
                     }
                     if (!confirm(`Set PIN for ${u.name}?`)) return;
                     setUserPin(u.id, p);
                     setPinEdit((s) => ({ ...s, [u.id]: "" }));
+                    setAdminFeedback(`PIN updated for ${u.name}.`);
                     setTick((x) => x + 1);
                   }}
                 >

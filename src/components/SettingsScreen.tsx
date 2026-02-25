@@ -28,6 +28,7 @@ function roleLabel(r: Role) {
 export default function SettingsScreen() {
   const [, setTick] = useState(0);
   const [pin, setPin] = useState("");
+  const [unlockFeedback, setUnlockFeedback] = useState("");
   const [compactAdmin, setCompactAdmin] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 980 : false
   );
@@ -58,7 +59,8 @@ export default function SettingsScreen() {
     const ok = unlockWithPin(pin || "", undefined);
     setPin("");
     refreshScreen();
-    if (!ok) alert("Wrong password (PIN).");
+    if (!ok) setUnlockFeedback("Wrong password / PIN. Try again.");
+    else setUnlockFeedback("");
   }
 
   function handleLock() {
@@ -194,6 +196,10 @@ export default function SettingsScreen() {
             Lock Session
           </button>
         </div>
+
+        {unlockFeedback ? (
+          <div className="bannerWarning" role="status" aria-live="polite">{unlockFeedback}</div>
+        ) : null}
 
         <div className="muted settingsFootnote">
           Default passwords (unchanged): Admin 1234 • Stock 1111 • Invoicing 2222
