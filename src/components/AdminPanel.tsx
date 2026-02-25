@@ -332,6 +332,7 @@ export default function AdminPanel() {
                           <div className="muted adminMeta">Current: {getAccessSummary(u, "pricing")}</div>
                         </div>
                         <select
+                          className="adminAccessSelect"
                           value={u.pricingAccessPreset}
                           disabled={u.role === "admin"}
                           onChange={(e) => {
@@ -351,6 +352,7 @@ export default function AdminPanel() {
                           <div className="muted adminMeta">Current: {getAccessSummary(u, "add")}</div>
                         </div>
                         <select
+                          className="adminAccessSelect"
                           value={u.addAccessPreset}
                           disabled={u.role === "admin"}
                           onChange={(e) => {
@@ -370,6 +372,7 @@ export default function AdminPanel() {
                           <div className="muted adminMeta">Current: {getAccessSummary(u, "edit")}</div>
                         </div>
                         <select
+                          className="adminAccessSelect"
                           value={u.editAccessPreset}
                           disabled={u.role === "admin"}
                           onChange={(e) => {

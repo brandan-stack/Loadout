@@ -291,14 +291,11 @@ export default function App() {
                 aria-label="Select user"
                 title="Select user"
               >
-                {users.map((u) => {
-                  const pending = getUnreadCountForUser(u.id);
-                  return (
-                    <option key={u.id} value={u.id}>
-                      {u.name}{pending > 0 ? ` (${pending})` : ""}
-                    </option>
-                  );
-                })}
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
               </select>
 
               <button
@@ -357,14 +354,11 @@ export default function App() {
                   aria-label="Select user"
                   title="Select user"
                 >
-                  {users.map((u) => {
-                    const pending = getUnreadCountForUser(u.id);
-                    return (
-                      <option key={u.id} value={u.id}>
-                        {u.name}{pending > 0 ? ` (${pending})` : ""}
-                      </option>
-                    );
-                  })}
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
                 </select>
                 <button
                   type="button"

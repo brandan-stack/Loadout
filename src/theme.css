@@ -1114,6 +1114,18 @@ button:focus-visible,
   align-items: center;
 }
 
+.adminAccessSelect {
+  background: color-mix(in srgb, var(--panel2) 88%, var(--panel));
+  border-color: color-mix(in srgb, var(--border2) 82%, var(--border));
+  color: var(--text);
+  font-weight: 800;
+  min-height: 40px;
+}
+
+.adminAccessSelect:disabled {
+  opacity: 0.6;
+}
+
 .adminInlineControls {
   display: grid;
   grid-template-columns: 1fr auto;
