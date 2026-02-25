@@ -54,7 +54,11 @@ function loadJSON(key: string) {
   }
 }
 function save(items: InventoryItem[]) {
-  localStorage.setItem(STORAGE_V2, JSON.stringify(items));
+  try {
+    localStorage.setItem(STORAGE_V2, JSON.stringify(items));
+  } catch (error) {
+    console.warn("[Loadout Items] Save failed:", error);
+  }
 }
 
 function loadCurrentItems(): InventoryItem[] {

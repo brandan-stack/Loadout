@@ -95,7 +95,11 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     lastSyncAt: typeof next.lastSyncAt === "number" ? next.lastSyncAt : prev.lastSyncAt,
     lastError: typeof next.lastError === "string" ? next.lastError : prev.lastError,
   };
-  window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
+  try {
+    window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
+  } catch (error) {
+    console.warn("[Loadout Sync] Failed to persist status:", error);
+  }
   window.dispatchEvent(new Event(STATUS_EVENT_NAME));
 }
 
@@ -165,7 +169,11 @@ function getOrCreateDeviceId(): string {
 }
 
 function writeLastSyncTimestamp(timestamp: number) {
-  window.localStorage.setItem(LAST_SYNC_TS_KEY, String(timestamp || 0));
+  try {
+    window.localStorage.setItem(LAST_SYNC_TS_KEY, String(timestamp || 0));
+  } catch (error) {
+    console.warn("[Loadout Sync] Failed to persist sync timestamp:", error);
+  }
 }
 
 function notifyStateUpdated() {
@@ -178,8 +186,12 @@ function applyRemoteValues(values: Record<string, string>) {
   for (const key of incomingKeys) {
     if (!shouldTrackKey(key)) continue;
     const next = values[key] ?? "";
-    if (window.localStorage.getItem(key) !== next) {
-      window.localStorage.setItem(key, next);
+    try {
+      if (window.localStorage.getItem(key) !== next) {
+        window.localStorage.setItem(key, next);
+      }
+    } catch (error) {
+      console.warn(`[Loadout Sync] Failed to apply key ${key}:`, error);
     }
   }
 }
@@ -407,8 +419,14 @@ export function startLiveCloudSync(appVersion: string) {
     });
 
   const syncTick = async () => {
-    await pushLocalValues();
-    await pullRemoteValues();
+    try {
+      await pushLocalValues();
+      await pullRemoteValues();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown sync error";
+      console.error("[Loadout Sync] Sync tick failed:", error);
+      writeStatus({ state: "error", lastError: `Sync failed: ${message}` });
+    }
   };
 
   const timer = window.setInterval(() => {
