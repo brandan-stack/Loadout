@@ -17,6 +17,16 @@ import {
 } from "../lib/authStore";
 
 import { loadThemeMode, saveThemeMode, type ThemeMode } from "../lib/themeStore";
+import {
+  disableAutoPdfBackup,
+  downloadBackupPdfNow,
+  enableAutoPdfBackup,
+  refreshPdfBackupStatus,
+  resetAutoPdfBackupState,
+  runAutoPdfBackupNow,
+} from "../lib/pdfBackup";
+
+declare const __APP_VERSION__: string;
 
 function roleLabel(r: Role) {
   if (r === "admin") return "Admin";
@@ -33,6 +43,21 @@ export default function SettingsScreen() {
     typeof window !== "undefined" ? window.innerWidth <= 980 : false
   );
   const [adminExpanded, setAdminExpanded] = useState(false);
+  const [pdfBackupStatus, setPdfBackupStatus] = useState<{
+    enabled: boolean;
+    hasFileHandle: boolean;
+    lastSyncedAt: number;
+    lastHash: string;
+    lastError: string;
+  }>({
+    enabled: false,
+    hasFileHandle: false,
+    lastSyncedAt: 0,
+    lastHash: "",
+    lastError: "",
+  });
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfFeedback, setPdfFeedback] = useState("");
 
   const users = loadUsers();
   const session = loadSession();
@@ -77,6 +102,90 @@ export default function SettingsScreen() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    const pullStatus = () => {
+      void refreshPdfBackupStatus().then((status) => setPdfBackupStatus(status));
+    };
+    pullStatus();
+    const id = window.setInterval(pullStatus, 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  async function refreshBackupStatusNow() {
+    const status = await refreshPdfBackupStatus();
+    setPdfBackupStatus(status);
+  }
+
+  async function handleDownloadPdfNow() {
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      await downloadBackupPdfNow(__APP_VERSION__);
+      await refreshBackupStatusNow();
+      setPdfFeedback("Backup PDF downloaded.");
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Failed to download backup PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function handleEnableAutoPdfSync() {
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      await enableAutoPdfBackup(__APP_VERSION__);
+      await refreshBackupStatusNow();
+      setPdfFeedback("Auto PDF sync enabled. This will overwrite the selected file every 30 minutes when data changes.");
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Could not enable auto PDF sync.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function handleRunAutoNow() {
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      await runAutoPdfBackupNow(__APP_VERSION__, true);
+      await refreshBackupStatusNow();
+      setPdfFeedback("Auto PDF sync ran now.");
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Auto PDF sync failed.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function handleDisableAuto() {
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      await disableAutoPdfBackup();
+      await refreshBackupStatusNow();
+      setPdfFeedback("Auto PDF sync disabled.");
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Failed to disable auto PDF sync.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function handleResetAutoState() {
+    setPdfBusy(true);
+    setPdfFeedback("");
+    try {
+      await resetAutoPdfBackupState();
+      await refreshBackupStatusNow();
+      setPdfFeedback("Auto PDF sync file target reset.");
+    } catch (error) {
+      setPdfFeedback(error instanceof Error ? error.message : "Failed to reset auto PDF sync state.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   return (
     <div className="page screenWrap settingsPage">
@@ -260,6 +369,40 @@ export default function SettingsScreen() {
             </span>
           </label>
         </div>
+      </div>
+
+      {/* Data Backup */}
+      <div className="card cardSoft settingsCard">
+        <div className="label">Data Backup (PDF)</div>
+        <div className="muted settingsSubtleGap">
+          Download a full data snapshot PDF now. You can also enable auto-overwrite sync every 30 minutes when data changes.
+        </div>
+
+        <div className="settingsUserCards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <button className="btn" disabled={pdfBusy} onClick={handleDownloadPdfNow}>Download Backup PDF Now</button>
+          <button className="btn" disabled={pdfBusy} onClick={handleEnableAutoPdfSync}>Enable Auto PDF Sync</button>
+          <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleRunAutoNow}>Run Auto Sync Now</button>
+          <button className="btn" disabled={pdfBusy || !pdfBackupStatus.enabled} onClick={handleDisableAuto}>Disable Auto Sync</button>
+          <button className="btn" disabled={pdfBusy} onClick={handleResetAutoState}>Reset Auto Sync File</button>
+        </div>
+
+        <div className="muted settingsSubtleGap">
+          Auto Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.enabled ? "Enabled" : "Disabled"}</b> •
+          File Linked: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.hasFileHandle ? "Yes" : "No"}</b> •
+          Last Sync: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastSyncedAt ? new Date(pdfBackupStatus.lastSyncedAt).toLocaleString() : "Never"}</b>
+        </div>
+
+        <div className="muted settingsSubtleGap" style={{ wordBreak: "break-all" }}>
+          Last Data Hash: <b style={{ color: "var(--text)" }}>{pdfBackupStatus.lastHash || "—"}</b>
+        </div>
+
+        {pdfBackupStatus.lastError ? (
+          <div className="bannerFeedback bannerFeedback--warning" role="status" aria-live="polite">{pdfBackupStatus.lastError}</div>
+        ) : null}
+
+        {pdfFeedback ? (
+          <div className="bannerFeedback bannerFeedback--success" role="status" aria-live="polite">{pdfFeedback}</div>
+        ) : null}
       </div>
 
       {/* Admin */}

@@ -7,7 +7,7 @@ type BackupEnvelope = {
 const BACKUP_KEY = "loadout.upgradeBackup.v1";
 const LAST_VERSION_KEY = "loadout.lastAppVersion.v1";
 
-const PROTECTED_KEYS = [
+export const PROTECTED_KEYS = [
   "inventory.items.v2",
   "inventory.items.v1",
   "inventory.items",
@@ -76,7 +76,7 @@ function isCorruptValue(key: string, raw: string | null) {
   }
 }
 
-function captureCurrentEntries() {
+export function captureProtectedStorageEntries() {
   const entries: Record<string, string> = {};
   for (const key of PROTECTED_KEYS) {
     const raw = window.localStorage.getItem(key);
@@ -91,7 +91,7 @@ function saveBackupSnapshot() {
   const envelope: BackupEnvelope = {
     version: 1,
     savedAt: Date.now(),
-    entries: captureCurrentEntries(),
+    entries: captureProtectedStorageEntries(),
   };
   window.localStorage.setItem(BACKUP_KEY, JSON.stringify(envelope));
 }
