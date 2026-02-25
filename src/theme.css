@@ -1468,6 +1468,7 @@ button:focus-visible,
   background: var(--panel2);
   font-weight: 900;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .appSyncPill.connected {
@@ -1514,6 +1515,44 @@ button:focus-visible,
 .appSyncDot.error {
   background: color-mix(in srgb, var(--danger) 94%, #ff5959 6%);
   border-color: color-mix(in srgb, var(--danger) 88%, #a81f1f 12%);
+}
+
+.appSyncPanel {
+  margin-top: 8px;
+  margin-left: auto;
+  width: min(420px, 100%);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border2);
+  background: color-mix(in srgb, var(--panel2) 88%, transparent);
+}
+
+.appSyncPanelTitle {
+  font-weight: 1000;
+}
+
+.appSyncPanelLine {
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.appSyncPanel.connected {
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--border2));
+}
+
+.appSyncPanel.connecting {
+  border-color: color-mix(in srgb, var(--warn) 62%, var(--border2));
+}
+
+.appSyncPanel.error {
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border2));
+}
+
+.appSyncPanel.disabled {
+  border-color: var(--border2);
 }
 
 .appSignedInPill {

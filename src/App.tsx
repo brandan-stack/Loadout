@@ -95,6 +95,7 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [gateFeedback, setGateFeedback] = useState<string>("");
   const [syncStatus, setSyncStatus] = useState<LiveCloudSyncStatus>(() => readLiveCloudSyncStatus());
+  const [syncPanelOpen, setSyncPanelOpen] = useState(false);
 
   const users = loadUsers().filter((u) => u.isActive);
   const session = loadSession();
@@ -200,6 +201,14 @@ export default function App() {
         ? `Live sync active. Last sync: ${fmt(syncStatus.lastSyncAt)}`
         : "Live sync active."
       : syncStatus.lastError || "Live sync is disabled.";
+  const syncStateText =
+    syncStatus.state === "connected"
+      ? "Connected"
+      : syncStatus.state === "connecting"
+      ? "Connecting"
+      : syncStatus.state === "error"
+      ? "Error"
+      : "Disabled";
 
   useEffect(() => {
     const onResize = () => {
@@ -225,6 +234,17 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileNavOpen]);
+
+  useEffect(() => {
+    if (!syncPanelOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSyncPanelOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [syncPanelOpen]);
 
   if (!unlocked) {
     return (
@@ -349,10 +369,16 @@ export default function App() {
                 Signed in: {me?.name ?? "None"}
               </div>
 
-              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+              <button
+                type="button"
+                className={`appSyncPill ${syncStatus.state}`}
+                title={syncTitle}
+                aria-label="Open sync status details"
+                onClick={() => setSyncPanelOpen((open) => !open)}
+              >
                 <span className={`appSyncDot ${syncStatus.state}`} aria-hidden="true" />
                 {syncLabel}
-              </div>
+              </button>
 
               <button
                 type="button"
@@ -400,10 +426,16 @@ export default function App() {
                 <span>{mobileNavOpen ? "Close" : "Menu"}</span>
               </button>
 
-              <div className={`appSyncPill ${syncStatus.state}`} title={syncTitle}>
+              <button
+                type="button"
+                className={`appSyncPill ${syncStatus.state}`}
+                title={syncTitle}
+                aria-label="Open sync status details"
+                onClick={() => setSyncPanelOpen((open) => !open)}
+              >
                 <span className={`appSyncDot ${syncStatus.state}`} aria-hidden="true" />
                 Sync
-              </div>
+              </button>
             </div>
 
             <div id="mobile-main-nav" className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}>
@@ -456,6 +488,18 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {syncPanelOpen ? (
+          <div className={`appSyncPanel ${syncStatus.state}`} role="status" aria-live="polite">
+            <div className="appSyncPanelTitle">Sync Status</div>
+            <div className="appSyncPanelLine">State: {syncStateText}</div>
+            <div className="appSyncPanelLine">Last Sync: {syncStatus.lastSyncAt > 0 ? fmt(syncStatus.lastSyncAt) : "—"}</div>
+            <div className="appSyncPanelLine">Details: {syncStatus.lastError || "No active errors."}</div>
+            <button type="button" className="btn" onClick={() => setSyncPanelOpen(false)}>
+              Close
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <button
