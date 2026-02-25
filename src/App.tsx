@@ -270,7 +270,7 @@ export default function App() {
               {canOpenToolSignoutTab ? (
                 <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
                   Tool Signout
-                  {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
+                  {toolPendingCount > 0 ? <span className="appWarnDot appWarnDotYellow" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
             </div>
@@ -313,7 +313,7 @@ export default function App() {
 
               <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
                 Dashboard
-                {lowStockCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
+                {lowStockCount > 0 ? <span className="appWarnDot appWarnDotRed" aria-hidden="true">●</span> : null}
               </button>
 
               <button
@@ -388,10 +388,10 @@ export default function App() {
               {canOpenToolSignoutTab ? (
                 <button className={"appNavBtn " + (activeTab === "toolSignout" ? "active" : "")} onClick={() => setActiveTab("toolSignout")}>
                   Tool Signout
-                  {toolPendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
+                  {toolPendingCount > 0 ? <span className="appWarnDot appWarnDotYellow" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}</button>
+              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appWarnDot appWarnDotRed" aria-hidden="true">●</span> : null}</button>
               <button className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
                 <GearIcon />
                 Settings

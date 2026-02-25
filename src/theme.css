@@ -905,6 +905,29 @@ button:focus-visible,
   margin-top: 2px;
 }
 
+.settingsTutorialTabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.settingsTutorialCard {
+  margin-top: 12px;
+  border: 1px solid color-mix(in srgb, var(--border2) 74%, var(--border));
+  border-radius: 14px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel2) 86%, transparent);
+}
+
+.settingsTutorialList {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: color-mix(in srgb, var(--text) 86%, var(--muted));
+  font-size: 13px;
+}
+
 .settingsCard {
   display: grid;
   gap: 8px;
@@ -1352,6 +1375,14 @@ button:focus-visible,
   color: color-mix(in srgb, var(--warn) 86%, #ffd24a 14%);
   font-size: 12px;
   line-height: 1;
+}
+
+.appWarnDotYellow {
+  color: color-mix(in srgb, var(--warn) 86%, #ffd24a 14%);
+}
+
+.appWarnDotRed {
+  color: color-mix(in srgb, var(--danger) 88%, #ff3b3b 12%);
 }
 
 .appStatusPill {

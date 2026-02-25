@@ -31,6 +31,7 @@ import { getActiveToolSignouts, getPendingToolRequests } from "../lib/toolSignou
 declare const __APP_VERSION__: string;
 
 type SettingsTab = "users" | "system" | "admin";
+type TutorialTopic = "gettingStarted" | "inventory" | "partsUsed" | "toolSignout";
 
 function roleLabel(r: Role) {
   if (r === "admin") return "Admin";
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
   );
   const [adminExpanded, setAdminExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("users");
+  const [tutorialTopic, setTutorialTopic] = useState<TutorialTopic>("gettingStarted");
   const [pdfBackupStatus, setPdfBackupStatus] = useState<{
     enabled: boolean;
     hasFileHandle: boolean;
@@ -87,6 +89,44 @@ export default function SettingsScreen() {
   const canManagePdf = !!isAdmin && unlocked;
   const pendingToolRequests = getPendingToolRequests();
   const activeToolSignouts = getActiveToolSignouts();
+
+  const tutorialTitle =
+    tutorialTopic === "gettingStarted"
+      ? "Getting Started"
+      : tutorialTopic === "inventory"
+      ? "Inventory Workflow"
+      : tutorialTopic === "partsUsed"
+      ? "Parts Used Workflow"
+      : "Tool Signout Workflow";
+
+  const tutorialSteps =
+    tutorialTopic === "gettingStarted"
+      ? [
+          "Select your user on the lock screen and unlock with your PIN.",
+          "Open Dashboard to check low-stock and alerts first.",
+          "Use Inventory to add/edit items and keep location quantities accurate.",
+          "Use Settings > Users tab to verify your active access permissions.",
+        ]
+      : tutorialTopic === "inventory"
+      ? [
+          "Open Inventory and search by name, part number, model, or serial.",
+          "Use Add/Edit to update item details, low-stock threshold, price, and margin.",
+          "Receive, Take Out, or Move stock so quantity by location stays correct.",
+          "Review Dashboard low-stock cards and restock before threshold is reached.",
+        ]
+      : tutorialTopic === "partsUsed"
+      ? [
+          "Open Parts Used and enter the required Job Number.",
+          "Select part + quantity and add as many lines as needed to the queue.",
+          "Verify required checklist is fully valid, then run Final Step logging.",
+          "Confirm recent history shows submitter, picture, and cost snapshot for each line.",
+        ]
+      : [
+          "Open Tool Signout and submit a request with selected tool and quantity.",
+          "Admin users review pending requests and Accept or Reject.",
+          "Approved requests appear in Who Has the Tool dashboard.",
+          "Mark tools returned when checked back in to close the signout.",
+        ];
 
   function refreshScreen() {
     setTick((x) => x + 1);
@@ -441,6 +481,29 @@ export default function SettingsScreen() {
                   <b>Require PIN</b> to view costs/profit fields
                 </span>
               </label>
+            </div>
+          </div>
+
+          <div className="card cardSoft settingsCard settingsTabPanel">
+            <div className="label">Tutorials</div>
+            <div className="muted settingsSubtleGap">
+              Quick in-app training guides for day-to-day workflows.
+            </div>
+
+            <div className="settingsTutorialTabs">
+              <button className={`btn ${tutorialTopic === "gettingStarted" ? "primary" : ""}`} type="button" onClick={() => setTutorialTopic("gettingStarted")}>Getting Started</button>
+              <button className={`btn ${tutorialTopic === "inventory" ? "primary" : ""}`} type="button" onClick={() => setTutorialTopic("inventory")}>Inventory</button>
+              <button className={`btn ${tutorialTopic === "partsUsed" ? "primary" : ""}`} type="button" onClick={() => setTutorialTopic("partsUsed")}>Parts Used</button>
+              <button className={`btn ${tutorialTopic === "toolSignout" ? "primary" : ""}`} type="button" onClick={() => setTutorialTopic("toolSignout")}>Tool Signout</button>
+            </div>
+
+            <div className="settingsTutorialCard">
+              <div className="settingsStrong">{tutorialTitle}</div>
+              <ol className="settingsTutorialList">
+                {tutorialSteps.map((step, index) => (
+                  <li key={`${tutorialTopic}-${index}`}>{step}</li>
+                ))}
+              </ol>
             </div>
           </div>
 
