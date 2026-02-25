@@ -146,6 +146,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const hasJobNumber = jobNumber.trim().length > 0;
   const hasPart = !!selectedItem;
   const canFinalizeLog = hasJobNumber && hasPart && validQty;
+  const missingRequired: string[] = [
+    ...(hasJobNumber ? [] : ["Job Number"]),
+    ...(hasPart ? [] : ["Part"]),
+    ...(validQty ? [] : ["Quantity"]),
+  ];
 
   function saveProgress() {
     const savedAt = Date.now();
@@ -305,6 +310,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
           <div className="dashboardUseNote">
             <div className={`dashboardFinalStep ${attemptedSubmit && !canFinalizeLog ? "requiredBlockMissing" : ""}`}>
+              <div className={`dashboardRequiredChecklist ${missingRequired.length ? "missing" : "valid"}`}>
+                {missingRequired.length
+                  ? `Required before final log: ${missingRequired.join(" • ")}`
+                  : "All required fields valid. Ready to log parts."}
+              </div>
               <div className="dashboardResultCount">
                 Final Step: {hasPart ? `Part selected (${selectedItem?.name ?? "—"})` : "Select a part"} • {hasJobNumber ? `Job #${jobNumber.trim()}` : "Add Job Number"} • {validQty ? `Qty ${qtyNumber}` : "Enter valid quantity"}
               </div>

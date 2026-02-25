@@ -1655,6 +1655,19 @@ button:focus-visible,
   gap: 10px;
 }
 
+.dashboardRequiredChecklist {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dashboardRequiredChecklist.missing {
+  color: color-mix(in srgb, #ff6d6d 86%, var(--text));
+}
+
+.dashboardRequiredChecklist.valid {
+  color: color-mix(in srgb, var(--accent) 78%, var(--text));
+}
+
 .partsToast {
   margin-top: 0;
   font-size: 13px;
