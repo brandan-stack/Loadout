@@ -209,18 +209,11 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const hasJobNumber = jobNumber.trim().length > 0;
   const hasQueuedParts = queuedLines.length > 0;
   const hasValidQueuedLines = hasQueuedParts && queuedLines.every((line) => line.qty > 0 && !!itemsApi.items.find((it) => it.id === line.itemId));
-  const hasCostForQueuedLines =
-    hasQueuedParts &&
-    queuedLines.every((line) => {
-      const item = itemsApi.items.find((it) => it.id === line.itemId);
-      return !!item && typeof item.unitPrice === "number" && Number.isFinite(item.unitPrice);
-    });
-  const canFinalizeLog = hasJobNumber && hasValidQueuedLines && hasCostForQueuedLines;
+  const canFinalizeLog = hasJobNumber && hasValidQueuedLines;
   const missingRequired: string[] = [
     ...(hasJobNumber ? [] : ["Job Number"]),
     ...(hasQueuedParts ? [] : ["Part + Quantity"]),
     ...(hasValidQueuedLines ? [] : ["Valid quantities"]),
-    ...(hasCostForQueuedLines ? [] : ["Unit Cost for each queued part"]),
   ];
 
   const totalQueuedQty = queuedLines.reduce((sum, line) => sum + line.qty, 0);
@@ -287,7 +280,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   function finalizeLogPartsUsed() {
     setAttemptedSubmit(true);
     if (!canFinalizeLog) {
-      setToast({ tone: "error", message: "Missing required fields. Enter Job Number and ensure every queued part has a unit cost and valid quantity." });
+      setToast({ tone: "error", message: "Missing required fields. Enter Job Number and ensure every queued part has a valid quantity." });
       return;
     }
 

@@ -49,28 +49,41 @@ async function addInventoryItem(page: Page, input: { name: string; partNo: strin
   await expect(page.getByText(/Item added\./i)).toBeVisible();
 }
 
+async function setPartsUsedQuantity(page: Page, itemName: string, qty: string) {
+  const fullPickerQtyInput = page.getByPlaceholder(/Quantity for selected part/i);
+  if (await fullPickerQtyInput.isVisible()) {
+    await fullPickerQtyInput.fill(qty);
+    return;
+  }
+
+  await page.getByLabel(`Quantity for ${itemName}`).first().fill(qty);
+}
+
 test.describe("Loadout critical flows", () => {
   test.beforeEach(async ({ page }) => {
     await resetAppData(page);
     await signInAsAdmin(page);
   });
 
-  test("Parts Used requires job number and unit cost before final log", async ({ page }) => {
+  test("Parts Used requires job number before final log", async ({ page }) => {
     const itemName = `E2E No Cost ${Date.now()}`;
     const partNo = `E2E-NC-${Date.now()}`;
 
     await addInventoryItem(page, { name: itemName, partNo, qty: "2" });
 
     await openTab(page, "Parts Used");
-    await page.getByPlaceholder(/Job Number \(required\)/i).fill(`JOB-${Date.now()}`);
     await page.getByPlaceholder(/Search item/i).fill(partNo);
 
     await page.locator(`.dashboardItemRow:has-text("${itemName}")`).getByRole("button", { name: /Select Part/i }).click();
-    await page.getByPlaceholder(/Quantity for selected part/i).fill("1");
+    await setPartsUsedQuantity(page, itemName, "1");
     await page.getByRole("button", { name: /Add Selected Part \+ Quantity/i }).click();
 
-    await expect(page.getByText(/Unit Cost for each queued part/i)).toBeVisible();
+    await expect(page.getByText(/Required before final log: Job Number/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Log Parts Used \(Final Step\)/i })).toBeDisabled();
+
+    await page.getByPlaceholder(/Job Number \(required\)/i).fill(`JOB-${Date.now()}`);
+    await expect(page.getByText(/All required fields valid\. Ready to log parts\./i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Log Parts Used \(Final Step\)/i })).toBeEnabled();
   });
 
   test("Mark as read + undo works and billed items appear in Dashboard", async ({ page }) => {
@@ -86,7 +99,7 @@ test.describe("Loadout critical flows", () => {
     await page.getByPlaceholder(/Search item/i).fill(partNo);
 
     await page.locator(`.dashboardItemRow:has-text("${itemName}")`).getByRole("button", { name: /Select Part/i }).click();
-    await page.getByPlaceholder(/Quantity for selected part/i).fill("2");
+    await setPartsUsedQuantity(page, itemName, "2");
 
     await page.locator('select:has(option:text-is("Admin"))').first().selectOption({ label: "Admin" });
 
