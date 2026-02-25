@@ -1,16 +1,25 @@
 {
   "name": "loadout",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
+  "homepage": "https://brandan-stack.github.io/Loadout/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brandan-stack/Loadout.git"
+  },
+  "bugs": {
+    "url": "https://github.com/brandan-stack/Loadout/issues"
+  },
+  "url": "https://github.com/brandan-stack/Loadout",
   "description": "Loadout - Clean, fast inventory management system for mobile devices, tablets, laptops, and Android Auto",
   "scripts": {
-    "dev": "vite",
-    "dev:network": "vite --host",
+    "dev": "vite --port 5174",
+    "dev:network": "vite --host --port 5174",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "preview:network": "vite preview --host",
+    "preview": "vite preview --port 5174",
+    "preview:network": "vite preview --host --port 5174",
     "sync": "cap sync",
     "sync:ios": "cap sync ios",
     "sync:android": "cap sync android"

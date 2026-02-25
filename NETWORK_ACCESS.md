@@ -15,9 +15,9 @@ This guide explains how to access the Inventory App from mobile devices, tablets
    - **Windows**: `ipconfig` (look for IPv4 Address)
 
 3. **Access from your device:**
-   Open your browser and navigate to: `http://<YOUR_IP>:5173`
+   Open your browser and navigate to: `http://<YOUR_IP>:5174`
    
-   Example: `http://192.168.1.100:5173`
+   Example: `http://192.168.1.100:5174`
 
 ## Network Setup by Device Type
 
@@ -25,7 +25,7 @@ This guide explains how to access the Inventory App from mobile devices, tablets
 
 1. Ensure your mobile device is on the **same WiFi network** as your development machine
 2. Open your mobile browser (Chrome, Safari, Firefox, etc.)
-3. Enter the IP address and port: `http://<YOUR_IP>:5173`
+3. Enter the IP address and port: `http://<YOUR_IP>:5174`
 4. The responsive design will automatically adapt to your device's screen size
 
 **Tips:**
@@ -47,7 +47,7 @@ Android Auto allows you to use web apps on your vehicle's infotainment system.
 
 3. **Access via Android Auto:**
    - Some Android vehicles support web apps through Google Assistant or the native browser
-   - Navigate to: `http://<YOUR_IP>:5173`
+   - Navigate to: `http://<YOUR_IP>:5174`
 
 4. **For car infotainment systems:**
    - Check your vehicle's specific instructions for web app access
@@ -55,8 +55,8 @@ Android Auto allows you to use web apps on your vehicle's infotainment system.
 
 ### Laptops & Desktops
 
-1. Open a browser and navigate to: `http://<YOUR_IP>:5173`
-2. Or access locally with: `http://localhost:5173`
+1. Open a browser and navigate to: `http://<YOUR_IP>:5174`
+2. Or access locally with: `http://localhost:5174`
 
 ## Production Deployment
 
@@ -89,7 +89,7 @@ Popular deployment options:
 
 ### Can't connect from mobile device?
 1. **Check WiFi**: Ensure both devices are on the same network
-2. **Check firewall**: Your development machine's firewall might block port 5173
+2. **Check firewall**: Your development machine's firewall might block port 5174
    - Windows Defender: Allow Vite through firewall
    - macOS: System Preferences > Security & Privacy > Firewall Options
 3. **Check IP address**: Make sure you're using the correct local IP (not 127.0.0.1 or localhost)
@@ -115,7 +115,7 @@ For production deployment, you might want to set environment-specific URLs:
 
 Create a `.env` file:
 ```
-VITE_API_URL=http://192.168.1.100:5173
+VITE_API_URL=http://192.168.1.100:5174
 VITE_ENV=development
 ```
 

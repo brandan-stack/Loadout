@@ -2,7 +2,7 @@ import type { InventoryItem } from "../hooks/useItems";
 
 type RootLoc = { id: string; name: string };
 
-function esc(s: any) {
+function esc(s: unknown) {
   return String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")

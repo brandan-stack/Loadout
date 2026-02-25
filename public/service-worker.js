@@ -1,8 +1,8 @@
-const CACHE_NAME = 'loadout-v1';
+const CACHE_NAME = 'loadout-v3';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  '/Loadout/',
+  '/Loadout/index.html',
+  '/Loadout/manifest.json',
 ];
 
 // Install event - cache essential files
@@ -33,31 +33,42 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const isHtmlRequest = request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html');
+
+  if (isHtmlRequest) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseToCache));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/Loadout/index.html')))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      // Return cached version if available
+    caches.match(request).then((response) => {
       if (response) {
         return response;
       }
 
-      // Otherwise fetch from network
-      return fetch(event.request).then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
+      return fetch(request).then((networkResponse) => {
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type === 'error') {
+          return networkResponse;
         }
 
-        // Cache successful responses for future use
-        const responseToCache = response.clone();
+        const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+          cache.put(request, responseToCache);
         });
 
-        return response;
-      }).catch(() => {
-        // If offline and no cache, return a fallback
-        return caches.match('/index.html');
-      });
+        return networkResponse;
+      }).catch(() => caches.match('/Loadout/index.html'));
     })
   );
 });

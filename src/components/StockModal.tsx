@@ -1,12 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
+import type { LocationNode } from "../hooks/useLocations";
+
+type StockModalItem = {
+  id?: string;
+  _id?: string;
+  key?: string;
+  pn?: string;
+  name?: string;
+  byLocation?: Record<string, number>;
+  stockByLocation?: Array<{ locationId?: string; quantity?: number }>;
+  stock?: Record<string, number>;
+  qtyByLocation?: Record<string, number>;
+  locations?: Array<{ locationId?: string; id?: string; location?: string; name?: string; qty?: number }>;
+};
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  item: any;
+  item: StockModalItem | null | undefined;
 
   // Your locations hook returns roots (tree). We accept that.
-  locationRoots: any[];
+  locationRoots: LocationNode[];
 
   // Functions provided by useItems()
   adjustAtLocation?: (itemId: string, locationId: string, delta: number) => void;
@@ -14,30 +28,37 @@ type Props = {
 
   locked?: boolean;
   requirePinForStock?: boolean;
+  forceLock?: boolean;
+  lockMessage?: string;
 };
 
-function safeStr(v: any) {
+function toRecord(v: unknown): Record<string, unknown> {
+  if (typeof v === "object" && v !== null) return v as Record<string, unknown>;
+  return {};
+}
+
+function safeStr(v: unknown) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
 /** Flatten tree to leaf + branch nodes so dropdown works */
-function flattenLocations(roots: any[]): { id: string; name: string }[] {
+function flattenLocations(roots: LocationNode[]): { id: string; name: string }[] {
   const out: { id: string; name: string }[] = [];
-  const walk = (node: any, prefix = "") => {
+  const walk = (node: LocationNode, prefix = "") => {
     if (!node) return;
-    const id = safeStr(node.id ?? node.key ?? node.value ?? node.name);
-    const name = safeStr(node.name ?? node.label ?? id);
+    const id = safeStr(node.id ?? node.name);
+    const name = safeStr(node.name ?? id);
     const fullName = prefix ? `${prefix} / ${name}` : name;
     out.push({ id, name: fullName });
 
-    const children = node.children || node.nodes || node.items;
+    const children = node.children;
     if (Array.isArray(children)) children.forEach((c) => walk(c, fullName));
   };
   (roots || []).forEach((r) => walk(r, ""));
   return out;
 }
 
-function getQtyMap(item: any): Record<string, number> {
+function getQtyMap(item: StockModalItem | null | undefined): Record<string, number> {
   const m =
     item?.byLocation ||
     item?.stockByLocation ||
@@ -52,9 +73,10 @@ function getQtyMap(item: any): Record<string, number> {
 
   if (Array.isArray(item?.locations)) {
     const out: Record<string, number> = {};
-    item.locations.forEach((r: any) => {
-      const id = safeStr(r?.locationId ?? r?.id ?? r?.location ?? r?.name);
-      out[id] = Number(r?.qty) || 0;
+    item.locations.forEach((r) => {
+      const rec = toRecord(r);
+      const id = safeStr(rec.locationId ?? rec.id ?? rec.location ?? rec.name);
+      out[id] = Number(rec.qty) || 0;
     });
     return out;
   }
@@ -71,6 +93,8 @@ export default function StockModal({
   moveQty,
   locked = false,
   requirePinForStock = false,
+  forceLock = false,
+  lockMessage,
 }: Props) {
   const [receiveQty, setReceiveQty] = useState<string>("");
   const [takeQty, setTakeQty] = useState<string>("");
@@ -84,7 +108,7 @@ export default function StockModal({
 
   const primaryLocation = locs[0]?.id || "";
 
-  const stockLocked = locked && requirePinForStock;
+  const stockLocked = forceLock || (locked && requirePinForStock);
 
   const itemId = safeStr(item?.id ?? item?._id ?? item?.key ?? item?.pn ?? item?.name);
 
@@ -160,7 +184,7 @@ export default function StockModal({
         <div className="modalBody">
           {stockLocked && (
             <div className="hint">
-              Stock actions are locked. Unlock in <b>Settings</b>.
+              {lockMessage || "Stock actions are locked. Unlock in Settings or request Admin access."}
             </div>
           )}
 

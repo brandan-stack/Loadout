@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import AdminPanel from "./AdminPanel";
 import {
   loadUsers,
@@ -12,6 +12,7 @@ import {
   resetUsersToDefaults,
   loadSecuritySettings,
   saveSecuritySettings,
+  getAccessSummary,
   type Role,
 } from "../lib/authStore";
 
@@ -25,29 +26,69 @@ function roleLabel(r: Role) {
 }
 
 export default function SettingsScreen() {
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   const [pin, setPin] = useState("");
+  const [compactAdmin, setCompactAdmin] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 980 : false
+  );
+  const [adminExpanded, setAdminExpanded] = useState(false);
 
-  const users = useMemo(() => loadUsers(), [tick]);
-  const session = useMemo(() => loadSession(), [tick]);
-  const me = useMemo(() => currentUser(), [tick]);
+  const users = loadUsers();
+  const session = loadSession();
+  const me = currentUser();
   const unlocked = isUnlocked();
   const isAdmin = canManageUsers(me);
 
-  const sec = useMemo(() => loadSecuritySettings(), [tick]);
+  const sec = loadSecuritySettings();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
 
   const activeUsers = users.filter((u) => u.isActive);
+  const accessAdd = me ? getAccessSummary(me, "add") : "Blocked";
+  const accessEdit = me ? getAccessSummary(me, "edit") : "Blocked";
+  const accessPartsUsed = me?.canAccessPartsUsed ? "Allowed" : "Blocked";
+  const accessNotifications = me?.receivesJobNotifications ? "Allowed" : "Blocked";
+  const accessPricing = me?.canViewPricingMargin ? "Allowed" : "Blocked";
+
+  function refreshScreen() {
+    setTick((x) => x + 1);
+  }
+
+  function handleUnlock() {
+    const ok = unlockWithPin(pin || "", undefined);
+    setPin("");
+    refreshScreen();
+    if (!ok) alert("Wrong password (PIN).");
+  }
+
+  function handleLock() {
+    lockNow();
+    refreshScreen();
+  }
+
+  useEffect(() => {
+    const onResize = () => {
+      const compact = window.innerWidth <= 980;
+      setCompactAdmin(compact);
+      if (!compact) setAdminExpanded(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   return (
     <div className="page screenWrap settingsPage">
       <div className="settingsHeader">
-        <div style={{ fontSize: 26, fontWeight: 1000 }}>Settings</div>
-        <div className="muted">Theme, users, security, and permissions.</div>
-        <div className="chips">
+        <div className="settingsTitle">Settings</div>
+        <div className="muted">Theme, users, security, and admin permissions.</div>
+        <div className="chips settingsChips">
           <span className="chip">Active Users: {activeUsers.length}</span>
           <span className="chip">Current: {me?.name ?? "None"}</span>
+          <span className="chip">Parts Used: {accessPartsUsed}</span>
+          <span className="chip">Job Notifications: {accessNotifications}</span>
+          <span className="chip">Pricing/Margin: {accessPricing}</span>
+          <span className="chip">Add Access: {accessAdd}</span>
+          <span className="chip">Edit/Stock Access: {accessEdit}</span>
           {unlocked ? <span className="chip">Session: Unlocked</span> : <span className="chip">Session: Locked</span>}
         </div>
       </div>
@@ -78,9 +119,9 @@ export default function SettingsScreen() {
 
       {/* User & PIN */}
       <div className="card cardSoft settingsCard">
-        <div className="label">User & PIN</div>
+        <div className="label">User & password (PIN)</div>
         <div className="muted settingsSubtleGap">
-          Tap a user below (no dropdown bugs), then enter PIN and Unlock.
+          Select a user, enter password / PIN, then unlock.
         </div>
 
         {activeUsers.length === 0 ? (
@@ -93,12 +134,12 @@ export default function SettingsScreen() {
             <button
               className="btn"
               onClick={() => {
-                if (!confirm("Reset users to defaults (Admin/Stock/Invoicing/Viewer)? Inventory will NOT be touched.")) return;
+                if (!confirm("Reset users to defaults with the same passwords (Admin 1234, Stock 1111, Invoicing 2222)? Inventory will NOT be touched.")) return;
                 resetUsersToDefaults();
-                setTick((x) => x + 1);
+                refreshScreen();
               }}
             >
-              Reset Users (safe)
+              Reset Users (same passwords)
             </button>
           </div>
         ) : (
@@ -107,19 +148,16 @@ export default function SettingsScreen() {
               <button
                 key={u.id}
                 className={"btn settingsUserCard" + (u.id === session.currentUserId ? " selected" : "")}
-                style={{
-                  justifyContent: "space-between",
-                }}
                 onClick={() => {
                   setCurrentUser(u.id);
                   setPin("");
-                  setTick((x) => x + 1);
+                  refreshScreen();
                 }}
               >
-                <span style={{ display: "grid" }}>
-                  <span style={{ fontWeight: 1000 }}>{u.name}</span>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {roleLabel(u.role)}
+                  <span className="settingsUserMain">
+                    <span className="settingsUserName">{u.name}</span>
+                    <span className="muted settingsUserMeta">
+                    {roleLabel(u.role)} • Parts Used: {u.canAccessPartsUsed ? "Allowed" : "Blocked"}
                   </span>
                 </span>
                 <span className="pill">{u.id === session.currentUserId ? "Selected" : "Select"}</span>
@@ -129,44 +167,36 @@ export default function SettingsScreen() {
         )}
 
         <div className="settingsUnlockGrid">
-          <div className="muted">
-            Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
-            {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
+            <div className="muted settingsCurrentStatus">
+              <div>
+                Current: <b style={{ color: "var(--text)" }}>{me ? me.name : "None"}</b> •{" "}
+                {unlocked ? <span style={{ color: "var(--accent)" }}>Unlocked</span> : <span style={{ color: "var(--warn)" }}>Locked</span>}
+              </div>
+              <div className="settingsCurrentAccess">Parts Used: {accessPartsUsed} • Job Notifications: {accessNotifications} • Pricing/Margin: {accessPricing} • Add Access: {accessAdd} • Edit/Stock Access: {accessEdit}</div>
           </div>
 
           <input
             className="input"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
-            placeholder="PIN"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleUnlock();
+            }}
+            placeholder="password / PIN"
             inputMode="numeric"
           />
 
-          <button
-            className="btn"
-            onClick={() => {
-              const ok = unlockWithPin(pin || "", undefined);
-              setPin("");
-              setTick((x) => x + 1);
-              if (!ok) alert("Wrong PIN.");
-            }}
-          >
+          <button className="btn" onClick={handleUnlock}>
             Unlock
           </button>
 
-          <button
-            className="btn"
-            onClick={() => {
-              lockNow();
-              setTick((x) => x + 1);
-            }}
-          >
-            Lock
+          <button className="btn" onClick={handleLock}>
+            Lock Session
           </button>
         </div>
 
         <div className="muted settingsFootnote">
-          Defaults: Admin 1234 • Stock 1111 • Invoicing 2222
+          Default passwords (unchanged): Admin 1234 • Stock 1111 • Invoicing 2222
         </div>
       </div>
 
@@ -228,9 +258,20 @@ export default function SettingsScreen() {
 
       {/* Admin */}
       <div className="card cardSoft settingsCard">
-        <div className="label">Admin</div>
+        <div className="settingsAdminHeader">
+          <div className="label">Admin</div>
+          {isAdmin && unlocked && compactAdmin ? (
+            <button
+              className="btn settingsAdminToggle"
+              type="button"
+              onClick={() => setAdminExpanded((v) => !v)}
+            >
+              {adminExpanded ? "Hide Admin Tools" : "Show Admin Tools"}
+            </button>
+          ) : null}
+        </div>
         {isAdmin && unlocked ? (
-          <AdminPanel />
+          !compactAdmin || adminExpanded ? <AdminPanel /> : null
         ) : (
           <div className="muted">
             Select <b style={{ color: "var(--text)" }}>Admin</b> above and press <b style={{ color: "var(--text)" }}>Unlock</b> to manage users & PINs.

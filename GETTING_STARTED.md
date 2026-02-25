@@ -13,7 +13,7 @@ Welcome! Your **Loadout** inventory management app is now ready for iOS and Andr
 ### App Details
 - **App Name**: Loadout
 - **Package ID**: `com.brandan.loadout`
-- **PIN Authentication**: Default `1234` (change in app Settings)
+- **Password / PIN Authentication**: Default `1234` (change in app Settings)
 - **Minimum Versions**: iOS 14.0+, Android 26+
 
 ### Documentation
@@ -34,7 +34,7 @@ npm run build
 ### 2. Test Web Version
 ```bash
 npm run dev
-# Open http://localhost:5173
+# Open http://localhost:5174
 # Default PIN: 1234
 ```
 
@@ -116,6 +116,7 @@ npm run sync               # Both
 ### For Development/Testing
 - **Default PIN**: `1234`
 - **Default Users**: Admin (1234), Stock (1111), Invoicing (2222), Viewer (no PIN)
+- **Parts Used Tab**: Admin controls which users can access this tab
 
 ### Before Submitting to App Stores
 1. Launch the app
@@ -132,11 +133,12 @@ Before submitting to Apple App Store or Google Play:
 
 - [ ] Test on physical iOS device + iPad
 - [ ] Test on multiple Android devices (different sizes)
-- [ ] Verify PIN authentication works
+- [ ] Verify password / PIN authentication works
 - [ ] Test all inventory features (add, edit, search, filter)
 - [ ] Check offline functionality
 - [ ] Verify activity logging
 - [ ] Test all user roles (Admin, Stock, Invoicing, Viewer)
+- [ ] Verify Parts Used tab access by user
 - [ ] Change default PIN in Settings
 - [ ] No console errors (`npm run build` checks this)
 - [ ] Create app icons (1024x1024 minimum)

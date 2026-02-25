@@ -37,6 +37,10 @@ function isLow(item: InventoryItem) {
   return totalQty(item) <= n;
 }
 
+function formatCurrency(v: number) {
+  return `$${v.toFixed(2)}`;
+}
+
 export default function InventoryScreen() {
   const itemsApi = useItems();
   const locApi = useLocations();
@@ -46,6 +50,9 @@ export default function InventoryScreen() {
   const requirePinForStock = !!authStore.loadSecuritySettings().requirePinForStock;
   const me = authStore.currentUser();
   const canAddItems = authStore.canAddInventory(me);
+  const canEditItems = authStore.canEditInventory(me);
+  const canStockActions = authStore.canAdjustStock(me);
+  const canViewPricing = authStore.canViewPricingMargin(me);
 
   const locationOptions = useMemo(
     () => flattenLocations(locApi.roots),
@@ -70,6 +77,8 @@ export default function InventoryScreen() {
 
   const [initialQty, setInitialQty] = useState<string>("");
   const [lowStockAlert, setLowStockAlert] = useState<string>("");
+  const [unitPrice, setUnitPrice] = useState<string>("");
+  const [marginPercent, setMarginPercent] = useState<string>("");
   const [initialLocationId, setInitialLocationId] = useState<string>("");
 
   const [categoryId, setCategoryId] = useState<string>("");
@@ -91,7 +100,7 @@ export default function InventoryScreen() {
 
   const categories = catApi.categories ?? [];
   const subcats =
-    categories.find((c: any) => c.id === categoryId)?.subcategories ?? [];
+    categories.find((c) => c.id === categoryId)?.subcategories ?? [];
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
 
@@ -143,6 +152,8 @@ export default function InventoryScreen() {
     setDescription("");
     setInitialQty("");
     setLowStockAlert("");
+    setUnitPrice("");
+    setMarginPercent("");
     setInitialLocationId("");
     setCategoryId("");
     setSubcategoryId("");
@@ -151,6 +162,10 @@ export default function InventoryScreen() {
   }
 
   function startEditItem(item: InventoryItem) {
+    if (!canEditItems) {
+      alert("You are not allowed to edit inventory items.");
+      return;
+    }
     setEditingItemId(item.id);
     setShowAddPanel(true);
     setName(item.name ?? "");
@@ -164,6 +179,16 @@ export default function InventoryScreen() {
         ? ""
         : String(item.lowStock)
     );
+    setUnitPrice(
+      item.unitPrice === undefined || item.unitPrice === null
+        ? ""
+        : String(item.unitPrice)
+    );
+    setMarginPercent(
+      item.marginPercent === undefined || item.marginPercent === null
+        ? ""
+        : String(item.marginPercent)
+    );
     setCategoryId(item.categoryId ?? "");
     setSubcategoryId(item.subcategoryId ?? "");
     setPhotoDataUrl(item.photoDataUrl ?? "");
@@ -176,14 +201,19 @@ export default function InventoryScreen() {
     try {
       const dataUrl = await imageFileToOptimizedDataUrl(file);
       setPhotoDataUrl(dataUrl);
-    } catch (err: any) {
-      alert(err?.message || "Unable to process image.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unable to process image.";
+      alert(msg);
     }
   }
 
   function createItem() {
-    if (!canAddItems) {
+    if (!editingItemId && !canAddItems) {
       alert("You are not allowed to add inventory items.");
+      return;
+    }
+    if (editingItemId && !canEditItems) {
+      alert("You are not allowed to edit inventory items.");
       return;
     }
 
@@ -193,6 +223,8 @@ export default function InventoryScreen() {
     const qty = initialQty.trim() === "" ? 0 : Number(initialQty);
     const lowStockValue =
       lowStockAlert.trim() === "" ? undefined : Number(lowStockAlert);
+    const unitPriceValue = unitPrice.trim() === "" ? undefined : Number(unitPrice);
+    const marginPercentValue = marginPercent.trim() === "" ? undefined : Number(marginPercent);
 
     const locId =
       initialLocationId ||
@@ -211,6 +243,8 @@ export default function InventoryScreen() {
         lowStock: Number.isFinite(Number(lowStockValue))
           ? Number(lowStockValue)
           : undefined,
+        unitPrice: Number.isFinite(Number(unitPriceValue)) ? Number(unitPriceValue) : undefined,
+        marginPercent: Number.isFinite(Number(marginPercentValue)) ? Number(marginPercentValue) : undefined,
         photoDataUrl: photoDataUrl || undefined,
       });
 
@@ -255,6 +289,13 @@ export default function InventoryScreen() {
         itemsApi.updateItem(duplicate.id, { lowStock: Number(lowStockValue) });
       }
 
+      if (Number.isFinite(Number(unitPriceValue)) || Number.isFinite(Number(marginPercentValue))) {
+        itemsApi.updateItem(duplicate.id, {
+          unitPrice: Number.isFinite(Number(unitPriceValue)) ? Number(unitPriceValue) : duplicate.unitPrice,
+          marginPercent: Number.isFinite(Number(marginPercentValue)) ? Number(marginPercentValue) : duplicate.marginPercent,
+        });
+      }
+
       if (photoDataUrl) {
         itemsApi.updateItem(duplicate.id, { photoDataUrl });
       }
@@ -274,6 +315,8 @@ export default function InventoryScreen() {
       categoryId: categoryId || undefined,
       subcategoryId: subcategoryId || undefined,
       lowStock: Number.isFinite(Number(lowStockValue)) ? Number(lowStockValue) : undefined,
+      unitPrice: Number.isFinite(Number(unitPriceValue)) ? Number(unitPriceValue) : undefined,
+      marginPercent: Number.isFinite(Number(marginPercentValue)) ? Number(marginPercentValue) : undefined,
       initialQty: Number.isFinite(qty) ? qty : 0,
       initialLocationId: locId,
       photoDataUrl: photoDataUrl || undefined,
@@ -446,6 +489,26 @@ export default function InventoryScreen() {
           </label>
 
           <label className="field">
+            <span>Unit price</span>
+            <input
+              value={unitPrice}
+              onChange={(e) => setUnitPrice(e.target.value)}
+              placeholder="blank = hidden"
+              inputMode="decimal"
+            />
+          </label>
+
+          <label className="field">
+            <span>Margin %</span>
+            <input
+              value={marginPercent}
+              onChange={(e) => setMarginPercent(e.target.value)}
+              placeholder="blank = hidden"
+              inputMode="decimal"
+            />
+          </label>
+
+          <label className="field">
             <span>Initial location</span>
             <select
               value={initialLocationId}
@@ -470,7 +533,7 @@ export default function InventoryScreen() {
               }}
             >
               <option value="">Uncategorized</option>
-              {categories.map((c: any) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -486,7 +549,7 @@ export default function InventoryScreen() {
               disabled={!categoryId}
             >
               <option value="">None</option>
-              {subcats.map((s: any) => (
+              {subcats.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -544,7 +607,7 @@ export default function InventoryScreen() {
               onChange={(e) => setFilterCategoryId(e.target.value)}
             >
               <option value="">All categories</option>
-              {categories.map((c: any) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -602,12 +665,21 @@ export default function InventoryScreen() {
                     {it.model ? <>Model Number: {it.model} • </> : null}
                     {it.serial ? <>Serial Number: {it.serial}</> : null}
                   </div>
+                  {canViewPricing ? (
+                    <div className="itemSub muted">
+                      {typeof it.unitPrice === "number" ? <>Unit Price: {formatCurrency(it.unitPrice)} • </> : <>Unit Price: — • </>}
+                      {typeof it.marginPercent === "number" ? <>Margin: {it.marginPercent}% • </> : <>Margin: — • </>}
+                      {typeof it.unitPrice === "number" && typeof it.marginPercent === "number"
+                        ? <>Billing Price: {formatCurrency(it.unitPrice * (1 + it.marginPercent / 100))}</>
+                        : <>Billing Price: —</>}
+                    </div>
+                  ) : null}
                   <div className="itemSub muted">{formatStockLocations(it)}</div>
                 </div>
               </div>
 
               <div className="itemRight">
-                {canAddItems ? (
+                {canEditItems ? (
                   <button
                     className="btn inventoryBtnEdit"
                     type="button"
@@ -619,6 +691,7 @@ export default function InventoryScreen() {
                 <button
                   className="btn primary inventoryBtnStock"
                   type="button"
+                  disabled={!canStockActions}
                   onClick={() => {
                     setSelected(it);
                     setStockOpen(true);
@@ -638,7 +711,12 @@ export default function InventoryScreen() {
                 <button
                   className="btn danger inventoryBtnDelete"
                   type="button"
+                  disabled={!canEditItems}
                   onClick={() => {
+                    if (!canEditItems) {
+                      alert("You are not allowed to edit inventory items.");
+                      return;
+                    }
                     if (!confirm(`Delete item "${it.name}"?`)) return;
                     itemsApi.deleteItem(it.id);
                   }}
@@ -665,6 +743,8 @@ export default function InventoryScreen() {
         moveQty={itemsApi.moveQty}
         locked={locked}
         requirePinForStock={requirePinForStock}
+        forceLock={!canStockActions}
+        lockMessage="Stock actions are locked. Only users with Edit / Stock access can perform stock changes."
       />
 
       {locationsViewItem ? (

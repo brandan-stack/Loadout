@@ -15,7 +15,7 @@
 ✅ App Configuration
    - App Name: Loadout
    - Package ID: com.brandan.loadout
-   - PIN Authentication: Default 1234
+   - Password / PIN Authentication: Default 1234
    - Minimum OS: iOS 14.0+, Android 26+
 
 ✅ Dependencies
@@ -41,7 +41,7 @@
 TEST WEB VERSION:
   npm run build
   npm run dev
-  → Open http://localhost:5173
+   → Open http://localhost:5174
   → PIN: 1234
 
 DEVELOP FOR iOS (macOS required):
@@ -101,6 +101,7 @@ Test Users:
 - Stock: PIN 1111 (stock management)
 - Invoicing: PIN 2222 (invoicing)
 - Viewer: No PIN (read-only)
+- Parts Used tab access: Admin-managed per user
 
 ⚠️  BEFORE APP STORE SUBMISSION:
 Change the default PIN in app Settings!

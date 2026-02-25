@@ -116,14 +116,15 @@ In Xcode, update in General tab:
   - Multi-location tracking
   - Low-stock alerts
   - Activity logging
-  - PIN-protected access
+   - Password / PIN-protected access
+   - Parts Used tracking
   - Role-based permissions
   - Search and filtering
   ```
 - Keywords: inventory, management, tracking, organization, loadout
 - Copyright: Brandan Stack
-- Privacy Policy URL: `https://yoursite.com/privacy`
-- Support URL: `https://yoursite.com/support`
+- Privacy Policy URL: `https://brandan-stack.github.io/Loadout/`
+- Support URL: `https://brandan-stack.github.io/Loadout/`
 
 **App Icon & Screenshots:**
 - Upload 1024x1024 icon
@@ -138,7 +139,7 @@ Version 1.0 - Initial Release
 
 - Clean, fast inventory management system
 - Multi-device sync (iOS, Android, Web)
-- PIN-protected authentication
+- Password / PIN-protected authentication
 - Item tracking with photos
 - Location-based stock management
 - Low-stock alerts and notifications
@@ -241,9 +242,10 @@ Bundle will be at: `android/app/build/outputs/bundle/release/app-release.aab`
   - Customizable Categories: Organize items your way
   - Search & Filters: Find items instantly
   - Activity Logging: Track all changes
-  - PIN-Protected: Secure with authentication
+   - Password / PIN-Protected: Secure with authentication
   - Photo Support: Attach photos to items
   - Role-Based Access: Admin, Stock, Invoicing, Viewer roles
+   - Parts Used Tracking: Dedicated usage logging tab
   - Responsive Design: Works on phones, tablets, and laptops
   
   PERFECT FOR:
@@ -253,7 +255,7 @@ Bundle will be at: `android/app/build/outputs/bundle/release/app-release.aab`
   - Supply management
   - Field inventory
   
-  PIN authentication ensures your inventory data stays secure. Default test PIN is 1234 - change this in Settings before production use.
+   Password / PIN authentication ensures your inventory data stays secure. Default test PIN is 1234 - change this in Settings before production use.
   ```
 
 **Category & Content Rating:**
@@ -296,7 +298,7 @@ Optional: Upload video preview
    
    - Inventory management system
    - Multi-device sync
-   - PIN-protected access
+   - Password / PIN-protected access
    - Offline support
    ```
 3. Review pricing in each country

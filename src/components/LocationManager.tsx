@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { useLocations } from "../hooks/useLocations";
+import { useLocations, type LocationNode } from "../hooks/useLocations";
 
-type AnyLoc = any;
+type LooseLocations = ReturnType<typeof useLocations> & Record<string, unknown>;
 
 type FlatNode = {
   id: string;
@@ -10,13 +10,21 @@ type FlatNode = {
   parentId: string | null;
 };
 
-function safeRoots(loc: AnyLoc): AnyLoc[] {
-  return (loc?.roots ?? loc?.locations ?? loc?.all ?? []) as AnyLoc[];
+function toRecord(v: unknown): Record<string, unknown> {
+  if (typeof v === "object" && v !== null) return v as Record<string, unknown>;
+  return {};
 }
 
-function flattenTree(roots: AnyLoc[]): FlatNode[] {
+function safeRoots(loc: LooseLocations): LocationNode[] {
+  const rec = toRecord(loc);
+  const roots = rec.roots;
+  if (Array.isArray(roots)) return roots as LocationNode[];
+  return [];
+}
+
+function flattenTree(roots: LocationNode[]): FlatNode[] {
   const out: FlatNode[] = [];
-  const walk = (nodes: AnyLoc[], depth: number, parentId: string | null) => {
+  const walk = (nodes: LocationNode[], depth: number, parentId: string | null) => {
     for (const n of nodes ?? []) {
       out.push({ id: String(n.id), name: String(n.name ?? "Unnamed"), depth, parentId });
       walk(n.children ?? [], depth + 1, String(n.id));
@@ -30,14 +38,14 @@ function flattenTree(roots: AnyLoc[]): FlatNode[] {
  * Try calling whichever function name exists on the hook.
  * We attempt multiple argument patterns because different versions differ.
  */
-function callFirst(loc: AnyLoc, fnNames: string[], argVariants: any[][]): boolean {
+function callFirst(loc: LooseLocations, fnNames: string[], argVariants: unknown[][]): boolean {
   for (const name of fnNames) {
-    const fn = loc?.[name];
+    const fn = loc[name];
     if (typeof fn !== "function") continue;
 
     for (const args of argVariants) {
       try {
-        fn(...args);
+        (fn as (...p: unknown[]) => unknown)(...args);
         return true;
       } catch {
         // try next arg variant
@@ -52,7 +60,7 @@ type LocationManagerProps = {
 };
 
 export default function LocationManager({ embedded = false }: LocationManagerProps) {
-  const loc = useLocations() as AnyLoc;
+  const loc = useLocations() as LooseLocations;
 
   const roots = useMemo(() => safeRoots(loc), [loc]);
   const flat = useMemo(() => flattenTree(roots), [roots]);

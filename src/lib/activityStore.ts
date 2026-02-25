@@ -23,7 +23,7 @@ export type ActivityEvent = {
 
   // metadata
   note?: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 };
 
 const KEY = "inventory.activity.v1";

@@ -22,7 +22,10 @@ export type Job = {
   po?: string;
   createdAt: number;
   closedAt?: number;
-  status: "open" | "closed";
+  completedAt?: number;
+  notifiedAt?: number;
+  notifyTargets?: Array<"sales" | "invoice" | "quote">;
+  status: "open" | "closed" | "completed";
   notes?: string;
 };
 
@@ -86,7 +89,45 @@ export function closeJob(jobId: string) {
 }
 
 export function reopenJob(jobId: string) {
-  const jobs = loadJobs().map((j) => (j.id === jobId ? { ...j, status: "open" as const, closedAt: undefined } : j));
+  const jobs = loadJobs().map((j) =>
+    j.id === jobId
+      ? {
+          ...j,
+          status: "open" as const,
+          closedAt: undefined,
+          completedAt: undefined,
+          notifiedAt: undefined,
+          notifyTargets: undefined,
+        }
+      : j
+  );
+  saveJobs(jobs);
+}
+
+export function submitJob(jobId: string, notifyTargets: Array<"sales" | "invoice" | "quote"> = ["sales", "invoice", "quote"]) {
+  const now = Date.now();
+  let submitted: Job | null = null;
+  const jobs = loadJobs().map((j) => {
+    if (j.id !== jobId) return j;
+    submitted = {
+      ...j,
+      status: "completed" as const,
+      closedAt: now,
+      completedAt: now,
+      notifiedAt: now,
+      notifyTargets,
+    };
+    return submitted;
+  });
+  saveJobs(jobs);
+  return submitted;
+}
+
+export function completeJob(jobId: string) {
+  const now = Date.now();
+  const jobs = loadJobs().map((j) =>
+    j.id === jobId ? { ...j, status: "completed" as const, completedAt: now, closedAt: now } : j
+  );
   saveJobs(jobs);
 }
 
@@ -122,7 +163,7 @@ export function exportJobCSV(jobId: string) {
 
   const lines = loadJobUsage().filter((l) => l.jobId === jobId);
 
-  function esc(v: any) {
+  function esc(v: unknown) {
     const s = String(v ?? "");
     if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replaceAll('"', '""')}"`;
     return s;

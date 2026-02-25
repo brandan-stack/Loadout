@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useItems } from "../hooks/useItems";
-import { useLocations } from "../hooks/useLocations";
+import { useItems, type InventoryItem } from "../hooks/useItems";
+import { useLocations, type LocationNode } from "../hooks/useLocations";
 import * as authStore from "../lib/authStore";
 import { imageFileToOptimizedDataUrl } from "../lib/imageTools";
 // categories aren't needed in this variant; drop the import to avoid unused var
@@ -9,15 +9,23 @@ import LocationPicker from "./LocationPicker";
 import StockModal from "./StockModal";
 import ImageLightbox from "./ImageLightbox";
 
+type LocalInventoryItem = InventoryItem & {
+  totalQty?: number;
+  lowStockAlert?: number;
+  locationId?: string;
+};
+
 export default function InventoryScreen() {
   const itemsApi = useItems();
   const locApi = useLocations();
   const me = authStore.currentUser();
   const canAddItems = authStore.canAddInventory(me);
+  const canEditItems = authStore.canEditInventory(me);
+  const canStockActions = authStore.canAdjustStock(me);
   // const catApi = useCategories();
 
-  const items = itemsApi.items ?? [];
-  const locations = locApi.roots ?? [];
+  const items = useMemo(() => (itemsApi.items ?? []) as LocalInventoryItem[], [itemsApi.items]);
+  const locations = useMemo(() => locApi.roots ?? [], [locApi.roots]);
   // categories not used
 
   const [search, setSearch] = useState("");
@@ -25,7 +33,7 @@ export default function InventoryScreen() {
   const [selectedId, setSelectedId] = useState<string>("");
 
   const [stockOpen, setStockOpen] = useState(false);
-  const selectedItem = items.find((i: any) => i.id === selectedId);
+  const selectedItem = items.find((i) => i.id === selectedId);
 
   // form state
   const [name, setName] = useState("");
@@ -43,20 +51,20 @@ export default function InventoryScreen() {
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [imageViewSrc, setImageViewSrc] = useState("");
 
-  function getTotalQty(it: any) {
+  function getTotalQty(it: LocalInventoryItem) {
     if (typeof it.totalQty === "number") return Number(it.totalQty || 0);
     const rows = Array.isArray(it.stockByLocation) ? it.stockByLocation : [];
-    return rows.reduce((sum: number, row: any) => sum + Number(row?.quantity ?? 0), 0);
+    return rows.reduce((sum: number, row) => sum + Number(row?.quantity ?? 0), 0);
   }
 
-  function getLowAlert(it: any) {
+  function getLowAlert(it: LocalInventoryItem) {
     return Number(it.lowStockAlert ?? it.lowStock ?? 0);
   }
 
   // helper to find the path (array of ids) from root to a given location id
-  function findPathForId(roots: any[], targetId: string): string[] {
+  function findPathForId(roots: LocationNode[], targetId: string): string[] {
     const path: string[] = [];
-    function dfs(nodes: any[], current: string[]): boolean {
+    function dfs(nodes: LocationNode[], current: string[]): boolean {
       for (const n of nodes) {
         const next = [...current, n.id];
         if (n.id === targetId) {
@@ -80,7 +88,7 @@ export default function InventoryScreen() {
     const q = search.trim().toLowerCase();
 
     if (q) {
-      list = list.filter((it: any) =>
+      list = list.filter((it) =>
         [
           it.name,
           it.partNumber,
@@ -103,7 +111,7 @@ export default function InventoryScreen() {
     }
 
     if (lowOnly) {
-      list = list.filter((it: any) => {
+      list = list.filter((it) => {
         const total = getTotalQty(it);
         const low = getLowAlert(it);
         return low > 0 && total <= low;
@@ -115,7 +123,7 @@ export default function InventoryScreen() {
 
   const stats = useMemo(() => {
     const totalItems = items.length;
-    const lowCount = items.filter((it: any) => {
+    const lowCount = items.filter((it) => {
       const total = getTotalQty(it);
       const low = getLowAlert(it);
       return low > 0 && total <= low;
@@ -140,28 +148,40 @@ export default function InventoryScreen() {
       alert("You are not allowed to add inventory items.");
       return;
     }
+    if (selectedId && !canEditItems) {
+      alert("You are not allowed to edit inventory items.");
+      return;
+    }
 
     const qty = initialQty === "" ? 0 : Number(initialQty);
     const low = lowStockAlert === "" ? 0 : Number(lowStockAlert);
 
-    const payload: any = {
-      name: cleanName,
-      partNumber,
-      manufacturer,
-      model,
-      serial,
-      description,
-      totalQty: qty,
-      lowStockAlert: low,
-      // last element of path is the actual location id
-      locationId: locationPath[locationPath.length - 1] || "",
-      photoDataUrl,
-    };
+    const targetLocationId = locationPath[locationPath.length - 1] || "";
 
     if (!selectedId) {
-      itemsApi.addItem?.(payload);
+      itemsApi.addItem?.({
+        name: cleanName,
+        partNumber,
+        manufacturer,
+        model,
+        serial,
+        description,
+        initialQty: qty,
+        lowStock: low,
+        initialLocationId: targetLocationId,
+        photoDataUrl,
+      });
     } else {
-      itemsApi.updateItem?.(selectedId, payload);
+      itemsApi.updateItem?.(selectedId, {
+        name: cleanName,
+        partNumber,
+        manufacturer,
+        model,
+        serial,
+        description,
+        lowStock: low,
+        photoDataUrl,
+      });
     }
 
     resetForm();
@@ -181,7 +201,11 @@ export default function InventoryScreen() {
     setPhotoDataUrl("");
   }
 
-  function startEdit(item: any) {
+  function startEdit(item: LocalInventoryItem) {
+    if (!canEditItems) {
+      alert("You are not allowed to edit inventory items.");
+      return;
+    }
     setSelectedId(item.id);
     setName(item.name ?? "");
     setPartNumber(item.partNumber ?? "");
@@ -189,16 +213,20 @@ export default function InventoryScreen() {
     setModel(item.model ?? "");
     setSerial(item.serial ?? "");
     setDescription(item.description ?? "");
-    setInitialQty(String(item.totalQty ?? ""));
-    setLowStockAlert(String(item.lowStockAlert ?? ""));
+    setInitialQty(String(item.totalQty ?? getTotalQty(item) ?? ""));
+    setLowStockAlert(String(item.lowStockAlert ?? item.lowStock ?? ""));
     // prefill picker; try to resolve full path, fall back to single id
     setLocationPath(
-      item.locationId ? findPathForId(locations, item.locationId) : []
+      item.locationId
+        ? findPathForId(locations, item.locationId)
+        : item.stockByLocation?.[0]?.locationId
+        ? findPathForId(locations, item.stockByLocation[0].locationId)
+        : []
     );
     setPhotoDataUrl(item.photoDataUrl ?? "");
   }
 
-  function openStock(item: any) {
+  function openStock(item: LocalInventoryItem) {
     setSelectedId(item.id);
     setStockOpen(true);
   }
@@ -208,8 +236,9 @@ export default function InventoryScreen() {
     try {
       const dataUrl = await imageFileToOptimizedDataUrl(file);
       setPhotoDataUrl(dataUrl);
-    } catch (err: any) {
-      alert(err?.message || "Unable to process image.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unable to process image.";
+      alert(msg);
     }
   }
 
@@ -358,7 +387,7 @@ export default function InventoryScreen() {
 
       {/* ===== LIST ===== */}
       <div className="list">
-        {filteredItems.map((it: any) => {
+        {filteredItems.map((it) => {
           const total = getTotalQty(it);
           const low = getLowAlert(it);
           const isLow = low > 0 && total <= low;
@@ -398,12 +427,19 @@ export default function InventoryScreen() {
                 <button className="btn" onClick={() => startEdit(it)}>
                   Edit
                 </button>
-                <button className="btn" onClick={() => openStock(it)}>
+                <button className="btn" disabled={!canStockActions} onClick={() => openStock(it)}>
                   Stock
                 </button>
                 <button
                   className="btn danger"
-                  onClick={() => itemsApi.deleteItem?.(it.id)}
+                  disabled={!canEditItems}
+                  onClick={() => {
+                    if (!canEditItems) {
+                      alert("You are not allowed to edit inventory items.");
+                      return;
+                    }
+                    itemsApi.deleteItem?.(it.id);
+                  }}
                 >
                   🗑
                 </button>
@@ -422,6 +458,8 @@ export default function InventoryScreen() {
         moveQty={itemsApi.moveQty}
         locked={false}
         requirePinForStock={false}
+        forceLock={!canStockActions}
+        lockMessage="Stock actions are locked. Only users with Edit / Stock access can perform stock changes."
       />
 
       <ImageLightbox

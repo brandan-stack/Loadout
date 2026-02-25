@@ -10,9 +10,9 @@
 - **Categories & Subcategories**: Organize items with customizable categories and subcategories
 - **Search & Filters**: Quickly find items by name, part number, model, serial, or other attributes
 - **Activity Logging**: Track all inventory changes and user actions
-- **User Authentication**: PIN-protected access with role-based permissions (Admin, Stock, Invoicing, Viewer)
+- **User Authentication**: Password / PIN-protected access with role-based permissions (Admin, Stock, Invoicing, Viewer)
 - **Photos**: Attach photos to items for visual identification
-- **Job Management**: Create and manage inventory usage jobs with cost tracking
+- **Parts Used**: Track parts usage with role-based tab access
 - **Responsive Design**: Optimized for mobile, tablet, and desktop displays
 - **Native Apps**: Available on iOS App Store and Google Play Store
 
@@ -20,7 +20,9 @@
 
 - 📱 **iOS**: [App Store Link - Coming Soon]
 - 🤖 **Android**: [Google Play Store Link - Coming Soon]
-- 💻 **Web**: `http://localhost:5173` (Development)
+- 💻 **Web (Public Test)**: `https://brandan-stack.github.io/Loadout/`
+- 🧪 **Web (Development)**: `http://localhost:5174`
+- 🧾 **GitHub Repository**: `https://github.com/brandan-stack/Loadout`
 
 ## Quick Start
 
@@ -39,8 +41,8 @@ npm run dev
 ```
 
 The app will be available at:
-- **Local**: `http://localhost:5173`
-- **Mobile/Network**: `http://<your-computer-ip>:5173`
+- **Local**: `http://localhost:5174`
+- **Mobile/Network**: `http://<your-computer-ip>:5174`
 
 To access over network:
 ```bash
@@ -50,6 +52,8 @@ npm run dev:network
 ### Build
 
 ```bash
+npm run build
+```
 
 ## Share Public Test URL (GitHub Pages)
 
@@ -66,8 +70,6 @@ One-time setup in GitHub:
 3. Push to `main` (or run the **Deploy to GitHub Pages** workflow manually in **Actions**).
 
 After deploy completes, anyone with the URL can open and test the app.
-npm run build
-```
 
 ### Sync with Native Platforms
 
@@ -88,9 +90,9 @@ Access the web version on any device on your network:
    - **Linux**: `hostname -I`
    - **Windows**: `ipconfig` (look for IPv4 Address)
 
-2. Open your mobile browser and navigate to: `http://<YOUR_IP>:5173`
+2. Open your mobile browser and navigate to: `http://<YOUR_IP>:5174`
 
-**Example**: `http://192.168.1.100:5173`
+**Example**: `http://192.168.1.100:5174`
 
 ## Native App Development
 
@@ -196,7 +198,7 @@ dist/                # Production build output
 
 ⚠️ **Important Security Notes:**
 
-1. **PIN Authentication**: The app requires a PIN to access. Default testing PIN is `1234`
+1. **Password / PIN Authentication**: The app requires a password / PIN to access. Default testing PIN is `1234`
    - Change this before production deployment via settings
    - Admin account required to change security settings
 
@@ -252,4 +254,4 @@ This project is maintained by brandan-stack.
 For issues, feature requests, or questions:
 - Check the [NETWORK_ACCESS.md](NETWORK_ACCESS.md) guide
 - Review Capacitor documentation
-- Ensure PIN authentication is set correctly in Settings
+- Ensure password / PIN authentication is set correctly in Settings

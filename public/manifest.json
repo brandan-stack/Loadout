@@ -2,28 +2,28 @@
   "name": "Loadout - Inventory Management",
   "short_name": "Loadout",
   "description": "Clean, fast inventory management system for mobile devices, tablets, and laptops",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "theme_color": "#0b0d10",
   "background_color": "#0b0d10",
   "orientation": "portrait-primary",
   "screenshots": [
     {
-      "src": "/vite.svg",
+      "src": "./vite.svg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     }
   ],
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "./vite.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/vite.svg",
+      "src": "./vite.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -34,10 +34,10 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View inventory dashboard",
-      "url": "/?tab=dashboard",
+      "url": "./?tab=dashboard",
       "icons": [
         {
-          "src": "/vite.svg",
+          "src": "./vite.svg",
           "sizes": "192x192"
         }
       ]
@@ -46,10 +46,10 @@
       "name": "Inventory",
       "short_name": "Inventory",
       "description": "Manage inventory items",
-      "url": "/?tab=inventory",
+      "url": "./?tab=inventory",
       "icons": [
         {
-          "src": "/vite.svg",
+          "src": "./vite.svg",
           "sizes": "192x192"
         }
       ]

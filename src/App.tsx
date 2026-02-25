@@ -3,6 +3,7 @@ import { useEffect, useReducer, useState } from "react";
 import DashboardScreen from "./components/DashboardScreen";
 import InventoryScreen from "./components/InventoryScreen";
 import ManagementScreen from "./components/ManagementScreen";
+import PartsUsedScreen from "./components/PartsUsedScreen";
 import SettingsScreen from "./components/SettingsScreen";
 
 import {
@@ -15,14 +16,19 @@ import {
   unlockWithPin,
   lockNow,
 } from "./lib/authStore";
+import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
+
+declare const __APP_VERSION__: string;
 
 ensureDefaults();
 lockNow();
 
-type Tab = "dashboard" | "inventory" | "management" | "settings";
+const APP_VERSION = __APP_VERSION__;
+
+type Tab = "dashboard" | "inventory" | "management" | "partsUsed" | "settings";
 
 function isTab(value: string | null): value is Tab {
-  return value === "dashboard" || value === "inventory" || value === "management" || value === "settings";
+  return value === "dashboard" || value === "inventory" || value === "management" || value === "partsUsed" || value === "settings";
 }
 
 function GearIcon({ size = 20 }: { size?: number }) {
@@ -55,11 +61,22 @@ export default function App() {
       ? "Inventory"
       : tab === "management"
       ? "Management"
+      : tab === "partsUsed"
+      ? "Parts Used"
       : "Settings";
 
   const setActiveTab = (nextTab: Tab) => {
     setTab(nextTab);
     setMobileNavOpen(false);
+  };
+
+  const jumpToRecentPartsUsed = () => {
+    setActiveTab("partsUsed");
+    window.setTimeout(() => {
+      const node = document.getElementById("recent-parts-used");
+      if (!node) return;
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
   };
 
   useEffect(() => {
@@ -74,6 +91,7 @@ export default function App() {
   const session = loadSession();
   const me = currentUser();
   const unlocked = isUnlocked();
+  const mePendingCount = me ? getUnreadCountForUser(me.id) : 0;
 
   useEffect(() => {
     const onResize = () => {
@@ -105,7 +123,7 @@ export default function App() {
       <div className="appShell appGateShell">
         <div className="appGateCard cardSoft">
           <div className="appBrand">Loadout</div>
-          <div className="muted">Enter your password (PIN) to continue.</div>
+          <div className="muted">Enter your password / PIN to continue.</div>
 
           <div className="settingsUserCards appGateUsers">
             {users.map((u) => (
@@ -140,7 +158,7 @@ export default function App() {
                 refresh();
                 if (!ok) alert("Wrong password (PIN).");
               }}
-              placeholder="Password / PIN"
+              placeholder="password / PIN"
               inputMode="numeric"
             />
             <button
@@ -158,7 +176,11 @@ export default function App() {
           </div>
 
           <div className="muted appGateHint">
-            {me?.pin ? "Use the selected user PIN from Settings." : "Selected user has no PIN set. Select a user with a PIN."}
+            {me?.pin ? "Use the selected user password / PIN from Settings." : "Selected user has no PIN set. Select a user with a PIN."}
+          </div>
+
+          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            v{APP_VERSION}
           </div>
         </div>
       </div>
@@ -167,34 +189,59 @@ export default function App() {
 
   return (
     <div className="appShell">
-      {/* Top bar */}
       <div className="appTopbar">
         <div className="appTopbarInner">
           <div className="appBrand">Loadout</div>
 
           <div className="appDesktopNav">
             <div className="appNavGroup">
-              <button
-                className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
-                onClick={() => setActiveTab("dashboard")}
-              >
+              <button className={"appNavBtn " + (tab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
                 Dashboard
               </button>
-              <button
-                className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
-                onClick={() => setActiveTab("inventory")}
-              >
+              <button className={"appNavBtn " + (tab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>
                 Inventory
               </button>
-              <button
-                className={"appNavBtn " + (tab === "management" ? "active" : "")}
-                onClick={() => setActiveTab("management")}
-              >
+              <button className={"appNavBtn " + (tab === "management" ? "active" : "")} onClick={() => setActiveTab("management")}>
                 Management
+              </button>
+              <button className={"appNavBtn " + (tab === "partsUsed" ? "active" : "")} onClick={() => setActiveTab("partsUsed")}>
+                Parts Used
+                {mePendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
               </button>
             </div>
 
             <div className="appTopbarRight">
+              <select
+                className={"appUserSelect " + (mePendingCount > 0 ? "alert" : "")}
+                value={session.currentUserId}
+                onChange={(e) => {
+                  const userId = e.target.value;
+                  setCurrentUser(userId);
+                  setPin("");
+                  refresh();
+                }}
+                aria-label="Select user"
+                title="Select user"
+              >
+                {users.map((u) => {
+                  const pending = getUnreadCountForUser(u.id);
+                  return (
+                    <option key={u.id} value={u.id}>
+                      {u.name}{pending > 0 ? ` (${pending})` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <button
+                type="button"
+                className={"appStatusPill " + (mePendingCount > 0 ? "alert" : "")}
+                onClick={() => jumpToRecentPartsUsed()}
+                title={mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications"}
+              >
+                Notifications {mePendingCount}
+              </button>
+
               <button
                 className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
                 onClick={() => setActiveTab("settings")}
@@ -218,33 +265,48 @@ export default function App() {
               <span>{mobileNavOpen ? "Close" : "Menu"}</span>
             </button>
 
-            <div
-              id="mobile-main-nav"
-              className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}
-            >
-              <button
-                className={"appNavBtn " + (tab === "dashboard" ? "active" : "")}
-                onClick={() => setActiveTab("dashboard")}
-              >
-                Dashboard
+            <div id="mobile-main-nav" className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}>
+              <div className="appMobileUserRow">
+                <select
+                  className={"appUserSelect " + (mePendingCount > 0 ? "alert" : "")}
+                  value={session.currentUserId}
+                  onChange={(e) => {
+                    const userId = e.target.value;
+                    setCurrentUser(userId);
+                    setPin("");
+                    refresh();
+                    setMobileNavOpen(false);
+                  }}
+                  aria-label="Select user"
+                  title="Select user"
+                >
+                  {users.map((u) => {
+                    const pending = getUnreadCountForUser(u.id);
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.name}{pending > 0 ? ` (${pending})` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  type="button"
+                  className={"appStatusPill " + (mePendingCount > 0 ? "alert" : "")}
+                  onClick={() => jumpToRecentPartsUsed()}
+                  title={mePendingCount > 0 ? "Open Parts Used notifications" : "No new notifications"}
+                >
+                  Notifications {mePendingCount}
+                </button>
+              </div>
+
+              <button className={"appNavBtn " + (tab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard</button>
+              <button className={"appNavBtn " + (tab === "inventory" ? "active" : "")} onClick={() => setActiveTab("inventory")}>Inventory</button>
+              <button className={"appNavBtn " + (tab === "management" ? "active" : "")} onClick={() => setActiveTab("management")}>Management</button>
+              <button className={"appNavBtn " + (tab === "partsUsed" ? "active" : "")} onClick={() => setActiveTab("partsUsed")}>
+                Parts Used
+                {mePendingCount > 0 ? <span className="appWarnDot" aria-hidden="true">●</span> : null}
               </button>
-              <button
-                className={"appNavBtn " + (tab === "inventory" ? "active" : "")}
-                onClick={() => setActiveTab("inventory")}
-              >
-                Inventory
-              </button>
-              <button
-                className={"appNavBtn " + (tab === "management" ? "active" : "")}
-                onClick={() => setActiveTab("management")}
-              >
-                Management
-              </button>
-              <button
-                className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")}
-                onClick={() => setActiveTab("settings")}
-                title="Settings"
-              >
+              <button className={"appNavBtn appSettingsBtn " + (tab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
                 <GearIcon />
                 Settings
               </button>
@@ -260,17 +322,16 @@ export default function App() {
         onClick={() => setMobileNavOpen(false)}
       />
 
-      {/* Content */}
       <div className="appContent">
         {tab === "dashboard" && <DashboardScreen />}
         {tab === "inventory" && <InventoryScreen />}
         {tab === "management" && <ManagementScreen />}
+        {tab === "partsUsed" && <PartsUsedScreen onChanged={refresh} />}
         {tab === "settings" && <SettingsScreen />}
       </div>
 
-      {/* Footer */}
       <div className="appFooter">
-        Inventory App • Local-first • Works offline (this device)
+        Inventory App • Local-first • Works offline (this device) • v{APP_VERSION}
       </div>
     </div>
   );

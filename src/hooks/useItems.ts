@@ -20,6 +20,8 @@ export type InventoryItem = {
   subcategoryId?: string;
 
   lowStock?: number;
+  unitPrice?: number;
+  marginPercent?: number;
   photoDataUrl?: string;
 
   createdAt: number;
@@ -55,6 +57,11 @@ function save(items: InventoryItem[]) {
   localStorage.setItem(STORAGE_V2, JSON.stringify(items));
 }
 
+function toRecord(v: unknown): Record<string, unknown> {
+  if (typeof v === "object" && v !== null) return v as Record<string, unknown>;
+  return {};
+}
+
 function normalizeItem(it: InventoryItem): InventoryItem {
   // merge duplicate location rows, drop zeros
   const map = new Map<string, number>();
@@ -78,50 +85,58 @@ function migrateFromAnyLegacy(): InventoryItem[] {
 
     const migrated: InventoryItem[] = legacy
       .filter(Boolean)
-      .map((x: any) => {
-        const id = String(x.id ?? newId());
-        const name = String(x.name ?? x.itemName ?? "").trim();
+      .map((x) => {
+        const rec = toRecord(x);
+        const id = String(rec.id ?? newId());
+        const name = String(rec.name ?? rec.itemName ?? "").trim();
         if (!name) return null;
 
         // already has stockByLocation
-        if (Array.isArray(x.stockByLocation)) {
+        if (Array.isArray(rec.stockByLocation)) {
           return normalizeItem({
             id,
             name,
-            partNumber: x.partNumber ?? x.part ?? "",
-            manufacturer: x.manufacturer ?? x.mfr ?? "",
-            model: x.model ?? x.modelNumber ?? "",
-            serial: x.serial ?? x.serialNumber ?? "",
-            description: x.description ?? "",
-            categoryId: x.categoryId ?? "",
-            subcategoryId: x.subcategoryId ?? "",
-            lowStock: typeof x.lowStock === "number" ? x.lowStock : undefined,
-            photoDataUrl: x.photoDataUrl ?? x.photo ?? undefined,
-            createdAt: Number(x.createdAt ?? now()),
-            updatedAt: Number(x.updatedAt ?? now()),
-            stockByLocation: (x.stockByLocation ?? [])
-              .map((r: any) => ({ locationId: String(r.locationId ?? ""), quantity: clampInt(Number(r.quantity ?? 0)) }))
+            partNumber: String(rec.partNumber ?? rec.part ?? ""),
+            manufacturer: String(rec.manufacturer ?? rec.mfr ?? ""),
+            model: String(rec.model ?? rec.modelNumber ?? ""),
+            serial: String(rec.serial ?? rec.serialNumber ?? ""),
+            description: String(rec.description ?? ""),
+            categoryId: String(rec.categoryId ?? ""),
+            subcategoryId: String(rec.subcategoryId ?? ""),
+            lowStock: typeof rec.lowStock === "number" ? rec.lowStock : undefined,
+            unitPrice: typeof rec.unitPrice === "number" ? rec.unitPrice : typeof rec.price === "number" ? rec.price : undefined,
+            marginPercent: typeof rec.marginPercent === "number" ? rec.marginPercent : typeof rec.margin === "number" ? rec.margin : undefined,
+            photoDataUrl: typeof rec.photoDataUrl === "string" ? rec.photoDataUrl : typeof rec.photo === "string" ? rec.photo : undefined,
+            createdAt: Number(rec.createdAt ?? now()),
+            updatedAt: Number(rec.updatedAt ?? now()),
+            stockByLocation: (rec.stockByLocation ?? [])
+              .map((r) => {
+                const row = toRecord(r);
+                return { locationId: String(row.locationId ?? ""), quantity: clampInt(Number(row.quantity ?? 0)) };
+              })
               .filter((r: StockRow) => r.quantity > 0),
           });
         }
 
         // legacy single qty + location
-        const q = clampInt(Number(x.quantity ?? x.qty ?? x.q ?? 0));
-        const loc = typeof x.locationId !== "undefined" ? String(x.locationId ?? "") : typeof x.location !== "undefined" ? String(x.location ?? "") : "";
+        const q = clampInt(Number(rec.quantity ?? rec.qty ?? rec.q ?? 0));
+        const loc = typeof rec.locationId !== "undefined" ? String(rec.locationId ?? "") : typeof rec.location !== "undefined" ? String(rec.location ?? "") : "";
         return normalizeItem({
           id,
           name,
-          partNumber: x.partNumber ?? x.part ?? "",
-          manufacturer: x.manufacturer ?? x.mfr ?? "",
-          model: x.model ?? x.modelNumber ?? "",
-          serial: x.serial ?? x.serialNumber ?? "",
-          description: x.description ?? "",
-          categoryId: x.categoryId ?? "",
-          subcategoryId: x.subcategoryId ?? "",
-          lowStock: typeof x.lowStock === "number" ? x.lowStock : undefined,
-          photoDataUrl: x.photoDataUrl ?? x.photo ?? undefined,
-          createdAt: Number(x.createdAt ?? now()),
-          updatedAt: Number(x.updatedAt ?? now()),
+          partNumber: String(rec.partNumber ?? rec.part ?? ""),
+          manufacturer: String(rec.manufacturer ?? rec.mfr ?? ""),
+          model: String(rec.model ?? rec.modelNumber ?? ""),
+          serial: String(rec.serial ?? rec.serialNumber ?? ""),
+          description: String(rec.description ?? ""),
+          categoryId: String(rec.categoryId ?? ""),
+          subcategoryId: String(rec.subcategoryId ?? ""),
+          lowStock: typeof rec.lowStock === "number" ? rec.lowStock : undefined,
+          unitPrice: typeof rec.unitPrice === "number" ? rec.unitPrice : typeof rec.price === "number" ? rec.price : undefined,
+          marginPercent: typeof rec.marginPercent === "number" ? rec.marginPercent : typeof rec.margin === "number" ? rec.margin : undefined,
+          photoDataUrl: typeof rec.photoDataUrl === "string" ? rec.photoDataUrl : typeof rec.photo === "string" ? rec.photo : undefined,
+          createdAt: Number(rec.createdAt ?? now()),
+          updatedAt: Number(rec.updatedAt ?? now()),
           stockByLocation: q > 0 ? [{ locationId: loc, quantity: q }] : [],
         });
       })
@@ -160,6 +175,8 @@ export function useItems() {
     categoryId?: string;
     subcategoryId?: string;
     lowStock?: number;
+    unitPrice?: number;
+    marginPercent?: number;
     photoDataUrl?: string;
     initialQty?: number;
     initialLocationId?: string;
@@ -183,6 +200,8 @@ export function useItems() {
       categoryId: input.categoryId || "",
       subcategoryId: input.subcategoryId || "",
       lowStock: typeof input.lowStock === "number" ? input.lowStock : undefined,
+      unitPrice: typeof input.unitPrice === "number" ? input.unitPrice : undefined,
+      marginPercent: typeof input.marginPercent === "number" ? input.marginPercent : undefined,
       photoDataUrl: input.photoDataUrl,
       createdAt,
       updatedAt: createdAt,

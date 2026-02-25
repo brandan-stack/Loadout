@@ -16,6 +16,16 @@ if ("serviceWorker" in navigator) {
     registrations.forEach((registration) => {
       registration.unregister();
     });
+
+    if ("caches" in window) {
+      caches.keys().then((cacheKeys) => {
+        cacheKeys
+          .filter((key) => key.includes("loadout"))
+          .forEach((key) => {
+            caches.delete(key);
+          });
+      });
+    }
   }).catch((err) => {
     console.log("Service Worker cleanup failed:", err);
   });

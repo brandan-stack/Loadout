@@ -1,11 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   loadUsers,
   addUser,
   disableUser,
   enableUser,
   setUserPin,
-  setUserCanAddInventory,
+  renameUser,
+  setUserCanAccessPartsUsed,
+  setUserReceivesJobNotifications,
+  setUserCanViewPricingMargin,
+  setUserAccessPreset,
+  getAccessSummary,
+  type AccessPreset,
   type Role,
 } from "../lib/authStore";
 
@@ -23,15 +29,25 @@ function isValidPin(pin: string) {
 }
 
 export default function AdminPanel() {
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
 
-  const users = useMemo(() => loadUsers(), [tick]);
+  const users = loadUsers();
 
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<Role>("viewer");
   const [newPin, setNewPin] = useState("");
 
   const [pinEdit, setPinEdit] = useState<Record<string, string>>({});
+  const [nameEdit, setNameEdit] = useState<Record<string, string>>({});
+  const [openAccessUserId, setOpenAccessUserId] = useState<string>("");
+
+  const accessOptions: AccessPreset[] = ["blocked", "permanent", "1h", "2h", "4h", "8h"];
+
+  function accessLabel(v: AccessPreset) {
+    if (v === "blocked") return "Blocked";
+    if (v === "permanent") return "Permanent";
+    return `Temporary ${v}`;
+  }
 
   return (
     <div className="adminPanel">
@@ -130,19 +146,13 @@ export default function AdminPanel() {
                 </button>
 
                 <button
-                  className={"btn " + (u.canAddInventory || u.role === "admin" ? "primary" : "")}
-                  disabled={u.role === "admin"}
+                  className="btn"
                   onClick={() => {
-                    setUserCanAddInventory(u.id, !u.canAddInventory);
-                    setTick((x) => x + 1);
+                    setOpenAccessUserId((prev) => (prev === u.id ? "" : u.id));
                   }}
-                  title={u.role === "admin" ? "Admin always has add permission" : "Toggle inventory add permission"}
+                  title="Open access controls"
                 >
-                  {u.role === "admin"
-                    ? "Add: Always on"
-                    : u.canAddInventory
-                    ? "Add: Allowed"
-                    : "Add: Blocked"}
+                  Access Controls
                 </button>
 
                 <input
@@ -169,6 +179,142 @@ export default function AdminPanel() {
                 >
                   Save PIN
                 </button>
+
+                {openAccessUserId === u.id ? (
+                  <div className="adminAccessPanel">
+                    <div className="adminAccessTitle">Temporary Access (Admin only)</div>
+
+                    <div className="adminAccessGrid">
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Display name</div>
+                          <div className="muted adminMeta">Rename this user (e.g. Stock, Invoicing, Parts Used)</div>
+                        </div>
+                        <div className="adminInlineControls">
+                          <input
+                            className="input"
+                            placeholder={u.name}
+                            value={nameEdit[u.id] ?? ""}
+                            onChange={(e) => setNameEdit((s) => ({ ...s, [u.id]: e.target.value }))}
+                          />
+                          <button
+                            className="btn"
+                            onClick={() => {
+                              const next = (nameEdit[u.id] ?? "").trim();
+                              if (!next) return;
+                              renameUser(u.id, next);
+                              setNameEdit((s) => ({ ...s, [u.id]: "" }));
+                              setTick((x) => x + 1);
+                            }}
+                          >
+                            Save Name
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Parts Used Tab</div>
+                          <div className="muted adminMeta">Allow this user to view the Parts Used tab</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.canAccessPartsUsed || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserCanAccessPartsUsed(u.id, !u.canAccessPartsUsed);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.canAccessPartsUsed
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Job Notifications</div>
+                          <div className="muted adminMeta">Allow this user to receive Parts Used billing notifications</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.receivesJobNotifications || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserReceivesJobNotifications(u.id, !u.receivesJobNotifications);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.receivesJobNotifications
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Pricing & Margin View</div>
+                          <div className="muted adminMeta">Allow this user to view price and margin in inventory</div>
+                        </div>
+                        <button
+                          className={"btn " + (u.canViewPricingMargin || u.role === "admin" ? "primary" : "")}
+                          disabled={u.role === "admin"}
+                          onClick={() => {
+                            setUserCanViewPricingMargin(u.id, !u.canViewPricingMargin);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {u.role === "admin"
+                            ? "Always allowed"
+                            : u.canViewPricingMargin
+                            ? "Allowed"
+                            : "Blocked"}
+                        </button>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Add inventory</div>
+                          <div className="muted adminMeta">Current: {getAccessSummary(u, "add")}</div>
+                        </div>
+                        <select
+                          value={u.addAccessPreset}
+                          disabled={u.role === "admin"}
+                          onChange={(e) => {
+                            setUserAccessPreset(u.id, "add", e.target.value as AccessPreset);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {accessOptions.map((v) => (
+                            <option key={`add-${v}`} value={v}>{accessLabel(v)}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="adminAccessRow">
+                        <div>
+                          <div className="adminStrong">Edit / Stock Actions</div>
+                          <div className="muted adminMeta">Current: {getAccessSummary(u, "edit")}</div>
+                        </div>
+                        <select
+                          value={u.editAccessPreset}
+                          disabled={u.role === "admin"}
+                          onChange={(e) => {
+                            setUserAccessPreset(u.id, "edit", e.target.value as AccessPreset);
+                            setTick((x) => x + 1);
+                          }}
+                        >
+                          {accessOptions.map((v) => (
+                            <option key={`edit-${v}`} value={v}>{accessLabel(v)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             );
           })}
