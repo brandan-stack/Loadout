@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useReducer, useState } from "react";
 import { useItems, type InventoryItem } from "../hooks/useItems";
 import { useCategories } from "../hooks/useCategories";
 import { loadActivity, type ActivityEvent } from "../lib/activityStore";
+import { currentUser } from "../lib/authStore";
+import { getNotificationsForUser, markJobNotificationRead, markJobNotificationUnread } from "../lib/jobNotificationsStore";
 
 function totalQty(item: InventoryItem) {
   return (item.stockByLocation ?? []).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
@@ -45,7 +47,13 @@ function activityLabel(ev: ActivityEvent) {
 export default function DashboardScreen() {
   const itemsApi = useItems();
   const cats = useCategories();
+  const me = currentUser();
+  const [, bump] = useReducer((value: number) => value + 1, 0);
+  const [billingTab, setBillingTab] = useState<"unread" | "billed">("billed");
   const activity = loadActivity().slice().sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const notifications = me ? getNotificationsForUser(me.id) : [];
+  const unreadNotifications = notifications.filter((n) => !n.read).slice(0, 20);
+  const billedNotifications = notifications.filter((n) => n.read).slice(0, 30);
 
   function categoryLabel(it: InventoryItem) {
     const catName = cats.getCategoryName(it.categoryId);
@@ -129,19 +137,71 @@ export default function DashboardScreen() {
         </Card>
         </div>
 
-        <Card title="Recent activity (audit log)">
-          {activity.length === 0 ? (
-            <div className="dashboardMuted">No activity yet.</div>
-          ) : (
-            <div className="dashboardAuditList">
-              {activity.slice(0, 12).map((ev) => (
-                <div key={ev.id} className="dashboardAuditRow">
-                  {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Quantity ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
+        <div className="dashboardStack">
+          <Card title="Billing">
+            {!me ? (
+              <div className="dashboardMuted">No signed-in user.</div>
+            ) : (
+              <>
+                <div className="dashboardPills" style={{ marginTop: 0, marginBottom: 10 }}>
+                  <button className={"btn " + (billingTab === "unread" ? "primary" : "")} type="button" onClick={() => setBillingTab("unread")}>Unread ({unreadNotifications.length})</button>
+                  <button className={"btn " + (billingTab === "billed" ? "primary" : "")} type="button" onClick={() => setBillingTab("billed")}>Billed ({billedNotifications.length})</button>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
+
+                <div className="dashboardStack">
+                  {(billingTab === "unread" ? unreadNotifications : billedNotifications).map((n) => (
+                    <div key={n.id} className="dashboardRowCard">
+                      <div className="dashboardItemMain">
+                        <div className="dashboardUsageTop">
+                          <Badge>{fmt(n.ts)}</Badge>
+                          <span className="pill pillRed">⚠ Billing Required</span>
+                          <Badge>{n.read ? "Billed" : "Unread"}</Badge>
+                        </div>
+                        <div className="dashboardUsageMeta">{n.message}</div>
+                        <div className="dashboardUsageMeta">
+                          Job Number: {n.jobNumber || "—"} • Part Number: {n.partNumber || "—"} • Qty: {n.qty} • Location: {n.locationId || "Missing Location"} • Submitted By: {n.submittedByName || "—"}
+                        </div>
+                        <div className="dashboardUsageMeta">
+                          Unit Cost: {typeof n.unitPrice === "number" ? new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n.unitPrice) : "—"} • Line Cost: {typeof n.lineCost === "number" ? new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n.lineCost) : "—"}
+                        </div>
+                      </div>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          if (n.read) markJobNotificationUnread(n.id);
+                          else markJobNotificationRead(n.id);
+                          bump();
+                        }}
+                      >
+                        {n.read ? "Undo" : "Mark as read"}
+                      </button>
+                    </div>
+                  ))}
+                  {(billingTab === "unread" ? unreadNotifications.length === 0 : billedNotifications.length === 0) ? (
+                    <div className="dashboardMuted">
+                      {billingTab === "unread" ? "No unread billing notifications." : "No billed notifications yet."}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </Card>
+
+          <Card title="Recent activity (audit log)">
+            {activity.length === 0 ? (
+              <div className="dashboardMuted">No activity yet.</div>
+            ) : (
+              <div className="dashboardAuditList">
+                {activity.slice(0, 12).map((ev) => (
+                  <div key={ev.id} className="dashboardAuditRow">
+                    {fmt(ev.ts)} • {activityLabel(ev)} • {ev.itemName ?? "—"} {typeof ev.qty === "number" ? `• Quantity ${ev.qty}` : ""} {ev.note ? `• ${ev.note}` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

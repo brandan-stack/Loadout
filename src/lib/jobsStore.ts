@@ -5,6 +5,7 @@ export type JobUsageLine = {
   ts: number;
   jobId: string;
   jobName: string;
+  jobNumber?: string;
 
   itemId: string;
   itemName: string;
@@ -145,6 +146,7 @@ export function completeJob(jobId: string) {
 
 export function logJobUsage(opts: {
   job: Job;
+  jobNumber?: string;
   item: InventoryItem;
   qty: number;
   locationId?: string;
@@ -165,6 +167,7 @@ export function logJobUsage(opts: {
     ts: Date.now(),
     jobId: opts.job.id,
     jobName: opts.job.name,
+    jobNumber: opts.jobNumber || "",
     itemId: opts.item.id,
     itemName: opts.item.name,
     partNumber: opts.item.partNumber || "",

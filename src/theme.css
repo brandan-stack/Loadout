@@ -1257,7 +1257,7 @@ button:focus-visible,
 }
 
 .appBrand {
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 1000;
   margin-right: 4px;
   letter-spacing: 0.35px;
@@ -1329,6 +1329,7 @@ button:focus-visible,
 }
 
 .appMobileNavMenu .appUserSelect,
+.appMobileNavMenu .appSignedInPill,
 .appMobileNavMenu .appStatusPill {
   width: 100%;
   min-height: 44px;
@@ -1438,6 +1439,19 @@ button:focus-visible,
   color: color-mix(in srgb, var(--text) 82%, #000 18%);
 }
 
+.appSignedInPill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 14px;
+  border: 1px solid var(--border2);
+  background: var(--panel2);
+  color: var(--text);
+  padding: 10px 12px;
+  font-weight: 900;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .appUserSelect {
   border-radius: 14px;
   border: 1px solid var(--border2);
@@ -1454,7 +1468,7 @@ button:focus-visible,
 
 .appMobileUserRow {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
 }
 
@@ -1512,7 +1526,7 @@ button:focus-visible,
   }
 
   .appBrand {
-    font-size: 19px;
+    font-size: 24px;
     width: auto;
     margin-right: auto;
     margin-bottom: 0;
@@ -1558,7 +1572,7 @@ button:focus-visible,
 
 @media (max-width: 560px) {
   .appBrand {
-    font-size: 17px;
+    font-size: 22px;
   }
 
   .appMobileUserRow {

@@ -2,6 +2,7 @@ export type JobNotification = {
   id: string;
   ts: number;
   userId: string;
+  jobNumber?: string;
   itemId: string;
   itemName: string;
   partNumber?: string;
@@ -60,6 +61,7 @@ export function getUnreadCountForUser(userId: string) {
 
 export function addJobNotification(input: {
   userId: string;
+  jobNumber?: string;
   itemId: string;
   itemName: string;
   partNumber?: string;
@@ -85,6 +87,7 @@ export function addJobNotification(input: {
     id: newId(),
     ts: Date.now(),
     userId: input.userId,
+    jobNumber: input.jobNumber || "",
     itemId: input.itemId,
     itemName: input.itemName,
     partNumber: input.partNumber || "",
@@ -118,6 +121,18 @@ export function addJobNotification(input: {
 
 export function markJobNotificationRead(notificationId: string) {
   const next = loadRaw().map((n) => (n.id === notificationId ? { ...n, read: true } : n));
+  saveRaw(next);
+}
+
+export function markJobNotificationUnread(notificationId: string) {
+  const next = loadRaw().map((n) => (n.id === notificationId ? { ...n, read: false } : n));
+  saveRaw(next);
+}
+
+export function markJobNotificationsUnread(notificationIds: string[]) {
+  if (!notificationIds.length) return;
+  const idSet = new Set(notificationIds);
+  const next = loadRaw().map((n) => (idSet.has(n.id) ? { ...n, read: false } : n));
   saveRaw(next);
 }
 

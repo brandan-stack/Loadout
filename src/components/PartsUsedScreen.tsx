@@ -8,6 +8,7 @@ import {
   addJobNotification,
   getNotificationsForUser,
   markAllJobNotificationsReadForUser,
+  markJobNotificationsUnread,
   markJobNotificationRead,
 } from "../lib/jobNotificationsStore";
 
@@ -118,6 +119,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(draft.savedAt ?? null);
   const [toast, setToast] = useState<InlineToast | null>(null);
+  const [lastReadNotificationIds, setLastReadNotificationIds] = useState<string[]>([]);
 
   const notifyUsers = useMemo(
     () =>
@@ -126,7 +128,8 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
         .sort((a, b) => a.name.localeCompare(b.name)),
     []
   );
-  const myNotifications = me ? getNotificationsForUser(me.id).slice(0, 10) : [];
+  const myNotifications = me ? getNotificationsForUser(me.id).slice(0, 30) : [];
+  const myUnreadNotifications = myNotifications.filter((n) => !n.read).slice(0, 10);
 
   useEffect(() => {
     if (!toast) return;
@@ -183,11 +186,18 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   const hasJobNumber = jobNumber.trim().length > 0;
   const hasQueuedParts = queuedLines.length > 0;
   const hasValidQueuedLines = hasQueuedParts && queuedLines.every((line) => line.qty > 0 && !!itemsApi.items.find((it) => it.id === line.itemId));
-  const canFinalizeLog = hasJobNumber && hasValidQueuedLines;
+  const hasCostForQueuedLines =
+    hasQueuedParts &&
+    queuedLines.every((line) => {
+      const item = itemsApi.items.find((it) => it.id === line.itemId);
+      return !!item && typeof item.unitPrice === "number" && Number.isFinite(item.unitPrice);
+    });
+  const canFinalizeLog = hasJobNumber && hasValidQueuedLines && hasCostForQueuedLines;
   const missingRequired: string[] = [
     ...(hasJobNumber ? [] : ["Job Number"]),
     ...(hasQueuedParts ? [] : ["Part + Quantity"]),
     ...(hasValidQueuedLines ? [] : ["Valid quantities"]),
+    ...(hasCostForQueuedLines ? [] : ["Unit Cost for each queued part"]),
   ];
 
   const totalQueuedQty = queuedLines.reduce((sum, line) => sum + line.qty, 0);
@@ -249,7 +259,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
   function finalizeLogPartsUsed() {
     setAttemptedSubmit(true);
     if (!canFinalizeLog) {
-      setToast({ tone: "error", message: "Missing required fields. Enter Job Number and add valid parts with quantities." });
+      setToast({ tone: "error", message: "Missing required fields. Enter Job Number and ensure every queued part has a unit cost and valid quantity." });
       return;
     }
 
@@ -277,6 +287,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
       logJobUsage({
         job: PARTS_USED_JOB,
+        jobNumber: jobNumberText,
         item,
         qty,
         locationId: useLoc ?? "",
@@ -305,6 +316,7 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
         addJobNotification({
           userId: targetUser.id,
+          jobNumber: jobNumberText,
           itemId: item.id,
           itemName: item.name,
           partNumber: item.partNumber || "",
@@ -324,7 +336,9 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           serial: item.serial || "",
           description: item.description || "",
           title: "Parts used requires billing",
-          message: `Job #${jobNumberText} • ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.`,
+          message:
+            `Job #${jobNumberText} • ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.` +
+            (typeof lineCost === "number" ? ` Line Cost ${money(lineCost)}.` : ""),
         });
       }
     }
@@ -543,9 +557,10 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           <div className="dashboardJobActions">
             <button
               className="btn"
-              disabled={!me || myNotifications.length === 0}
+              disabled={!me || myUnreadNotifications.length === 0}
               onClick={() => {
                 if (!me) return;
+                setLastReadNotificationIds(myUnreadNotifications.map((n) => n.id));
                 markAllJobNotificationsReadForUser(me.id);
                 onChanged?.();
                 bump();
@@ -553,19 +568,32 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
             >
               Mark all read
             </button>
+            <button
+              className="btn"
+              disabled={lastReadNotificationIds.length === 0}
+              onClick={() => {
+                if (!lastReadNotificationIds.length) return;
+                markJobNotificationsUnread(lastReadNotificationIds);
+                setLastReadNotificationIds([]);
+                onChanged?.();
+                bump();
+              }}
+            >
+              Undo
+            </button>
           </div>
           <div className="dashboardStack">
-            {myNotifications.map((n) => (
+            {myUnreadNotifications.map((n) => (
               <div key={n.id} className="dashboardRowCard">
                 <div className="dashboardItemMain">
                   <div className="dashboardUsageTop">
                     <Badge>{fmt(n.ts)}</Badge>
                     <span className="pill pillRed">⚠ Billing Required</span>
-                    {!n.read ? <Badge>Unread</Badge> : <Badge>Read</Badge>}
+                    <Badge>Unread</Badge>
                   </div>
                   <div className="dashboardUsageMeta">{n.message}</div>
                   <div className="dashboardUsageMeta">
-                    Part Number: {n.partNumber || "—"} • Qty: {n.qty} • Location: {locationLabel(n.locationId)} • Submitted By: {n.submittedByName || "—"}
+                    Job Number: {n.jobNumber || "—"} • Part Number: {n.partNumber || "—"} • Qty: {n.qty} • Location: {locationLabel(n.locationId)} • Submitted By: {n.submittedByName || "—"}
                   </div>
                   <div className="dashboardUsageMeta">
                     Unit Cost: {money(n.unitPrice)} • Line Cost: {money(n.lineCost)} • Margin: {typeof n.marginPercent === "number" ? `${n.marginPercent}%` : "—"} • Est. Sell: {money(n.lineEstimatedSell)}
@@ -582,21 +610,20 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
                     <div className="dashboardUsageThumb dashboardUsageThumbPlaceholder" aria-hidden="true" />
                   )}
                 </div>
-                {!n.read ? (
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      markJobNotificationRead(n.id);
-                      onChanged?.();
-                      bump();
-                    }}
-                  >
-                    Mark read
-                  </button>
-                ) : null}
+                <button
+                  className="btn"
+                  onClick={() => {
+                    markJobNotificationRead(n.id);
+                    setLastReadNotificationIds([n.id]);
+                    onChanged?.();
+                    bump();
+                  }}
+                >
+                  Mark as read
+                </button>
               </div>
             ))}
-            {myNotifications.length === 0 ? <div className="dashboardMuted">No notifications for this user.</div> : null}
+            {myUnreadNotifications.length === 0 ? <div className="dashboardMuted">No unread notifications for this user.</div> : null}
           </div>
         </div>
         ) : null}

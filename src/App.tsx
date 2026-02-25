@@ -279,24 +279,9 @@ export default function App() {
             </div>
 
             <div className="appTopbarRight">
-              <select
-                className={"appUserSelect " + (alertCount > 0 ? "alert" : "")}
-                value={session.currentUserId}
-                onChange={(e) => {
-                  const userId = e.target.value;
-                  setCurrentUser(userId);
-                  setPin("");
-                  refresh();
-                }}
-                aria-label="Select user"
-                title="Select user"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
+              <div className="appSignedInPill" title="Signed in user">
+                Signed in: {me?.name ?? "None"}
+              </div>
 
               <button
                 type="button"
@@ -341,25 +326,9 @@ export default function App() {
 
             <div id="mobile-main-nav" className={"appMobileNavMenu " + (mobileNavOpen ? "open" : "")}>
               <div className="appMobileUserRow">
-                <select
-                  className={"appUserSelect " + (alertCount > 0 ? "alert" : "")}
-                  value={session.currentUserId}
-                  onChange={(e) => {
-                    const userId = e.target.value;
-                    setCurrentUser(userId);
-                    setPin("");
-                    refresh();
-                    setMobileNavOpen(false);
-                  }}
-                  aria-label="Select user"
-                  title="Select user"
-                >
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="appSignedInPill" title="Signed in user">
+                  Signed in: {me?.name ?? "None"}
+                </div>
                 <button
                   type="button"
                   className={"appStatusPill " + (alertCount > 0 ? "alert" : "")}
