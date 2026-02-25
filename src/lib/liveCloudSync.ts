@@ -128,11 +128,31 @@ export function startLiveCloudSync(appVersion: string) {
     return;
   }
 
-  const client = createClient(SYNC_URL, SYNC_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  if (!/^https?:\/\//i.test(SYNC_URL)) {
+    console.warn("[Loadout Sync] Cloud sync disabled (invalid VITE_SYNC_SUPABASE_URL format).");
+    return;
+  }
 
-  const deviceId = getOrCreateDeviceId();
+  const maybeClient = (() => {
+    try {
+      return createClient(SYNC_URL, SYNC_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+    } catch (error) {
+      console.error("[Loadout Sync] Cloud sync failed to initialize:", error);
+      return null;
+    }
+  })();
+  if (!maybeClient) return;
+  const client = maybeClient;
+
+  let deviceId = "";
+  try {
+    deviceId = getOrCreateDeviceId();
+  } catch (error) {
+    console.error("[Loadout Sync] Cloud sync disabled (device id setup failed):", error);
+    return;
+  }
   let currentSignature = signatureFor(collectLocalValues());
   let applyingRemote = false;
 

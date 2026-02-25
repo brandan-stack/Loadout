@@ -11,7 +11,11 @@ declare const __APP_VERSION__: string;
 
 runUpgradeDataGuard(__APP_VERSION__);
 startAutoPdfBackupSync(__APP_VERSION__);
-startLiveCloudSync(__APP_VERSION__);
+try {
+  startLiveCloudSync(__APP_VERSION__);
+} catch (error) {
+  console.error("[Loadout Sync] Startup skipped after error:", error);
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
