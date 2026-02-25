@@ -95,13 +95,25 @@ export type LiveCloudSyncStatus = {
   state: "disabled" | "connecting" | "connected" | "error";
   lastSyncAt: number;
   lastError: string;
+  lastPushAt: number;
+  lastPullAt: number;
+  lastPushError: string;
+  lastPullError: string;
 };
 
 function readStatusRaw(): LiveCloudSyncStatus {
   try {
     const raw = window.localStorage.getItem(STATUS_KEY);
     if (!raw) {
-      return { state: "disabled", lastSyncAt: 0, lastError: "" };
+      return {
+        state: "disabled",
+        lastSyncAt: 0,
+        lastError: "",
+        lastPushAt: 0,
+        lastPullAt: 0,
+        lastPushError: "",
+        lastPullError: "",
+      };
     }
     const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
     const state = parsed.state;
@@ -109,15 +121,35 @@ function readStatusRaw(): LiveCloudSyncStatus {
       state: state === "disabled" || state === "connecting" || state === "connected" || state === "error" ? state : "disabled",
       lastSyncAt: safeNumber(parsed.lastSyncAt, 0),
       lastError: safeString(parsed.lastError, ""),
+      lastPushAt: safeNumber(parsed.lastPushAt, 0),
+      lastPullAt: safeNumber(parsed.lastPullAt, 0),
+      lastPushError: safeString(parsed.lastPushError, ""),
+      lastPullError: safeString(parsed.lastPullError, ""),
     };
   } catch {
-    return { state: "disabled", lastSyncAt: 0, lastError: "" };
+    return {
+      state: "disabled",
+      lastSyncAt: 0,
+      lastError: "",
+      lastPushAt: 0,
+      lastPullAt: 0,
+      lastPushError: "",
+      lastPullError: "",
+    };
   }
 }
 
 export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
   if (typeof window === "undefined") {
-    return { state: "disabled", lastSyncAt: 0, lastError: "" };
+    return {
+      state: "disabled",
+      lastSyncAt: 0,
+      lastError: "",
+      lastPushAt: 0,
+      lastPullAt: 0,
+      lastPushError: "",
+      lastPullError: "",
+    };
   }
   return readStatusRaw();
 }
@@ -133,6 +165,10 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     state: next.state ?? prev.state,
     lastSyncAt: typeof next.lastSyncAt === "number" ? next.lastSyncAt : prev.lastSyncAt,
     lastError: typeof next.lastError === "string" ? next.lastError : prev.lastError,
+    lastPushAt: typeof next.lastPushAt === "number" ? next.lastPushAt : prev.lastPushAt,
+    lastPullAt: typeof next.lastPullAt === "number" ? next.lastPullAt : prev.lastPullAt,
+    lastPushError: typeof next.lastPushError === "string" ? next.lastPushError : prev.lastPushError,
+    lastPullError: typeof next.lastPullError === "string" ? next.lastPullError : prev.lastPullError,
   };
   try {
     window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
@@ -357,13 +393,24 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Push failed:", error.message);
-      writeStatus({ state: "error", lastError: `Push failed: ${error.message}` });
+      writeStatus({
+        state: "error",
+        lastError: `Push failed: ${error.message}`,
+        lastPushError: error.message || "Push failed",
+      });
       return;
     }
 
+    const pushTs = Date.now();
     currentSignature = nextSignature;
     writeLastSyncTimestamp(snapshot.updatedAt);
-    writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
+    writeStatus({
+      state: "connected",
+      lastSyncAt: snapshot.updatedAt,
+      lastError: "",
+      lastPushAt: pushTs,
+      lastPushError: "",
+    });
   }
 
   async function pullRemoteValues() {
@@ -395,13 +442,23 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      writeStatus({ state: "error", lastError: `Pull failed: ${error.message}` });
+      writeStatus({
+        state: "error",
+        lastError: `Pull failed: ${error.message}`,
+        lastPullError: error.message || "Pull failed",
+      });
       return;
     }
 
     const heartbeatTs = Date.now();
     writeLastSyncTimestamp(heartbeatTs);
-    writeStatus({ state: "connected", lastSyncAt: heartbeatTs, lastError: "" });
+    writeStatus({
+      state: "connected",
+      lastSyncAt: heartbeatTs,
+      lastError: "",
+      lastPullAt: heartbeatTs,
+      lastPullError: "",
+    });
 
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) {
@@ -419,7 +476,13 @@ export function startLiveCloudSync(appVersion: string) {
       applyRemoteValues(remoteValues);
       currentSignature = signatureFor(collectLocalValues());
       writeLastSyncTimestamp(snapshot.updatedAt);
-      writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
+      writeStatus({
+        state: "connected",
+        lastSyncAt: snapshot.updatedAt,
+        lastError: "",
+        lastPullAt: Date.now(),
+        lastPullError: "",
+      });
       notifyStateUpdated();
     } finally {
       applyingRemote = false;
@@ -476,7 +539,13 @@ export function startLiveCloudSync(appVersion: string) {
           applyRemoteValues(remoteValues);
           currentSignature = signatureFor(collectLocalValues());
           writeLastSyncTimestamp(snapshot.updatedAt);
-          writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
+          writeStatus({
+            state: "connected",
+            lastSyncAt: snapshot.updatedAt,
+            lastError: "",
+            lastPullAt: Date.now(),
+            lastPullError: "",
+          });
           notifyStateUpdated();
         } finally {
           applyingRemote = false;

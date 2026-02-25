@@ -494,6 +494,10 @@ export default function App() {
             <div className="appSyncPanelTitle">Sync Status</div>
             <div className="appSyncPanelLine">State: {syncStateText}</div>
             <div className="appSyncPanelLine">Last Sync: {syncStatus.lastSyncAt > 0 ? fmt(syncStatus.lastSyncAt) : "—"}</div>
+            <div className="appSyncPanelLine">Last Push: {syncStatus.lastPushAt > 0 ? fmt(syncStatus.lastPushAt) : "—"}</div>
+            <div className="appSyncPanelLine">Last Pull: {syncStatus.lastPullAt > 0 ? fmt(syncStatus.lastPullAt) : "—"}</div>
+            <div className="appSyncPanelLine">Push Error: {syncStatus.lastPushError || "None"}</div>
+            <div className="appSyncPanelLine">Pull Error: {syncStatus.lastPullError || "None"}</div>
             <div className="appSyncPanelLine">Details: {syncStatus.lastError || "No active errors."}</div>
             <div className="appSyncPanelActions">
               <button
