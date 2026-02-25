@@ -31,6 +31,11 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_SYNC_SUPABASE_URL: ${{ secrets.VITE_SYNC_SUPABASE_URL }}
+          VITE_SYNC_SUPABASE_ANON_KEY: ${{ secrets.VITE_SYNC_SUPABASE_ANON_KEY }}
+          VITE_SYNC_SPACE: ${{ secrets.VITE_SYNC_SPACE }}
+          VITE_SYNC_TABLE: ${{ secrets.VITE_SYNC_TABLE }}
         run: npm run build
 
       - name: Setup Pages
