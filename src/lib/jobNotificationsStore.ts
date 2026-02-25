@@ -7,6 +7,19 @@ export type JobNotification = {
   partNumber?: string;
   qty: number;
   note?: string;
+  locationId?: string;
+  submittedByUserId?: string;
+  submittedByName?: string;
+  unitPrice?: number;
+  marginPercent?: number;
+  estimatedSellPrice?: number;
+  lineCost?: number;
+  lineEstimatedSell?: number;
+  photoDataUrl?: string;
+  manufacturer?: string;
+  model?: string;
+  serial?: string;
+  description?: string;
   title: string;
   message: string;
   read: boolean;
@@ -52,6 +65,19 @@ export function addJobNotification(input: {
   partNumber?: string;
   qty: number;
   note?: string;
+  locationId?: string;
+  submittedByUserId?: string;
+  submittedByName?: string;
+  unitPrice?: number;
+  marginPercent?: number;
+  estimatedSellPrice?: number;
+  lineCost?: number;
+  lineEstimatedSell?: number;
+  photoDataUrl?: string;
+  manufacturer?: string;
+  model?: string;
+  serial?: string;
+  description?: string;
   title?: string;
   message?: string;
 }) {
@@ -64,6 +90,19 @@ export function addJobNotification(input: {
     partNumber: input.partNumber || "",
     qty: Math.floor(Number(input.qty) || 0),
     note: input.note || "",
+    locationId: input.locationId || "",
+    submittedByUserId: input.submittedByUserId || "",
+    submittedByName: input.submittedByName || "",
+    unitPrice: typeof input.unitPrice === "number" ? input.unitPrice : undefined,
+    marginPercent: typeof input.marginPercent === "number" ? input.marginPercent : undefined,
+    estimatedSellPrice: typeof input.estimatedSellPrice === "number" ? input.estimatedSellPrice : undefined,
+    lineCost: typeof input.lineCost === "number" ? input.lineCost : undefined,
+    lineEstimatedSell: typeof input.lineEstimatedSell === "number" ? input.lineEstimatedSell : undefined,
+    photoDataUrl: input.photoDataUrl || "",
+    manufacturer: input.manufacturer || "",
+    model: input.model || "",
+    serial: input.serial || "",
+    description: input.description || "",
     title: input.title || "Parts Used requires billing",
     message:
       input.message ||

@@ -311,9 +311,9 @@ export default function App() {
                 Alerts {alertCount}
               </button>
 
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
+              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "") + (lowStockCount > 0 ? " alert" : "")} onClick={() => setActiveTab("dashboard")}>
                 Dashboard
-                {lowStockCount > 0 ? <span className="appWarnDot appWarnDotRed" aria-hidden="true">●</span> : null}
+                {lowStockCount > 0 ? <span className="appAlertBadge appAlertBadgeRed" aria-hidden="true">{lowStockCount}</span> : null}
               </button>
 
               <button
@@ -391,7 +391,7 @@ export default function App() {
                   {toolPendingCount > 0 ? <span className="appWarnDot appWarnDotYellow" aria-hidden="true">●</span> : null}
                 </button>
               ) : null}
-              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appWarnDot appWarnDotRed" aria-hidden="true">●</span> : null}</button>
+              <button className={"appNavBtn " + (activeTab === "dashboard" ? "active" : "") + (lowStockCount > 0 ? " alert" : "")} onClick={() => setActiveTab("dashboard")}>Dashboard{lowStockCount > 0 ? <span className="appAlertBadge appAlertBadgeRed" aria-hidden="true">{lowStockCount}</span> : null}</button>
               <button className={"appNavBtn appSettingsBtn " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")} title="Settings">
                 <GearIcon />
                 Settings

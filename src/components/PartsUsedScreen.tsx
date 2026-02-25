@@ -291,18 +291,42 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
 
     const targetUser = notifyUsers.find((u) => u.id === notifyUserId);
     if (targetUser) {
-      const preview = loggedItemNames.slice(0, 4).join(", ");
-      const extra = loggedItemNames.length > 4 ? ` +${loggedItemNames.length - 4} more` : "";
-      addJobNotification({
-        userId: targetUser.id,
-        itemId: "parts-used-batch",
-        itemName: "Multiple parts",
-        partNumber: "",
-        qty: totalLoggedQty,
-        note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
-        title: "Parts used requires billing",
-        message: `Job #${jobNumberText} • ${validLines.length} part line${validLines.length === 1 ? "" : "s"} (total qty ${totalLoggedQty}) were used and require billing: ${preview}${extra}.`,
-      });
+      for (const entry of validLines) {
+        const item = entry.item;
+        const qty = entry.line.qty;
+        const unitPrice = typeof item.unitPrice === "number" ? item.unitPrice : undefined;
+        const marginPercent = typeof item.marginPercent === "number" ? item.marginPercent : undefined;
+        const estimatedSellPrice =
+          typeof unitPrice === "number" && typeof marginPercent === "number"
+            ? unitPrice * (1 + marginPercent / 100)
+            : undefined;
+        const lineCost = typeof unitPrice === "number" ? unitPrice * qty : undefined;
+        const lineEstimatedSell = typeof estimatedSellPrice === "number" ? estimatedSellPrice * qty : undefined;
+
+        addJobNotification({
+          userId: targetUser.id,
+          itemId: item.id,
+          itemName: item.name,
+          partNumber: item.partNumber || "",
+          qty,
+          note: useNote.trim() ? `Job #${jobNumberText} • ${useNote.trim()}` : `Job #${jobNumberText}`,
+          locationId: useLoc ?? "",
+          submittedByUserId: me?.id || "",
+          submittedByName: me?.name || "",
+          unitPrice,
+          marginPercent,
+          estimatedSellPrice,
+          lineCost,
+          lineEstimatedSell,
+          photoDataUrl: item.photoDataUrl || "",
+          manufacturer: item.manufacturer || "",
+          model: item.model || "",
+          serial: item.serial || "",
+          description: item.description || "",
+          title: "Parts used requires billing",
+          message: `Job #${jobNumberText} • ${item.name}${item.partNumber ? ` (${item.partNumber})` : ""} qty ${qty} was used and requires billing.`,
+        });
+      }
     }
 
     setUsage(loadJobUsage());
@@ -533,12 +557,31 @@ export default function PartsUsedScreen({ onChanged }: { onChanged?: () => void 
           <div className="dashboardStack">
             {myNotifications.map((n) => (
               <div key={n.id} className="dashboardRowCard">
-                <div className="dashboardUsageTop">
-                  <Badge>{fmt(n.ts)}</Badge>
-                  <span className="pill pillRed">⚠ Billing Required</span>
-                  {!n.read ? <Badge>Unread</Badge> : <Badge>Read</Badge>}
+                <div className="dashboardItemMain">
+                  <div className="dashboardUsageTop">
+                    <Badge>{fmt(n.ts)}</Badge>
+                    <span className="pill pillRed">⚠ Billing Required</span>
+                    {!n.read ? <Badge>Unread</Badge> : <Badge>Read</Badge>}
+                  </div>
+                  <div className="dashboardUsageMeta">{n.message}</div>
+                  <div className="dashboardUsageMeta">
+                    Part Number: {n.partNumber || "—"} • Qty: {n.qty} • Location: {locationLabel(n.locationId)} • Submitted By: {n.submittedByName || "—"}
+                  </div>
+                  <div className="dashboardUsageMeta">
+                    Unit Cost: {money(n.unitPrice)} • Line Cost: {money(n.lineCost)} • Margin: {typeof n.marginPercent === "number" ? `${n.marginPercent}%` : "—"} • Est. Sell: {money(n.lineEstimatedSell)}
+                  </div>
+                  <div className="dashboardUsageMeta">
+                    Manufacturer: {n.manufacturer || "—"} • Model: {n.model || "—"} • Serial: {n.serial || "—"}
+                    {n.note ? ` • Note: ${n.note}` : ""}
+                  </div>
                 </div>
-                <div className="dashboardUsageMeta">{n.message}</div>
+                <div className="dashboardUsageThumbWrap">
+                  {n.photoDataUrl ? (
+                    <img className="dashboardUsageThumb" src={n.photoDataUrl} alt={`${n.itemName} photo`} />
+                  ) : (
+                    <div className="dashboardUsageThumb dashboardUsageThumbPlaceholder" aria-hidden="true" />
+                  )}
+                </div>
                 {!n.read ? (
                   <button
                     className="btn"

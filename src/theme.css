@@ -1343,6 +1343,12 @@ button:focus-visible,
   background: var(--panel2);
 }
 
+.appNavBtn.alert {
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border2));
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: color-mix(in srgb, var(--text) 88%, #fff 12%);
+}
+
 .appNavBtn:active {
   transform: translateY(1px);
 }
@@ -1369,6 +1375,12 @@ button:focus-visible,
   font-size: 11px;
   line-height: 1;
   font-weight: 1000;
+}
+
+.appAlertBadgeRed {
+  background: color-mix(in srgb, var(--danger) 82%, #ff4d4d 18%);
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border2));
+  color: color-mix(in srgb, #ffffff 92%, var(--text) 8%);
 }
 
 .appWarnDot {
