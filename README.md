@@ -81,6 +81,62 @@ npm run sync:ios      # Sync iOS only
 npm run sync:android  # Sync Android only
 ```
 
+## Live Cross-Device Sync (Optional)
+
+Loadout supports optional live sync across devices using Supabase.
+
+- If sync env variables are missing, the app stays in local-only mode.
+- Local-only mode still keeps data after page exit/reopen on the same device.
+- With sync enabled, `inventory.*` and `loadout.*` app data is shared live across devices (except local session/active-tab keys).
+
+### 1) Configure environment
+
+Copy `.env.example` to `.env.local` and set:
+
+```bash
+VITE_SYNC_SUPABASE_URL=...
+VITE_SYNC_SUPABASE_ANON_KEY=...
+VITE_SYNC_SPACE=main
+VITE_SYNC_TABLE=loadout_sync
+```
+
+### 2) Create sync table in Supabase
+
+Run this SQL in Supabase SQL Editor:
+
+```sql
+create table if not exists public.loadout_sync (
+   id text primary key,
+   payload jsonb not null default '{}'::jsonb,
+   updated_at timestamptz not null default now()
+);
+
+alter table public.loadout_sync enable row level security;
+
+create policy "loadout sync read"
+on public.loadout_sync
+for select
+to anon
+using (true);
+
+create policy "loadout sync upsert"
+on public.loadout_sync
+for insert
+to anon
+with check (true);
+
+create policy "loadout sync update"
+on public.loadout_sync
+for update
+to anon
+using (true)
+with check (true);
+```
+
+### 3) Enable Realtime for table
+
+In Supabase: Database → Replication → enable Realtime for `public.loadout_sync`.
+
 ## Mobile & Android Access
 
 Access the web version on any device on your network:

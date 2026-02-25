@@ -149,6 +149,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onStateChanged = () => refresh();
+    window.addEventListener("loadout:state-updated", onStateChanged);
+    window.addEventListener("storage", onStateChanged);
+    return () => {
+      window.removeEventListener("loadout:state-updated", onStateChanged);
+      window.removeEventListener("storage", onStateChanged);
+    };
+  }, []);
+
+  useEffect(() => {
     const onResize = () => {
       if (window.innerWidth > 980) {
         setMobileNavOpen(false);
