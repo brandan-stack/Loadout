@@ -12,7 +12,7 @@ const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "l
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
 const POLL_MS = 1000;
-const KEY_PREFIXES = ["inventory.", "loadout."];
+const KEY_PREFIXES = ["inventory."];
 const EXCLUDED_KEYS = new Set([
   DEVICE_ID_KEY,
   LAST_SYNC_TS_KEY,
