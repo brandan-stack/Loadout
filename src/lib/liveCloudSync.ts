@@ -13,11 +13,11 @@ const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "l
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
 const POLL_MS = 6000;
-const RETRY_DELAY_MS = 600;
+const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
-const PULL_RETRIES = 2;
-const REQUEST_TIMEOUT_MS = 20000;
-const PULL_META_TIMEOUT_MS = 10000;
+const PULL_RETRIES = 1;
+const REQUEST_TIMEOUT_MS = 45000;
+const PULL_META_TIMEOUT_MS = 30000;
 const TRACKED_KEYS = new Set([
   "inventory.items.v2",
   "inventory.categories.v2",
