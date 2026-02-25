@@ -130,4 +130,29 @@ test.describe("Loadout critical flows", () => {
     await billingCard.getByRole("button", { name: /Unread/i }).click();
     await expect(billingCard.getByText(new RegExp(`Job Number: ${jobNumber}`))).toBeVisible();
   });
+
+  test("Mobile sync panel opens and Retry Sync is usable", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "This verification is mobile-specific.");
+
+    const syncToggle = page.getByRole("button", { name: /Open sync status details/i }).first();
+    await expect(syncToggle).toBeVisible();
+    await expect(page.locator(".appMobileNavToggle")).toBeVisible();
+
+    await syncToggle.click();
+
+    const syncPanel = page.locator(".appSyncPanel");
+    await expect(syncPanel).toBeVisible();
+    await expect(syncPanel.getByText("Sync Status")).toBeVisible();
+    await expect(syncPanel.getByText(/State:\s*(Connected|Connecting|Error|Disabled)/i)).toBeVisible();
+    await expect(syncPanel.getByRole("button", { name: /Retry Sync/i })).toBeVisible();
+
+    await syncPanel.getByRole("button", { name: /Retry Sync/i }).click();
+    await expect(syncPanel).toBeVisible();
+
+    await syncPanel.getByRole("button", { name: /^Close$/i }).click();
+    await expect(syncPanel).not.toBeVisible();
+
+    await openTab(page, "Inventory");
+    await expect(page.getByRole("button", { name: /Add inventory item/i })).toBeVisible();
+  });
 });
