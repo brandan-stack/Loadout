@@ -12,11 +12,12 @@ const SYNC_ANON_KEY_RAW = import.meta.env.VITE_SYNC_SUPABASE_ANON_KEY as string 
 const SYNC_TABLE = (import.meta.env.VITE_SYNC_TABLE as string | undefined) || "loadout_sync";
 const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "default";
 
-const POLL_MS = 3000;
+const POLL_MS = 6000;
 const RETRY_DELAY_MS = 600;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 2;
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 20000;
+const PULL_META_TIMEOUT_MS = 10000;
 const TRACKED_KEYS = new Set([
   "inventory.items.v2",
   "inventory.categories.v2",
@@ -212,6 +213,10 @@ function normalizeSnapshot(value: unknown): CloudSnapshot | null {
   };
 }
 
+function normalizeUpdatedAt(value: unknown): string {
+  return safeString(value, "").trim();
+}
+
 function shouldTrackKey(key: string): boolean {
   return TRACKED_KEYS.has(key);
 }
@@ -336,6 +341,7 @@ export function startLiveCloudSync(appVersion: string) {
     return;
   }
   let currentSignature = signatureFor(collectLocalValues());
+  let lastRemoteUpdatedAt = "";
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
@@ -403,6 +409,7 @@ export function startLiveCloudSync(appVersion: string) {
 
     const pushTs = Date.now();
     currentSignature = nextSignature;
+    lastRemoteUpdatedAt = row.updated_at;
     writeLastSyncTimestamp(snapshot.updatedAt);
     writeStatus({
       state: "connected",
@@ -421,21 +428,22 @@ export function startLiveCloudSync(appVersion: string) {
       return;
     }
 
-    let data: { payload?: unknown } | null = null;
+    let metaData: { updated_at?: unknown } | null = null;
+    let data: { updated_at?: unknown; payload?: unknown } | null = null;
     let error: { message?: string } | null = null;
     try {
-      const result = await withRetry(async (): Promise<{ data: { payload?: unknown } | null; error: { message?: string } | null }> => {
-        const next: { data: { payload?: unknown } | null; error: { message?: string } | null } = await withTimeout(
-          client.from(SYNC_TABLE).select("payload").eq("id", SYNC_SPACE).maybeSingle(),
-          REQUEST_TIMEOUT_MS,
-          "pull select"
+      const metaResult = await withRetry(async (): Promise<{ data: { updated_at?: unknown } | null; error: { message?: string } | null }> => {
+        const next: { data: { updated_at?: unknown } | null; error: { message?: string } | null } = await withTimeout(
+          client.from(SYNC_TABLE).select("updated_at").eq("id", SYNC_SPACE).maybeSingle(),
+          PULL_META_TIMEOUT_MS,
+          "pull meta"
         );
         if (next.error) {
           throw next.error;
         }
         return next;
       }, PULL_RETRIES);
-      data = result.data;
+      metaData = metaResult.data;
     } catch (err) {
       error = (err as { message?: string }) ?? { message: "Unknown pull error" };
     }
@@ -459,6 +467,46 @@ export function startLiveCloudSync(appVersion: string) {
       lastPullAt: heartbeatTs,
       lastPullError: "",
     });
+
+    const remoteUpdatedAt = normalizeUpdatedAt(metaData?.updated_at);
+    if (!remoteUpdatedAt) {
+      lastRemoteUpdatedAt = "";
+      return;
+    }
+
+    if (remoteUpdatedAt === lastRemoteUpdatedAt) {
+      return;
+    }
+
+    error = null;
+    try {
+      const result = await withRetry(async (): Promise<{ data: { updated_at?: unknown; payload?: unknown } | null; error: { message?: string } | null }> => {
+        const next: { data: { updated_at?: unknown; payload?: unknown } | null; error: { message?: string } | null } = await withTimeout(
+          client.from(SYNC_TABLE).select("updated_at,payload").eq("id", SYNC_SPACE).maybeSingle(),
+          REQUEST_TIMEOUT_MS,
+          "pull select"
+        );
+        if (next.error) {
+          throw next.error;
+        }
+        return next;
+      }, PULL_RETRIES);
+      data = result.data;
+    } catch (err) {
+      error = (err as { message?: string }) ?? { message: "Unknown pull error" };
+    }
+
+    if (error) {
+      console.warn("[Loadout Sync] Pull failed:", error.message);
+      writeStatus({
+        state: "error",
+        lastError: `Pull failed: ${error.message}`,
+        lastPullError: error.message || "Pull failed",
+      });
+      return;
+    }
+
+    lastRemoteUpdatedAt = normalizeUpdatedAt(data?.updated_at) || remoteUpdatedAt;
 
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) {
@@ -527,6 +575,10 @@ export function startLiveCloudSync(appVersion: string) {
         }
 
         const nextRow = payload.new as Record<string, unknown> | null;
+        const nextUpdatedAt = normalizeUpdatedAt(nextRow?.updated_at);
+        if (nextUpdatedAt) {
+          lastRemoteUpdatedAt = nextUpdatedAt;
+        }
         const snapshot = normalizeSnapshot(nextRow?.payload);
         if (!snapshot) return;
 
