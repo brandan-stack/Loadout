@@ -157,7 +157,23 @@ function collectLocalValues(): Record<string, string> {
 }
 
 function signatureFor(values: Record<string, string>): string {
-  return JSON.stringify(values);
+  const sortedKeys = Object.keys(values).sort();
+  const normalized: Record<string, string> = {};
+  for (const key of sortedKeys) {
+    normalized[key] = values[key] ?? "";
+  }
+  return JSON.stringify(normalized);
+}
+
+function extractTrackedValues(values: Record<string, string>): Record<string, string> {
+  const tracked: Record<string, string> = {};
+  for (const key of Array.from(TRACKED_KEYS).sort()) {
+    const value = values[key];
+    if (typeof value === "string") {
+      tracked[key] = value;
+    }
+  }
+  return tracked;
 }
 
 function getOrCreateDeviceId(): string {
@@ -181,72 +197,24 @@ function notifyStateUpdated() {
 }
 
 function applyRemoteValues(values: Record<string, string>) {
-  const incomingKeys = Object.keys(values);
+  const trackedRemote = extractTrackedValues(values);
 
-  for (const key of incomingKeys) {
-    if (!shouldTrackKey(key)) continue;
-    const next = values[key] ?? "";
+  for (const key of Array.from(TRACKED_KEYS).sort()) {
+    const hasRemoteValue = Object.prototype.hasOwnProperty.call(trackedRemote, key);
+
     try {
-      if (window.localStorage.getItem(key) !== next) {
-        window.localStorage.setItem(key, next);
+      if (hasRemoteValue) {
+        const next = trackedRemote[key] ?? "";
+        if (window.localStorage.getItem(key) !== next) {
+          window.localStorage.setItem(key, next);
+        }
+      } else if (window.localStorage.getItem(key) !== null) {
+        window.localStorage.removeItem(key);
       }
     } catch (error) {
       console.warn(`[Loadout Sync] Failed to apply key ${key}:`, error);
     }
   }
-}
-
-function parseJsonArray(value: string): Array<Record<string, unknown>> | null {
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) return null;
-    return parsed.filter((row) => !!row && typeof row === "object") as Array<Record<string, unknown>>;
-  } catch {
-    return null;
-  }
-}
-
-function mergeInventoryItems(localRaw: string, remoteRaw: string): string {
-  const local = parseJsonArray(localRaw);
-  const remote = parseJsonArray(remoteRaw);
-  if (!local || !remote) {
-    return remoteRaw;
-  }
-
-  const merged = new Map<string, Record<string, unknown>>();
-  for (const item of local) {
-    const id = safeString(item.id, "");
-    if (!id) continue;
-    merged.set(id, item);
-  }
-  for (const item of remote) {
-    const id = safeString(item.id, "");
-    if (!id) continue;
-    const prev = merged.get(id);
-    if (!prev) {
-      merged.set(id, item);
-      continue;
-    }
-    const prevTs = safeNumber(prev.updatedAt, safeNumber(prev.createdAt, 0));
-    const nextTs = safeNumber(item.updatedAt, safeNumber(item.createdAt, 0));
-    merged.set(id, nextTs >= prevTs ? item : prev);
-  }
-
-  return JSON.stringify(Array.from(merged.values()));
-}
-
-function mergeRemoteIntoLocal(localValues: Record<string, string>, remoteValues: Record<string, string>): Record<string, string> {
-  const merged: Record<string, string> = { ...localValues };
-  for (const [key, remoteValue] of Object.entries(remoteValues)) {
-    if (!shouldTrackKey(key)) continue;
-    const localValue = localValues[key];
-    if (key === "inventory.items.v2" && typeof localValue === "string" && localValue !== remoteValue) {
-      merged[key] = mergeInventoryItems(localValue, remoteValue);
-      continue;
-    }
-    merged[key] = remoteValue;
-  }
-  return merged;
 }
 
 export function startLiveCloudSync(appVersion: string) {
@@ -356,15 +324,15 @@ export function startLiveCloudSync(appVersion: string) {
       return;
     }
 
-    const mergedValues = mergeRemoteIntoLocal(localValues, snapshot.values);
-    const remoteSignature = signatureFor(mergedValues);
+    const remoteValues = extractTrackedValues(snapshot.values);
+    const remoteSignature = signatureFor(remoteValues);
     if (remoteSignature === currentSignature) {
       return;
     }
 
     applyingRemote = true;
     try {
-      applyRemoteValues(mergedValues);
+      applyRemoteValues(remoteValues);
       currentSignature = signatureFor(collectLocalValues());
       writeLastSyncTimestamp(snapshot.updatedAt);
       writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
@@ -393,13 +361,13 @@ export function startLiveCloudSync(appVersion: string) {
         const snapshot = normalizeSnapshot(nextRow?.payload);
         if (!snapshot) return;
 
-        const mergedValues = mergeRemoteIntoLocal(collectLocalValues(), snapshot.values);
-        const remoteSignature = signatureFor(mergedValues);
+        const remoteValues = extractTrackedValues(snapshot.values);
+        const remoteSignature = signatureFor(remoteValues);
         if (remoteSignature === currentSignature) return;
 
         applyingRemote = true;
         try {
-          applyRemoteValues(mergedValues);
+          applyRemoteValues(remoteValues);
           currentSignature = signatureFor(collectLocalValues());
           writeLastSyncTimestamp(snapshot.updatedAt);
           writeStatus({ state: "connected", lastSyncAt: snapshot.updatedAt, lastError: "" });
