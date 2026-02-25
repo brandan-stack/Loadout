@@ -130,6 +130,11 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
   window.dispatchEvent(new Event(STATUS_EVENT_NAME));
 }
 
+function isRecentSync(lastSyncAt: number): boolean {
+  if (!lastSyncAt || lastSyncAt <= 0) return false;
+  return Date.now() - lastSyncAt <= POLL_MS * 4;
+}
+
 function safeString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
@@ -455,7 +460,12 @@ export function startLiveCloudSync(appVersion: string) {
         writeStatus({ state: "connected", lastError: "" });
         void runSyncTick();
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
+        const current = readStatusRaw();
+        if (isRecentSync(current.lastSyncAt)) {
+          writeStatus({ state: "connected", lastError: `Realtime degraded, polling active: ${status}` });
+        } else {
+          writeStatus({ state: "connecting", lastError: `Realtime reconnecting: ${status}` });
+        }
         void runSyncTick();
       }
     });
