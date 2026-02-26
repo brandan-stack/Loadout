@@ -155,4 +155,24 @@ test.describe("Loadout critical flows", () => {
     await openTab(page, "Inventory");
     await expect(page.getByRole("button", { name: /Add inventory item/i })).toBeVisible();
   });
+
+  test("Desktop sync panel shows tracked key diagnostics", async ({ page, isMobile }) => {
+    test.skip(!!isMobile, "This verification is desktop-specific.");
+
+    if (await page.locator(".appMobileNavToggle").isVisible()) {
+      test.skip(true, "This viewport is using mobile navigation layout.");
+    }
+
+    const syncToggle = page.getByRole("button", { name: /Open sync status details/i }).first();
+    await expect(syncToggle).toBeVisible();
+
+    await syncToggle.click();
+
+    const syncPanel = page.locator(".appSyncPanel");
+    await expect(syncPanel).toBeVisible();
+    await expect(syncPanel.getByText(/Tracked Keys \(Local\/Remote\):\s*\d+\s*\/\s*\d+/i)).toBeVisible();
+
+    const syncInline = page.locator(".appSyncInlineText");
+    await expect(syncInline).toContainText(/Keys:\s*\d+\s*\/\s*\d+/i);
+  });
 });
