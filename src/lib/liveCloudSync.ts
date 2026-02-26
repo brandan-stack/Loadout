@@ -72,14 +72,23 @@ async function withAbortTimeout<T>(
   label: string
 ): Promise<T> {
   const controller = new AbortController();
+  let timedOut = false;
   const timer = window.setTimeout(() => {
+    timedOut = true;
     controller.abort();
   }, timeoutMs);
 
   try {
-    return await Promise.resolve(run(controller.signal));
+    const runPromise = Promise.resolve(run(controller.signal));
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} timed out`));
+      }, timeoutMs);
+    });
+
+    return await Promise.race([runPromise, timeoutPromise]);
   } catch (error) {
-    if (controller.signal.aborted) {
+    if (timedOut || controller.signal.aborted) {
       throw new Error(`${label} timed out`);
     }
     throw error;
