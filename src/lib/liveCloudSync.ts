@@ -243,6 +243,14 @@ function isRetryablePullNetworkError(message: string): boolean {
   return text.includes("timed out") || text.includes("aborted") || text.includes("networkerror") || text.includes("failed to fetch");
 }
 
+function isPullTimeoutError(message: string): boolean {
+  return message.toLowerCase().includes("timed out");
+}
+
+function isPullAbortError(message: string): boolean {
+  return message.toLowerCase().includes("aborted");
+}
+
 function shouldTrackKey(key: string): boolean {
   return TRACKED_KEYS.has(key);
 }
@@ -506,30 +514,45 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      const isRetryableNetwork = isRetryablePullNetworkError(error.message || "");
+      const message = error.message || "";
+      const isRetryableNetwork = isRetryablePullNetworkError(message);
+      const isTimeout = isPullTimeoutError(message);
+      const isAborted = isPullAbortError(message);
       if (isRetryableNetwork) {
-        consecutivePullTimeouts += 1;
-        pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
-        if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
-          pullSuspended = true;
+        if (isTimeout) {
+          consecutivePullTimeouts += 1;
+          pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+          if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
+            pullSuspended = true;
+          }
+        } else {
+          pullBackoffUntil = Date.now() + 15000;
         }
       }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: isRetryableNetwork
-            ? `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+          lastError: isTimeout
+            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+            : isAborted
+            ? "Pull request was interrupted on mobile; retrying automatically."
+            : isRetryableNetwork
+            ? "Pull network interruption detected; retrying automatically."
             : `Pull degraded (using realtime/push): ${error.message}`,
-          lastPullError: error.message || "Pull failed",
+          lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
           pullSuspended,
         });
       } else {
         if (isRetryableNetwork) {
           writeStatus({
             state: "connecting",
-            lastError: `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
-            lastPullError: error.message || "Pull failed",
+            lastError: isTimeout
+              ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+              : isAborted
+              ? "Pull request was interrupted on mobile; retrying automatically."
+              : "Pull network interruption detected; retrying automatically.",
+            lastPullError: "",
             pullSuspended,
           });
         } else {
@@ -585,30 +608,45 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      const isRetryableNetwork = isRetryablePullNetworkError(error.message || "");
+      const message = error.message || "";
+      const isRetryableNetwork = isRetryablePullNetworkError(message);
+      const isTimeout = isPullTimeoutError(message);
+      const isAborted = isPullAbortError(message);
       if (isRetryableNetwork) {
-        consecutivePullTimeouts += 1;
-        pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
-        if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
-          pullSuspended = true;
+        if (isTimeout) {
+          consecutivePullTimeouts += 1;
+          pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+          if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
+            pullSuspended = true;
+          }
+        } else {
+          pullBackoffUntil = Date.now() + 15000;
         }
       }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: isRetryableNetwork
-            ? `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+          lastError: isTimeout
+            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+            : isAborted
+            ? "Pull request was interrupted on mobile; retrying automatically."
+            : isRetryableNetwork
+            ? "Pull network interruption detected; retrying automatically."
             : `Pull degraded (using realtime/push): ${error.message}`,
-          lastPullError: error.message || "Pull failed",
+          lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
           pullSuspended,
         });
       } else {
         if (isRetryableNetwork) {
           writeStatus({
             state: "connecting",
-            lastError: `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
-            lastPullError: error.message || "Pull failed",
+            lastError: isTimeout
+              ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+              : isAborted
+              ? "Pull request was interrupted on mobile; retrying automatically."
+              : "Pull network interruption detected; retrying automatically.",
+            lastPullError: "",
             pullSuspended,
           });
         } else {
