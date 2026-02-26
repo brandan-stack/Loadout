@@ -136,6 +136,9 @@ export type LiveCloudSyncStatus = {
   lastOperationAt: number;
   lastOperationDetail: string;
   pullCooldownActive: boolean;
+  lastTickAt: number;
+  lastPushAttemptAt: number;
+  lastPullAttemptAt: number;
 };
 
 function readStatusRaw(): LiveCloudSyncStatus {
@@ -161,6 +164,9 @@ function readStatusRaw(): LiveCloudSyncStatus {
         lastOperationAt: 0,
         lastOperationDetail: "",
         pullCooldownActive: false,
+        lastTickAt: 0,
+        lastPushAttemptAt: 0,
+        lastPullAttemptAt: 0,
       };
     }
     const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
@@ -184,6 +190,9 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastOperationAt: safeNumber(parsed.lastOperationAt, 0),
       lastOperationDetail: safeString(parsed.lastOperationDetail, ""),
       pullCooldownActive: !!parsed.pullCooldownActive,
+      lastTickAt: safeNumber(parsed.lastTickAt, 0),
+      lastPushAttemptAt: safeNumber(parsed.lastPushAttemptAt, 0),
+      lastPullAttemptAt: safeNumber(parsed.lastPullAttemptAt, 0),
     };
   } catch {
     return {
@@ -205,6 +214,9 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastOperationAt: 0,
       lastOperationDetail: "",
       pullCooldownActive: false,
+      lastTickAt: 0,
+      lastPushAttemptAt: 0,
+      lastPullAttemptAt: 0,
     };
   }
 }
@@ -230,6 +242,9 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
       lastOperationAt: 0,
       lastOperationDetail: "",
       pullCooldownActive: false,
+      lastTickAt: 0,
+      lastPushAttemptAt: 0,
+      lastPullAttemptAt: 0,
     };
   }
   return readStatusRaw();
@@ -267,6 +282,9 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     lastOperationAt: typeof next.lastOperationAt === "number" ? next.lastOperationAt : prev.lastOperationAt,
     lastOperationDetail: typeof next.lastOperationDetail === "string" ? next.lastOperationDetail : prev.lastOperationDetail,
     pullCooldownActive: typeof next.pullCooldownActive === "boolean" ? next.pullCooldownActive : prev.pullCooldownActive,
+    lastTickAt: typeof next.lastTickAt === "number" ? next.lastTickAt : prev.lastTickAt,
+    lastPushAttemptAt: typeof next.lastPushAttemptAt === "number" ? next.lastPushAttemptAt : prev.lastPushAttemptAt,
+    lastPullAttemptAt: typeof next.lastPullAttemptAt === "number" ? next.lastPullAttemptAt : prev.lastPullAttemptAt,
   };
   try {
     window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
@@ -494,6 +512,7 @@ export function startLiveCloudSync(appVersion: string) {
       lastOperation: "push",
       lastOperationAt: Date.now(),
       lastOperationDetail: "Pushing local changes",
+      lastPushAttemptAt: Date.now(),
     });
 
     const values = collectLocalValues();
@@ -591,6 +610,7 @@ export function startLiveCloudSync(appVersion: string) {
       lastOperation: fullPull ? "pull-full" : "pull",
       lastOperationAt: Date.now(),
       lastOperationDetail: fullPull ? "Running full cloud import" : "Running cloud pull",
+      lastPullAttemptAt: Date.now(),
       pullSuspended,
       pullBackoffUntil,
       consecutivePullTimeouts,
@@ -931,6 +951,7 @@ export function startLiveCloudSync(appVersion: string) {
     }
     syncInFlight = true;
     try {
+      writeStatus({ lastTickAt: Date.now() });
       await pushLocalValues();
 
       const nowTs = Date.now();

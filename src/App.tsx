@@ -508,6 +508,9 @@ export default function App() {
             <div className="appSyncPanelLine">Sync Mode: {syncStatus.realtimeDisabled ? "Fallback Polling" : "Realtime + Polling"}</div>
             <div className="appSyncPanelLine">Consecutive Pull Timeouts: {syncStatus.consecutivePullTimeouts}</div>
             <div className="appSyncPanelLine">Pull Cooldown Until: {syncStatus.pullCooldownActive ? fmt(syncStatus.pullBackoffUntil) : "Not active"}</div>
+            <div className="appSyncPanelLine">Last Tick: {syncStatus.lastTickAt > 0 ? fmt(syncStatus.lastTickAt) : "—"}</div>
+            <div className="appSyncPanelLine">Last Push Attempt: {syncStatus.lastPushAttemptAt > 0 ? fmt(syncStatus.lastPushAttemptAt) : "—"}</div>
+            <div className="appSyncPanelLine">Last Pull Attempt: {syncStatus.lastPullAttemptAt > 0 ? fmt(syncStatus.lastPullAttemptAt) : "—"}</div>
             <div className="appSyncPanelLine">Last Operation: {syncStatus.lastOperation || "—"}</div>
             <div className="appSyncPanelLine">Last Operation Time: {syncStatus.lastOperationAt > 0 ? fmt(syncStatus.lastOperationAt) : "—"}</div>
             <div className="appSyncPanelLine">Operation Detail: {syncStatus.lastOperationDetail || "None"}</div>
