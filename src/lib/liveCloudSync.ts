@@ -65,15 +65,26 @@ async function withRetry<T>(action: () => Promise<T>, retries: number): Promise<
   throw lastError;
 }
 
-async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
-  return await Promise.race<T>([
-    Promise.resolve(promise),
-    new Promise<T>((_, reject) => {
-      window.setTimeout(() => {
-        reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-    }),
-  ]);
+async function withAbortTimeout<T>(
+  run: (signal: AbortSignal) => PromiseLike<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await Promise.resolve(run(controller.signal));
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`${label} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function sanitizeEnv(value?: string): string {
@@ -385,20 +396,20 @@ export function startLiveCloudSync(appVersion: string) {
 
     try {
       await withRetry(async () => {
-        const upsertResult: { error: { message?: string } | null } = await withTimeout(
-          client.from(SYNC_TABLE).upsert(row, { onConflict: "id" }),
+        const upsertResult: { error: { message?: string } | null } = await withAbortTimeout(
+          (signal) => client.from(SYNC_TABLE).upsert(row, { onConflict: "id" }).abortSignal(signal),
           REQUEST_TIMEOUT_MS,
           "push upsert"
         );
         if (upsertResult.error) {
-          const updateResult: { error: { message?: string } | null } = await withTimeout(
-            client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE),
+          const updateResult: { error: { message?: string } | null } = await withAbortTimeout(
+            (signal) => client.from(SYNC_TABLE).update(row).eq("id", SYNC_SPACE).abortSignal(signal),
             REQUEST_TIMEOUT_MS,
             "push update"
           );
           if (updateResult.error) {
-            const insertResult: { error: { message?: string } | null } = await withTimeout(
-              client.from(SYNC_TABLE).insert(row),
+            const insertResult: { error: { message?: string } | null } = await withAbortTimeout(
+              (signal) => client.from(SYNC_TABLE).insert(row).abortSignal(signal),
               REQUEST_TIMEOUT_MS,
               "push insert"
             );
@@ -473,8 +484,8 @@ export function startLiveCloudSync(appVersion: string) {
     let error: { message?: string } | null = null;
     try {
       const metaResult = await withRetry(async (): Promise<{ data: { updated_at?: unknown } | null; error: { message?: string } | null }> => {
-        const next: { data: { updated_at?: unknown } | null; error: { message?: string } | null } = await withTimeout(
-          client.from(SYNC_TABLE).select("updated_at").eq("id", SYNC_SPACE).maybeSingle(),
+        const next: { data: { updated_at?: unknown } | null; error: { message?: string } | null } = await withAbortTimeout(
+          (signal) => client.from(SYNC_TABLE).select("updated_at").eq("id", SYNC_SPACE).abortSignal(signal).maybeSingle(),
           PULL_META_TIMEOUT_MS,
           "pull meta"
         );
@@ -552,8 +563,8 @@ export function startLiveCloudSync(appVersion: string) {
     error = null;
     try {
       const result = await withRetry(async (): Promise<{ data: { updated_at?: unknown; payload?: unknown } | null; error: { message?: string } | null }> => {
-        const next: { data: { updated_at?: unknown; payload?: unknown } | null; error: { message?: string } | null } = await withTimeout(
-          client.from(SYNC_TABLE).select("updated_at,payload").eq("id", SYNC_SPACE).maybeSingle(),
+        const next: { data: { updated_at?: unknown; payload?: unknown } | null; error: { message?: string } | null } = await withAbortTimeout(
+          (signal) => client.from(SYNC_TABLE).select("updated_at,payload").eq("id", SYNC_SPACE).abortSignal(signal).maybeSingle(),
           REQUEST_TIMEOUT_MS,
           "pull select"
         );
