@@ -16,6 +16,7 @@ const POLL_MS = 6000;
 const BACKGROUND_PULL_MS = 120000;
 const FALLBACK_PULL_MS = 30000;
 const PULL_COOLDOWN_MS = 180000;
+const PULL_TIMEOUT_SUSPEND_AFTER = 2;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -347,6 +348,8 @@ export function startLiveCloudSync(appVersion: string) {
   let lastRemoteUpdatedAt = "";
   let lastForcedPullAt = 0;
   let pullBackoffUntil = 0;
+  let consecutivePullTimeouts = 0;
+  let pullSuspended = false;
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
@@ -426,7 +429,17 @@ export function startLiveCloudSync(appVersion: string) {
     });
   }
 
-  async function pullRemoteValues() {
+  async function pullRemoteValues(opts?: { force?: boolean }) {
+    const force = !!opts?.force;
+
+    if (pullSuspended && !force) {
+      writeStatus({
+        state: "connected",
+        lastError: "Automatic pull suspended after repeated mobile network timeouts. Use Retry Sync for manual pull attempts.",
+      });
+      return;
+    }
+
     const nowTs = Date.now();
     if (nowTs < pullBackoffUntil) {
       const current = readStatusRaw();
@@ -470,7 +483,11 @@ export function startLiveCloudSync(appVersion: string) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
       const isTimeout = (error.message || "").toLowerCase().includes("timed out");
       if (isTimeout) {
+        consecutivePullTimeouts += 1;
         pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+        if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
+          pullSuspended = true;
+        }
       }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
@@ -541,7 +558,11 @@ export function startLiveCloudSync(appVersion: string) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
       const isTimeout = (error.message || "").toLowerCase().includes("timed out");
       if (isTimeout) {
+        consecutivePullTimeouts += 1;
         pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+        if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
+          pullSuspended = true;
+        }
       }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
@@ -571,6 +592,8 @@ export function startLiveCloudSync(appVersion: string) {
     }
 
     lastRemoteUpdatedAt = normalizeUpdatedAt(data?.updated_at) || remoteUpdatedAt;
+    consecutivePullTimeouts = 0;
+    pullSuspended = false;
 
     const snapshot = normalizeSnapshot(data?.payload);
     if (!snapshot) {
@@ -616,7 +639,7 @@ export function startLiveCloudSync(appVersion: string) {
       const shouldRunPull = forcePull || nowTs - lastForcedPullAt >= pullInterval;
       if (shouldRunPull) {
         lastForcedPullAt = nowTs;
-        await pullRemoteValues();
+        await pullRemoteValues({ force: forcePull });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error";
@@ -631,7 +654,7 @@ export function startLiveCloudSync(appVersion: string) {
     }
   };
 
-  void pullRemoteValues().then(() => pushLocalValues()).catch(() => {
+  void pullRemoteValues({ force: true }).then(() => pushLocalValues()).catch(() => {
     // no-op: already logged by pull/push
   });
 
@@ -725,6 +748,8 @@ export function startLiveCloudSync(appVersion: string) {
 
   const onSyncNow = () => {
     pullBackoffUntil = 0;
+    pullSuspended = false;
+    consecutivePullTimeouts = 0;
     writeStatus({ state: "connecting", lastError: "" });
     void runSyncTick({ forcePull: true });
   };
