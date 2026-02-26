@@ -33,6 +33,8 @@ const TRACKED_KEYS = new Set([
   "inventory.jobs.v1",
   "inventory.jobUsage.v1",
   "inventory.toolSignoutRequests.v1",
+  "inventory.activity.v1",
+  "inventory.partsUsedDraft.v1",
 ]);
 
 type CloudSnapshot = {
