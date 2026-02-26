@@ -15,9 +15,9 @@ const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "d
 
 const POLL_MS = 6000;
 const BACKGROUND_PULL_MS = 120000;
-const FALLBACK_PULL_MS = 30000;
-const PULL_COOLDOWN_MS = 180000;
-const PULL_TIMEOUT_SUSPEND_AFTER = 4;
+const FALLBACK_PULL_MS = 10000;
+const PULL_COOLDOWN_MS = 20000;
+const PULL_TIMEOUT_SUSPEND_AFTER = 999999;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -659,7 +659,7 @@ export function startLiveCloudSync(appVersion: string) {
       } else {
         if (isRetryableNetwork) {
           writeStatus({
-            state: "connecting",
+            state: "connected",
             lastError: isTimeout
               ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
               : isAborted
@@ -784,7 +784,7 @@ export function startLiveCloudSync(appVersion: string) {
       } else {
         if (isRetryableNetwork) {
           writeStatus({
-            state: "connecting",
+            state: "connected",
             lastError: isTimeout
               ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
               : isAborted
@@ -976,10 +976,6 @@ export function startLiveCloudSync(appVersion: string) {
           lastOperationAt: Date.now(),
           lastOperationDetail: `Realtime channel degraded: ${status}`,
         });
-        if (channel) {
-          void client.removeChannel(channel);
-          channel = null;
-        }
         void runSyncTick({ forcePull: true });
       }
     });
