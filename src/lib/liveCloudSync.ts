@@ -555,7 +555,29 @@ export function startLiveCloudSync(appVersion: string) {
 
     const values = collectLocalValues();
     const nextSignature = signatureFor(values);
-    if (nextSignature === currentSignature) return;
+    if (nextSignature === currentSignature) {
+      const nowTs = Date.now();
+      writeStatus({
+        state: "connected",
+        lastSyncAt: nowTs,
+        lastError: "",
+        lastErrorCode: "",
+        lastPushAt: nowTs,
+        lastPushError: "",
+        lastPushErrorCode: "",
+        pullSuspended,
+        pullBackoffUntil,
+        consecutivePullTimeouts,
+        realtimeDisabled,
+        pullCooldownActive: false,
+        lastOperation: "push",
+        lastOperationAt: nowTs,
+        lastOperationDetail: "Push: no changes (already synced)",
+        trackedLocalKeyCount: Object.keys(values).length,
+        trackedRemoteKeyCount: Object.keys(values).length,
+      });
+      return;
+    }
 
     const localTrackedCount = Object.keys(values).length;
 
@@ -856,6 +878,36 @@ export function startLiveCloudSync(appVersion: string) {
       }
 
       if (remoteUpdatedAt === lastRemoteUpdatedAt) {
+        const nowTs = Date.now();
+        let remoteKeyCount = 0;
+        let remoteValues: Record<string, string> = {};
+        if (typeof data === "object" && data !== null && "payload" in data) {
+          const payload = (data as Record<string, unknown>).payload;
+          const snapshot = normalizeSnapshot(payload);
+          if (snapshot) {
+            remoteValues = extractTrackedValues(snapshot.values);
+            remoteKeyCount = Object.keys(remoteValues).length;
+          }
+        }
+        writeStatus({
+          state: "connected",
+          lastSyncAt: nowTs,
+          lastError: "",
+          lastErrorCode: "",
+          lastPullAt: nowTs,
+          lastPullError: "",
+          lastPullErrorCode: "",
+          pullSuspended,
+          pullBackoffUntil,
+          consecutivePullTimeouts,
+          realtimeDisabled,
+          pullCooldownActive: false,
+          lastOperation: fullPull ? "pull-full" : "pull",
+          lastOperationAt: nowTs,
+          lastOperationDetail: "Pull: no changes (already synced)",
+          trackedLocalKeyCount: localTrackedCount,
+          trackedRemoteKeyCount: remoteKeyCount,
+        });
         return;
       }
     }
@@ -973,6 +1025,26 @@ export function startLiveCloudSync(appVersion: string) {
     const remoteTrackedCount = Object.keys(remoteValues).length;
     const remoteSignature = signatureFor(remoteValues);
     if (remoteSignature === currentSignature) {
+      const nowTs = Date.now();
+      writeStatus({
+        state: "connected",
+        lastSyncAt: nowTs,
+        lastError: "",
+        lastErrorCode: "",
+        lastPullAt: nowTs,
+        lastPullError: "",
+        lastPullErrorCode: "",
+        pullSuspended,
+        pullBackoffUntil,
+        consecutivePullTimeouts,
+        realtimeDisabled,
+        pullCooldownActive: false,
+        lastOperation: fullPull ? "pull-full" : "pull",
+        lastOperationAt: nowTs,
+        lastOperationDetail: "Pull: no changes (already synced)",
+        trackedLocalKeyCount: Object.keys(collectLocalValues()).length,
+        trackedRemoteKeyCount: Object.keys(remoteValues).length,
+      });
       return;
     }
 
@@ -1071,7 +1143,29 @@ export function startLiveCloudSync(appVersion: string) {
         const remoteValues = extractTrackedValues(snapshot.values);
         const remoteTrackedCount = Object.keys(remoteValues).length;
         const remoteSignature = signatureFor(remoteValues);
-        if (remoteSignature === currentSignature) return;
+        if (remoteSignature === currentSignature) {
+          const nowTs = Date.now();
+          writeStatus({
+            state: "connected",
+            lastSyncAt: nowTs,
+            lastError: "",
+            lastErrorCode: "",
+            lastPullAt: nowTs,
+            lastPullError: "",
+            lastPullErrorCode: "",
+            pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            pullCooldownActive: false,
+            lastOperation: "realtime",
+            lastOperationAt: nowTs,
+            lastOperationDetail: "Realtime: no changes (already synced)",
+            trackedLocalKeyCount: Object.keys(collectLocalValues()).length,
+            trackedRemoteKeyCount: Object.keys(remoteValues).length,
+          });
+          return;
+        }
 
         applyingRemote = true;
         try {
