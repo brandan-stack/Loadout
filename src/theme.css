@@ -1561,6 +1561,47 @@ button:focus-visible,
   border-color: var(--border2);
 }
 
+.appSyncInline {
+  margin-top: 8px;
+  margin-left: auto;
+  width: min(820px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: color-mix(in srgb, var(--panel2) 88%, transparent);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.appSyncInlineState {
+  font-weight: 1000;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.appSyncInlineText {
+  color: var(--muted);
+}
+
+.appSyncInline.connected {
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--border2));
+}
+
+.appSyncInline.connecting {
+  border-color: color-mix(in srgb, var(--warn) 62%, var(--border2));
+}
+
+.appSyncInline.error {
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border2));
+}
+
+.appSyncInline.disabled {
+  border-color: var(--border2);
+}
+
 .appSignedInPill {
   display: inline-flex;
   align-items: center;
@@ -1604,6 +1645,15 @@ button:focus-visible,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
+}
+
+@media (max-width: 980px) {
+  .appSyncInline {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
 }
 
 .appContent {

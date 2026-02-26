@@ -209,6 +209,9 @@ export default function App() {
       : syncStatus.state === "error"
       ? "Error"
       : "Disabled";
+  const syncInlineSummary = syncStatus.pullSuspended
+    ? "Inbound pull suspended. Use Import Latest."
+    : syncStatus.lastOperationDetail || syncStatus.lastError || "Sync active.";
 
   useEffect(() => {
     const onResize = () => {
@@ -487,6 +490,11 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className={`appSyncInline ${syncStatus.state}`} role="status" aria-live="polite">
+          <span className="appSyncInlineState">{syncStateText}</span>
+          <span className="appSyncInlineText">{syncInlineSummary}</span>
         </div>
 
         {syncPanelOpen ? (
