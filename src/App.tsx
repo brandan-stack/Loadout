@@ -211,7 +211,7 @@ export default function App() {
       : "Disabled";
   const syncInlineSummary = syncStatus.pullSuspended
     ? "Inbound pull suspended. Use Import Latest."
-    : syncStatus.lastOperationDetail || syncStatus.lastError || "Sync active.";
+    : `${syncStatus.lastOperationDetail || syncStatus.lastError || "Sync active."} Keys: ${syncStatus.trackedLocalKeyCount}/${syncStatus.trackedRemoteKeyCount}`;
 
   useEffect(() => {
     const onResize = () => {
@@ -509,6 +509,7 @@ export default function App() {
             <div className="appSyncPanelLine">Consecutive Pull Timeouts: {syncStatus.consecutivePullTimeouts}</div>
             <div className="appSyncPanelLine">Pull Cooldown Until: {syncStatus.pullCooldownActive ? fmt(syncStatus.pullBackoffUntil) : "Not active"}</div>
             <div className="appSyncPanelLine">Last Tick: {syncStatus.lastTickAt > 0 ? fmt(syncStatus.lastTickAt) : "—"}</div>
+            <div className="appSyncPanelLine">Tracked Keys (Local/Remote): {syncStatus.trackedLocalKeyCount}/{syncStatus.trackedRemoteKeyCount}</div>
             <div className="appSyncPanelLine">Last Push Attempt: {syncStatus.lastPushAttemptAt > 0 ? fmt(syncStatus.lastPushAttemptAt) : "—"}</div>
             <div className="appSyncPanelLine">Last Pull Attempt: {syncStatus.lastPullAttemptAt > 0 ? fmt(syncStatus.lastPullAttemptAt) : "—"}</div>
             <div className="appSyncPanelLine">Last Operation: {syncStatus.lastOperation || "—"}</div>

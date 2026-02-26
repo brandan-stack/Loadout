@@ -141,6 +141,8 @@ export type LiveCloudSyncStatus = {
   lastTickAt: number;
   lastPushAttemptAt: number;
   lastPullAttemptAt: number;
+  trackedLocalKeyCount: number;
+  trackedRemoteKeyCount: number;
 };
 
 function readStatusRaw(): LiveCloudSyncStatus {
@@ -169,6 +171,8 @@ function readStatusRaw(): LiveCloudSyncStatus {
         lastTickAt: 0,
         lastPushAttemptAt: 0,
         lastPullAttemptAt: 0,
+        trackedLocalKeyCount: 0,
+        trackedRemoteKeyCount: 0,
       };
     }
     const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
@@ -195,6 +199,8 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastTickAt: safeNumber(parsed.lastTickAt, 0),
       lastPushAttemptAt: safeNumber(parsed.lastPushAttemptAt, 0),
       lastPullAttemptAt: safeNumber(parsed.lastPullAttemptAt, 0),
+      trackedLocalKeyCount: safeNumber(parsed.trackedLocalKeyCount, 0),
+      trackedRemoteKeyCount: safeNumber(parsed.trackedRemoteKeyCount, 0),
     };
   } catch {
     return {
@@ -219,6 +225,8 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastTickAt: 0,
       lastPushAttemptAt: 0,
       lastPullAttemptAt: 0,
+      trackedLocalKeyCount: 0,
+      trackedRemoteKeyCount: 0,
     };
   }
 }
@@ -247,6 +255,8 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
       lastTickAt: 0,
       lastPushAttemptAt: 0,
       lastPullAttemptAt: 0,
+      trackedLocalKeyCount: 0,
+      trackedRemoteKeyCount: 0,
     };
   }
   return readStatusRaw();
@@ -287,6 +297,8 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     lastTickAt: typeof next.lastTickAt === "number" ? next.lastTickAt : prev.lastTickAt,
     lastPushAttemptAt: typeof next.lastPushAttemptAt === "number" ? next.lastPushAttemptAt : prev.lastPushAttemptAt,
     lastPullAttemptAt: typeof next.lastPullAttemptAt === "number" ? next.lastPullAttemptAt : prev.lastPullAttemptAt,
+    trackedLocalKeyCount: typeof next.trackedLocalKeyCount === "number" ? next.trackedLocalKeyCount : prev.trackedLocalKeyCount,
+    trackedRemoteKeyCount: typeof next.trackedRemoteKeyCount === "number" ? next.trackedRemoteKeyCount : prev.trackedRemoteKeyCount,
   };
   try {
     window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
@@ -521,6 +533,8 @@ export function startLiveCloudSync(appVersion: string) {
     const nextSignature = signatureFor(values);
     if (nextSignature === currentSignature) return;
 
+    const localTrackedCount = Object.keys(values).length;
+
     const snapshot: CloudSnapshot = {
       updatedAt: Date.now(),
       updatedBy: deviceId,
@@ -600,6 +614,8 @@ export function startLiveCloudSync(appVersion: string) {
       lastOperation: "push",
       lastOperationAt: pushTs,
       lastOperationDetail: "Push successful",
+      trackedLocalKeyCount: localTrackedCount,
+      trackedRemoteKeyCount: localTrackedCount,
     });
   }
 
@@ -656,6 +672,7 @@ export function startLiveCloudSync(appVersion: string) {
     }
 
     const localValues = collectLocalValues();
+    const localTrackedCount = Object.keys(localValues).length;
     const localSignature = signatureFor(localValues);
     const hasUnsyncedLocalChanges = localSignature !== currentSignature;
     if (hasUnsyncedLocalChanges) {
@@ -784,6 +801,7 @@ export function startLiveCloudSync(appVersion: string) {
       lastOperation: fullPull ? "pull-full" : "pull",
       lastOperationAt: heartbeatTs,
       lastOperationDetail: "Pull metadata check successful",
+      trackedLocalKeyCount: localTrackedCount,
     });
 
     let remoteUpdatedAt = "";
@@ -909,6 +927,7 @@ export function startLiveCloudSync(appVersion: string) {
     }
 
     const remoteValues = extractTrackedValues(snapshot.values);
+    const remoteTrackedCount = Object.keys(remoteValues).length;
     const remoteSignature = signatureFor(remoteValues);
     if (remoteSignature === currentSignature) {
       return;
@@ -935,6 +954,8 @@ export function startLiveCloudSync(appVersion: string) {
         lastOperation: fullPull ? "pull-full" : "pull",
         lastOperationAt: Date.now(),
         lastOperationDetail: "Pull payload applied",
+        trackedLocalKeyCount: Object.keys(collectLocalValues()).length,
+        trackedRemoteKeyCount: remoteTrackedCount,
       });
       notifyStateUpdated();
     } finally {
@@ -1005,6 +1026,7 @@ export function startLiveCloudSync(appVersion: string) {
         if (!snapshot) return;
 
         const remoteValues = extractTrackedValues(snapshot.values);
+        const remoteTrackedCount = Object.keys(remoteValues).length;
         const remoteSignature = signatureFor(remoteValues);
         if (remoteSignature === currentSignature) return;
 
@@ -1029,6 +1051,8 @@ export function startLiveCloudSync(appVersion: string) {
             lastOperation: "realtime",
             lastOperationAt: Date.now(),
             lastOperationDetail: "Realtime payload applied",
+            trackedLocalKeyCount: Object.keys(collectLocalValues()).length,
+            trackedRemoteKeyCount: remoteTrackedCount,
           });
           notifyStateUpdated();
         } finally {
