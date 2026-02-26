@@ -496,6 +496,7 @@ export default function App() {
             <div className="appSyncPanelLine">Last Sync: {syncStatus.lastSyncAt > 0 ? fmt(syncStatus.lastSyncAt) : "—"}</div>
             <div className="appSyncPanelLine">Last Push: {syncStatus.lastPushAt > 0 ? fmt(syncStatus.lastPushAt) : "—"}</div>
             <div className="appSyncPanelLine">Last Pull: {syncStatus.lastPullAt > 0 ? fmt(syncStatus.lastPullAt) : "—"}</div>
+            <div className="appSyncPanelLine">Inbound Pull: {syncStatus.pullSuspended ? "Suspended" : "Active"}</div>
             <div className="appSyncPanelLine">Push Error: {syncStatus.lastPushError || "None"}</div>
             <div className="appSyncPanelLine">Pull Error: {syncStatus.lastPullError || "None"}</div>
             <div className="appSyncPanelLine">Details: {syncStatus.lastError || "No active errors."}</div>
