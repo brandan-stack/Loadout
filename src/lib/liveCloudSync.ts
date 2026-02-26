@@ -80,7 +80,7 @@ async function withAbortTimeout<T>(
     return await Promise.resolve(run(controller.signal));
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error(`${label} timed out after ${timeoutMs}ms`);
+      throw new Error(`${label} timed out`);
     }
     throw error;
   } finally {
