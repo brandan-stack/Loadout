@@ -26,7 +26,7 @@ import {
 } from "./lib/authStore";
 import { getUnreadCountForUser } from "./lib/jobNotificationsStore";
 import { getToolAlertsForUser } from "./lib/toolSignoutStore";
-import { readLiveCloudSyncStatus, requestLiveCloudSyncNow, type LiveCloudSyncStatus } from "./lib/liveCloudSync";
+import { readLiveCloudSyncStatus, requestLiveCloudSyncNow, requestLiveCloudImportLatest, type LiveCloudSyncStatus } from "./lib/liveCloudSync";
 
 declare const __APP_VERSION__: string;
 
@@ -509,6 +509,15 @@ export default function App() {
                 }}
               >
                 Retry Sync
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  requestLiveCloudImportLatest();
+                }}
+              >
+                Import Latest
               </button>
               <button type="button" className="btn" onClick={() => setSyncPanelOpen(false)}>
                 Close

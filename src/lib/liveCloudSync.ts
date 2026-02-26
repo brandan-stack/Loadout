@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 const EVENT_NAME = "loadout:state-updated";
 const STATUS_EVENT_NAME = "loadout:sync-status";
 const SYNC_NOW_EVENT_NAME = "loadout:sync-now";
+const SYNC_IMPORT_EVENT_NAME = "loadout:sync-import-latest";
 const DEVICE_ID_KEY = "loadout.syncDeviceId.v1";
 const LAST_SYNC_TS_KEY = "loadout.syncLastTimestamp.v1";
 const STATUS_KEY = "loadout.syncStatus.v1";
@@ -178,6 +179,11 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
 export function requestLiveCloudSyncNow() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(SYNC_NOW_EVENT_NAME));
+}
+
+export function requestLiveCloudImportLatest() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(SYNC_IMPORT_EVENT_NAME));
 }
 
 function writeStatus(next: Partial<LiveCloudSyncStatus>) {
@@ -384,6 +390,7 @@ export function startLiveCloudSync(appVersion: string) {
   let syncInFlight = false;
   let syncQueued = false;
   let syncQueuedForcePull = false;
+  let syncQueuedFullPull = false;
   let realtimeDisabled = false;
 
   async function pushLocalValues() {
@@ -461,8 +468,9 @@ export function startLiveCloudSync(appVersion: string) {
     });
   }
 
-  async function pullRemoteValues(opts?: { force?: boolean }) {
+  async function pullRemoteValues(opts?: { force?: boolean; full?: boolean }) {
     const force = !!opts?.force;
+    const fullPull = !!opts?.full;
 
     if (pullSuspended && !force) {
       writeStatus({
@@ -496,21 +504,23 @@ export function startLiveCloudSync(appVersion: string) {
     let metaData: { updated_at?: unknown } | null = null;
     let data: { updated_at?: unknown; payload?: unknown } | null = null;
     let error: { message?: string } | null = null;
-    try {
-      const metaResult = await withRetry(async (): Promise<{ data: { updated_at?: unknown } | null; error: { message?: string } | null }> => {
-        const next: { data: { updated_at?: unknown } | null; error: { message?: string } | null } = await withAbortTimeout(
-          (signal) => client.from(SYNC_TABLE).select("updated_at").eq("id", SYNC_SPACE).abortSignal(signal).maybeSingle(),
-          PULL_META_TIMEOUT_MS,
-          "pull meta"
-        );
-        if (next.error) {
-          throw next.error;
-        }
-        return next;
-      }, PULL_RETRIES);
-      metaData = metaResult.data;
-    } catch (err) {
-      error = (err as { message?: string }) ?? { message: "Unknown pull error" };
+    if (!fullPull) {
+      try {
+        const metaResult = await withRetry(async (): Promise<{ data: { updated_at?: unknown } | null; error: { message?: string } | null }> => {
+          const next: { data: { updated_at?: unknown } | null; error: { message?: string } | null } = await withAbortTimeout(
+            (signal) => client.from(SYNC_TABLE).select("updated_at").eq("id", SYNC_SPACE).abortSignal(signal).maybeSingle(),
+            PULL_META_TIMEOUT_MS,
+            "pull meta"
+          );
+          if (next.error) {
+            throw next.error;
+          }
+          return next;
+        }, PULL_RETRIES);
+        metaData = metaResult.data;
+      } catch (err) {
+        error = (err as { message?: string }) ?? { message: "Unknown pull error" };
+      }
     }
 
     if (error) {
@@ -579,14 +589,17 @@ export function startLiveCloudSync(appVersion: string) {
       pullSuspended,
     });
 
-    const remoteUpdatedAt = normalizeUpdatedAt(metaData?.updated_at);
-    if (!remoteUpdatedAt) {
-      lastRemoteUpdatedAt = "";
-      return;
-    }
+    let remoteUpdatedAt = "";
+    if (!fullPull) {
+      remoteUpdatedAt = normalizeUpdatedAt(metaData?.updated_at);
+      if (!remoteUpdatedAt) {
+        lastRemoteUpdatedAt = "";
+        return;
+      }
 
-    if (remoteUpdatedAt === lastRemoteUpdatedAt) {
-      return;
+      if (remoteUpdatedAt === lastRemoteUpdatedAt) {
+        return;
+      }
     }
 
     error = null;
@@ -696,11 +709,13 @@ export function startLiveCloudSync(appVersion: string) {
     }
   }
 
-  const runSyncTick = async (opts?: { forcePull?: boolean }) => {
+  const runSyncTick = async (opts?: { forcePull?: boolean; fullPull?: boolean }) => {
     const forcePull = !!opts?.forcePull;
+    const fullPull = !!opts?.fullPull;
     if (syncInFlight) {
       syncQueued = true;
       syncQueuedForcePull = syncQueuedForcePull || forcePull;
+      syncQueuedFullPull = syncQueuedFullPull || fullPull;
       return;
     }
     syncInFlight = true;
@@ -709,10 +724,10 @@ export function startLiveCloudSync(appVersion: string) {
 
       const nowTs = Date.now();
       const pullInterval = realtimeDisabled ? FALLBACK_PULL_MS : BACKGROUND_PULL_MS;
-      const shouldRunPull = forcePull || nowTs - lastForcedPullAt >= pullInterval;
+      const shouldRunPull = fullPull || forcePull || nowTs - lastForcedPullAt >= pullInterval;
       if (shouldRunPull) {
         lastForcedPullAt = nowTs;
-        await pullRemoteValues({ force: forcePull });
+        await pullRemoteValues({ force: forcePull, full: fullPull });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error";
@@ -722,9 +737,11 @@ export function startLiveCloudSync(appVersion: string) {
       syncInFlight = false;
       if (syncQueued) {
         const queuedForcePull = syncQueuedForcePull;
+        const queuedFullPull = syncQueuedFullPull;
         syncQueued = false;
         syncQueuedForcePull = false;
-        void runSyncTick({ forcePull: queuedForcePull });
+        syncQueuedFullPull = false;
+        void runSyncTick({ forcePull: queuedForcePull, fullPull: queuedFullPull });
       }
     }
   };
@@ -831,6 +848,15 @@ export function startLiveCloudSync(appVersion: string) {
   };
   window.addEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
 
+  const onSyncImport = () => {
+    pullBackoffUntil = 0;
+    pullSuspended = false;
+    consecutivePullTimeouts = 0;
+    writeStatus({ state: "connecting", lastError: "Importing latest cloud data...", pullSuspended: false });
+    void runSyncTick({ forcePull: true, fullPull: true });
+  };
+  window.addEventListener(SYNC_IMPORT_EVENT_NAME, onSyncImport);
+
   const onBeforeUnload = () => {
     void runSyncTick({ forcePull: true });
   };
@@ -842,6 +868,7 @@ export function startLiveCloudSync(appVersion: string) {
     window.removeEventListener(EVENT_NAME, onLocalStateUpdated);
     window.removeEventListener("storage", onStorage);
     window.removeEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
+    window.removeEventListener(SYNC_IMPORT_EVENT_NAME, onSyncImport);
     window.removeEventListener("beforeunload", onBeforeUnload);
     window.clearInterval(timer);
     if (channel) {
