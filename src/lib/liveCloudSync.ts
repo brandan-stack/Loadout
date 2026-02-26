@@ -1044,9 +1044,7 @@ export function startLiveCloudSync(appVersion: string) {
         writeStatus({
           realtimeDisabled,
           pullCooldownActive: Date.now() < pullBackoffUntil,
-          lastOperation: "realtime",
-          lastOperationAt: Date.now(),
-          lastOperationDetail: "Realtime channel subscribed",
+          lastErrorCode: "",
         });
         void runSyncTick({ forcePull: true });
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -1056,11 +1054,8 @@ export function startLiveCloudSync(appVersion: string) {
         writeStatus({
           realtimeDisabled,
           pullCooldownActive: Date.now() < pullBackoffUntil,
-          lastOperation: "realtime",
-          lastOperationAt: Date.now(),
-          lastOperationDetail: `Realtime channel degraded: ${status}`,
         });
-        void runSyncTick({ forcePull: true });
+        void runSyncTick({ forcePull: false });
       }
     });
 
