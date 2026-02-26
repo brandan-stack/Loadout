@@ -238,6 +238,11 @@ function normalizeUpdatedAt(value: unknown): string {
   return safeString(value, "").trim();
 }
 
+function isRetryablePullNetworkError(message: string): boolean {
+  const text = message.toLowerCase();
+  return text.includes("timed out") || text.includes("aborted") || text.includes("networkerror") || text.includes("failed to fetch");
+}
+
 function shouldTrackKey(key: string): boolean {
   return TRACKED_KEYS.has(key);
 }
@@ -501,8 +506,8 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      const isTimeout = (error.message || "").toLowerCase().includes("timed out");
-      if (isTimeout) {
+      const isRetryableNetwork = isRetryablePullNetworkError(error.message || "");
+      if (isRetryableNetwork) {
         consecutivePullTimeouts += 1;
         pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
         if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
@@ -513,17 +518,17 @@ export function startLiveCloudSync(appVersion: string) {
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: isTimeout
-            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+          lastError: isRetryableNetwork
+            ? `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: error.message || "Pull failed",
           pullSuspended,
         });
       } else {
-        if (isTimeout) {
+        if (isRetryableNetwork) {
           writeStatus({
             state: "connecting",
-            lastError: `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
+            lastError: `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
             lastPullError: error.message || "Pull failed",
             pullSuspended,
           });
@@ -580,8 +585,8 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
-      const isTimeout = (error.message || "").toLowerCase().includes("timed out");
-      if (isTimeout) {
+      const isRetryableNetwork = isRetryablePullNetworkError(error.message || "");
+      if (isRetryableNetwork) {
         consecutivePullTimeouts += 1;
         pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
         if (consecutivePullTimeouts >= PULL_TIMEOUT_SUSPEND_AFTER) {
@@ -592,17 +597,17 @@ export function startLiveCloudSync(appVersion: string) {
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: isTimeout
-            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+          lastError: isRetryableNetwork
+            ? `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: error.message || "Pull failed",
           pullSuspended,
         });
       } else {
-        if (isTimeout) {
+        if (isRetryableNetwork) {
           writeStatus({
             state: "connecting",
-            lastError: `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
+            lastError: `Pull request interrupted on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
             lastPullError: error.message || "Pull failed",
             pullSuspended,
           });
