@@ -16,7 +16,7 @@ const POLL_MS = 6000;
 const BACKGROUND_PULL_MS = 120000;
 const FALLBACK_PULL_MS = 30000;
 const PULL_COOLDOWN_MS = 180000;
-const PULL_TIMEOUT_SUSPEND_AFTER = 2;
+const PULL_TIMEOUT_SUSPEND_AFTER = 4;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -383,6 +383,7 @@ export function startLiveCloudSync(appVersion: string) {
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
+  let syncQueuedForcePull = false;
   let realtimeDisabled = false;
 
   async function pushLocalValues() {
@@ -473,7 +474,7 @@ export function startLiveCloudSync(appVersion: string) {
     }
 
     const nowTs = Date.now();
-    if (nowTs < pullBackoffUntil) {
+    if (!force && nowTs < pullBackoffUntil) {
       const current = readStatusRaw();
       if (current.state !== "error") {
         writeStatus({
@@ -699,6 +700,7 @@ export function startLiveCloudSync(appVersion: string) {
     const forcePull = !!opts?.forcePull;
     if (syncInFlight) {
       syncQueued = true;
+      syncQueuedForcePull = syncQueuedForcePull || forcePull;
       return;
     }
     syncInFlight = true;
@@ -719,8 +721,10 @@ export function startLiveCloudSync(appVersion: string) {
     } finally {
       syncInFlight = false;
       if (syncQueued) {
+        const queuedForcePull = syncQueuedForcePull;
         syncQueued = false;
-        void runSyncTick({ forcePull: false });
+        syncQueuedForcePull = false;
+        void runSyncTick({ forcePull: queuedForcePull });
       }
     }
   };
