@@ -123,6 +123,7 @@ export type LiveCloudSyncStatus = {
   lastOperation: string;
   lastOperationAt: number;
   lastOperationDetail: string;
+  pullCooldownActive: boolean;
 };
 
 function readStatusRaw(): LiveCloudSyncStatus {
@@ -144,6 +145,7 @@ function readStatusRaw(): LiveCloudSyncStatus {
         lastOperation: "idle",
         lastOperationAt: 0,
         lastOperationDetail: "",
+        pullCooldownActive: false,
       };
     }
     const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
@@ -163,6 +165,7 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastOperation: safeString(parsed.lastOperation, "idle"),
       lastOperationAt: safeNumber(parsed.lastOperationAt, 0),
       lastOperationDetail: safeString(parsed.lastOperationDetail, ""),
+      pullCooldownActive: !!parsed.pullCooldownActive,
     };
   } catch {
     return {
@@ -180,6 +183,7 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastOperation: "idle",
       lastOperationAt: 0,
       lastOperationDetail: "",
+      pullCooldownActive: false,
     };
   }
 }
@@ -201,6 +205,7 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
       lastOperation: "idle",
       lastOperationAt: 0,
       lastOperationDetail: "",
+      pullCooldownActive: false,
     };
   }
   return readStatusRaw();
@@ -234,6 +239,7 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     lastOperation: typeof next.lastOperation === "string" ? next.lastOperation : prev.lastOperation,
     lastOperationAt: typeof next.lastOperationAt === "number" ? next.lastOperationAt : prev.lastOperationAt,
     lastOperationDetail: typeof next.lastOperationDetail === "string" ? next.lastOperationDetail : prev.lastOperationDetail,
+    pullCooldownActive: typeof next.pullCooldownActive === "boolean" ? next.pullCooldownActive : prev.pullCooldownActive,
   };
   try {
     window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
@@ -391,6 +397,7 @@ export function startLiveCloudSync(appVersion: string) {
     lastOperation: "startup",
     lastOperationAt: Date.now(),
     lastOperationDetail: "Initializing cloud sync",
+    pullCooldownActive: false,
   });
 
   if (!SYNC_URL || !SYNC_ANON_KEY) {
@@ -524,6 +531,7 @@ export function startLiveCloudSync(appVersion: string) {
       pullBackoffUntil,
       consecutivePullTimeouts,
       realtimeDisabled,
+      pullCooldownActive: false,
       lastOperation: "push",
       lastOperationAt: pushTs,
       lastOperationDetail: "Push successful",
@@ -535,6 +543,7 @@ export function startLiveCloudSync(appVersion: string) {
     const fullPull = !!opts?.full;
 
     writeStatus({
+      lastError: "",
       lastOperation: fullPull ? "pull-full" : "pull",
       lastOperationAt: Date.now(),
       lastOperationDetail: fullPull ? "Running full cloud import" : "Running cloud pull",
@@ -542,6 +551,7 @@ export function startLiveCloudSync(appVersion: string) {
       pullBackoffUntil,
       consecutivePullTimeouts,
       realtimeDisabled,
+      pullCooldownActive: Date.now() < pullBackoffUntil,
     });
 
     if (pullSuspended && !force) {
@@ -570,6 +580,7 @@ export function startLiveCloudSync(appVersion: string) {
           pullBackoffUntil,
           consecutivePullTimeouts,
           realtimeDisabled,
+          pullCooldownActive: true,
           lastOperation: "pull",
           lastOperationAt: Date.now(),
           lastOperationDetail: "Pull skipped: in cooldown window",
@@ -640,6 +651,7 @@ export function startLiveCloudSync(appVersion: string) {
           pullBackoffUntil,
           consecutivePullTimeouts,
           realtimeDisabled,
+          pullCooldownActive: isRetryableNetwork,
           lastOperation: "pull",
           lastOperationAt: Date.now(),
           lastOperationDetail: `Pull issue: ${error.message || "network interruption"}`,
@@ -658,6 +670,7 @@ export function startLiveCloudSync(appVersion: string) {
             pullBackoffUntil,
             consecutivePullTimeouts,
             realtimeDisabled,
+            pullCooldownActive: isRetryableNetwork,
             lastOperation: "pull",
             lastOperationAt: Date.now(),
             lastOperationDetail: `Pull retry queued: ${error.message || "interruption"}`,
@@ -671,6 +684,7 @@ export function startLiveCloudSync(appVersion: string) {
             pullBackoffUntil,
             consecutivePullTimeouts,
             realtimeDisabled,
+            pullCooldownActive: false,
             lastOperation: "pull",
             lastOperationAt: Date.now(),
             lastOperationDetail: `Pull failed: ${error.message || "unknown error"}`,
@@ -692,6 +706,7 @@ export function startLiveCloudSync(appVersion: string) {
       pullBackoffUntil,
       consecutivePullTimeouts,
       realtimeDisabled,
+      pullCooldownActive: false,
       lastOperation: fullPull ? "pull-full" : "pull",
       lastOperationAt: heartbeatTs,
       lastOperationDetail: "Pull metadata check successful",
@@ -761,6 +776,7 @@ export function startLiveCloudSync(appVersion: string) {
           pullBackoffUntil,
           consecutivePullTimeouts,
           realtimeDisabled,
+          pullCooldownActive: isRetryableNetwork,
           lastOperation: "pull",
           lastOperationAt: Date.now(),
           lastOperationDetail: `Pull payload issue: ${error.message || "network interruption"}`,
@@ -779,6 +795,7 @@ export function startLiveCloudSync(appVersion: string) {
             pullBackoffUntil,
             consecutivePullTimeouts,
             realtimeDisabled,
+            pullCooldownActive: isRetryableNetwork,
             lastOperation: "pull",
             lastOperationAt: Date.now(),
             lastOperationDetail: `Pull payload retry queued: ${error.message || "interruption"}`,
@@ -792,6 +809,7 @@ export function startLiveCloudSync(appVersion: string) {
             pullBackoffUntil,
             consecutivePullTimeouts,
             realtimeDisabled,
+            pullCooldownActive: false,
             lastOperation: "pull",
             lastOperationAt: Date.now(),
             lastOperationDetail: `Pull payload failed: ${error.message || "unknown error"}`,
@@ -831,6 +849,7 @@ export function startLiveCloudSync(appVersion: string) {
         pullBackoffUntil,
         consecutivePullTimeouts,
         realtimeDisabled,
+        pullCooldownActive: false,
         lastOperation: fullPull ? "pull-full" : "pull",
         lastOperationAt: Date.now(),
         lastOperationDetail: "Pull payload applied",
@@ -921,6 +940,7 @@ export function startLiveCloudSync(appVersion: string) {
             pullBackoffUntil,
             consecutivePullTimeouts,
             realtimeDisabled,
+            pullCooldownActive: false,
             lastOperation: "realtime",
             lastOperationAt: Date.now(),
             lastOperationDetail: "Realtime payload applied",
@@ -940,6 +960,7 @@ export function startLiveCloudSync(appVersion: string) {
         }
         writeStatus({
           realtimeDisabled,
+          pullCooldownActive: Date.now() < pullBackoffUntil,
           lastOperation: "realtime",
           lastOperationAt: Date.now(),
           lastOperationDetail: "Realtime channel subscribed",
@@ -955,6 +976,7 @@ export function startLiveCloudSync(appVersion: string) {
         }
         writeStatus({
           realtimeDisabled,
+          pullCooldownActive: Date.now() < pullBackoffUntil,
           lastOperation: "realtime",
           lastOperationAt: Date.now(),
           lastOperationDetail: `Realtime channel degraded: ${status}`,
@@ -1006,6 +1028,7 @@ export function startLiveCloudSync(appVersion: string) {
       state: "connecting",
       lastError: "Importing latest cloud data...",
       pullSuspended: false,
+      pullCooldownActive: false,
       lastOperation: "pull-full",
       lastOperationAt: Date.now(),
       lastOperationDetail: "Manual Import Latest requested",
