@@ -156,12 +156,8 @@ test.describe("Loadout critical flows", () => {
     await expect(page.getByRole("button", { name: /Add inventory item/i })).toBeVisible();
   });
 
-  test("Desktop sync panel shows tracked key diagnostics", async ({ page, isMobile }) => {
-    test.skip(!!isMobile, "This verification is desktop-specific.");
-
-    if (await page.locator(".appMobileNavToggle").isVisible()) {
-      test.skip(true, "This viewport is using mobile navigation layout.");
-    }
+  test("Desktop sync panel shows tracked key diagnostics", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "This verification is desktop-specific.");
 
     const syncToggle = page.getByRole("button", { name: /Open sync status details/i }).first();
     await expect(syncToggle).toBeVisible();

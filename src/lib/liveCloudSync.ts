@@ -18,6 +18,7 @@ const BACKGROUND_PULL_MS = 120000;
 const FALLBACK_PULL_MS = 10000;
 const PULL_COOLDOWN_MS = 20000;
 const PULL_TIMEOUT_SUSPEND_AFTER = 999999;
+const PUSH_COOLDOWN_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -348,7 +349,16 @@ function normalizeUpdatedAt(value: unknown): string {
 
 function isRetryablePullNetworkError(message: string): boolean {
   const text = message.toLowerCase();
-  return text.includes("timed out") || text.includes("aborted") || text.includes("networkerror") || text.includes("failed to fetch");
+  return (
+    text.includes("timed out") ||
+    text.includes("aborted") ||
+    text.includes("networkerror") ||
+    text.includes("failed to fetch") ||
+    text.includes("network request failed") ||
+    text.includes("err_connection") ||
+    text.includes("err_network") ||
+    text.includes("name_not_resolved")
+  );
 }
 
 function isPullTimeoutError(message: string): boolean {
@@ -511,6 +521,7 @@ export function startLiveCloudSync(appVersion: string) {
   let lastForcedPullAt = 0;
   let pullBackoffUntil = 0;
   let consecutivePullTimeouts = 0;
+  let pushBackoffUntil = 0;
   let pullSuspended = false;
   let applyingRemote = false;
   let syncInFlight = false;
@@ -521,6 +532,19 @@ export function startLiveCloudSync(appVersion: string) {
 
   async function pushLocalValues() {
     if (applyingRemote) return;
+
+    const nowTs = Date.now();
+    if (nowTs < pushBackoffUntil) {
+      writeStatus({
+        state: "connected",
+        lastError: "Push temporarily paused due to network restrictions; retrying automatically.",
+        lastErrorCode: "SYNC_PUSH_COOLDOWN",
+        lastOperation: "push",
+        lastOperationAt: nowTs,
+        lastOperationDetail: "Push skipped: in cooldown window",
+      });
+      return;
+    }
 
     writeStatus({
       lastOperation: "push",
@@ -581,6 +605,25 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Push failed:", error.message);
+      const message = error.message || "";
+      const isRetryableNetwork = isRetryablePullNetworkError(message);
+      const current = readStatusRaw();
+      if (isRetryableNetwork) {
+        pushBackoffUntil = Date.now() + PUSH_COOLDOWN_MS;
+      }
+      if (isRetryableNetwork && isRecentSync(current.lastSyncAt)) {
+        writeStatus({
+          state: "connected",
+          lastError: "Push blocked on this network. Local changes are saved and will retry automatically.",
+          lastErrorCode: classifySyncErrorCode("push", message || "push retry queued"),
+          lastPushError: "",
+          lastPushErrorCode: "",
+          lastOperation: "push",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: `Push retry queued: ${message || "network interruption"}`,
+        });
+        return;
+      }
       writeStatus({
         state: "error",
         lastError: `Push failed: ${error.message}`,
@@ -1152,6 +1195,41 @@ export function startLiveCloudSync(appVersion: string) {
   };
   window.addEventListener("beforeunload", onBeforeUnload);
 
+  const onOnline = () => {
+    pushBackoffUntil = 0;
+    pullBackoffUntil = 0;
+    pullSuspended = false;
+    consecutivePullTimeouts = 0;
+    writeStatus({
+      state: "connecting",
+      lastError: "Network reconnected. Syncing now...",
+      lastErrorCode: "",
+      lastPushError: "",
+      lastPushErrorCode: "",
+      lastPullError: "",
+      lastPullErrorCode: "",
+      pullSuspended: false,
+      pullCooldownActive: false,
+      lastOperation: "sync-resume",
+      lastOperationAt: Date.now(),
+      lastOperationDetail: "Connectivity restored; immediate sync requested",
+    });
+    void runSyncTick({ forcePull: true });
+  };
+  window.addEventListener("online", onOnline);
+
+  const onOffline = () => {
+    writeStatus({
+      state: "connected",
+      lastError: "Device appears offline/restricted. Local changes are saved and will sync when connectivity allows.",
+      lastErrorCode: "SYNC_NETWORK_OFFLINE",
+      lastOperation: "offline",
+      lastOperationAt: Date.now(),
+      lastOperationDetail: "Offline mode active; waiting for network recovery",
+    });
+  };
+  window.addEventListener("offline", onOffline);
+
   const teardown = () => {
     window.removeEventListener("focus", onVisibilityOrFocus);
     document.removeEventListener("visibilitychange", onVisibilityOrFocus);
@@ -1160,6 +1238,8 @@ export function startLiveCloudSync(appVersion: string) {
     window.removeEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
     window.removeEventListener(SYNC_IMPORT_EVENT_NAME, onSyncImport);
     window.removeEventListener("beforeunload", onBeforeUnload);
+    window.removeEventListener("online", onOnline);
+    window.removeEventListener("offline", onOffline);
     window.clearInterval(timer);
     if (channel) {
       void client.removeChannel(channel);
