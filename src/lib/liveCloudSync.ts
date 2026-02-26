@@ -117,6 +117,12 @@ export type LiveCloudSyncStatus = {
   lastPushError: string;
   lastPullError: string;
   pullSuspended: boolean;
+  pullBackoffUntil: number;
+  consecutivePullTimeouts: number;
+  realtimeDisabled: boolean;
+  lastOperation: string;
+  lastOperationAt: number;
+  lastOperationDetail: string;
 };
 
 function readStatusRaw(): LiveCloudSyncStatus {
@@ -132,6 +138,12 @@ function readStatusRaw(): LiveCloudSyncStatus {
         lastPushError: "",
         lastPullError: "",
         pullSuspended: false,
+        pullBackoffUntil: 0,
+        consecutivePullTimeouts: 0,
+        realtimeDisabled: false,
+        lastOperation: "idle",
+        lastOperationAt: 0,
+        lastOperationDetail: "",
       };
     }
     const parsed = JSON.parse(raw) as Partial<LiveCloudSyncStatus>;
@@ -145,6 +157,12 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastPushError: safeString(parsed.lastPushError, ""),
       lastPullError: safeString(parsed.lastPullError, ""),
       pullSuspended: !!parsed.pullSuspended,
+      pullBackoffUntil: safeNumber(parsed.pullBackoffUntil, 0),
+      consecutivePullTimeouts: safeNumber(parsed.consecutivePullTimeouts, 0),
+      realtimeDisabled: !!parsed.realtimeDisabled,
+      lastOperation: safeString(parsed.lastOperation, "idle"),
+      lastOperationAt: safeNumber(parsed.lastOperationAt, 0),
+      lastOperationDetail: safeString(parsed.lastOperationDetail, ""),
     };
   } catch {
     return {
@@ -156,6 +174,12 @@ function readStatusRaw(): LiveCloudSyncStatus {
       lastPushError: "",
       lastPullError: "",
       pullSuspended: false,
+      pullBackoffUntil: 0,
+      consecutivePullTimeouts: 0,
+      realtimeDisabled: false,
+      lastOperation: "idle",
+      lastOperationAt: 0,
+      lastOperationDetail: "",
     };
   }
 }
@@ -171,6 +195,12 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
       lastPushError: "",
       lastPullError: "",
       pullSuspended: false,
+      pullBackoffUntil: 0,
+      consecutivePullTimeouts: 0,
+      realtimeDisabled: false,
+      lastOperation: "idle",
+      lastOperationAt: 0,
+      lastOperationDetail: "",
     };
   }
   return readStatusRaw();
@@ -197,6 +227,13 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     lastPushError: typeof next.lastPushError === "string" ? next.lastPushError : prev.lastPushError,
     lastPullError: typeof next.lastPullError === "string" ? next.lastPullError : prev.lastPullError,
     pullSuspended: typeof next.pullSuspended === "boolean" ? next.pullSuspended : prev.pullSuspended,
+    pullBackoffUntil: typeof next.pullBackoffUntil === "number" ? next.pullBackoffUntil : prev.pullBackoffUntil,
+    consecutivePullTimeouts:
+      typeof next.consecutivePullTimeouts === "number" ? next.consecutivePullTimeouts : prev.consecutivePullTimeouts,
+    realtimeDisabled: typeof next.realtimeDisabled === "boolean" ? next.realtimeDisabled : prev.realtimeDisabled,
+    lastOperation: typeof next.lastOperation === "string" ? next.lastOperation : prev.lastOperation,
+    lastOperationAt: typeof next.lastOperationAt === "number" ? next.lastOperationAt : prev.lastOperationAt,
+    lastOperationDetail: typeof next.lastOperationDetail === "string" ? next.lastOperationDetail : prev.lastOperationDetail,
   };
   try {
     window.localStorage.setItem(STATUS_KEY, JSON.stringify(merged));
@@ -344,7 +381,17 @@ function applyRemoteValues(values: Record<string, string>) {
 
 export function startLiveCloudSync(appVersion: string) {
   if (typeof window === "undefined") return;
-  writeStatus({ state: "connecting", lastError: "", pullSuspended: false });
+  writeStatus({
+    state: "connecting",
+    lastError: "",
+    pullSuspended: false,
+    pullBackoffUntil: 0,
+    consecutivePullTimeouts: 0,
+    realtimeDisabled: false,
+    lastOperation: "startup",
+    lastOperationAt: Date.now(),
+    lastOperationDetail: "Initializing cloud sync",
+  });
 
   if (!SYNC_URL || !SYNC_ANON_KEY) {
     console.info("[Loadout Sync] Cloud sync disabled (missing VITE_SYNC_SUPABASE_URL or VITE_SYNC_SUPABASE_ANON_KEY).");
@@ -395,6 +442,12 @@ export function startLiveCloudSync(appVersion: string) {
 
   async function pushLocalValues() {
     if (applyingRemote) return;
+
+    writeStatus({
+      lastOperation: "push",
+      lastOperationAt: Date.now(),
+      lastOperationDetail: "Pushing local changes",
+    });
 
     const values = collectLocalValues();
     const nextSignature = signatureFor(values);
@@ -450,6 +503,9 @@ export function startLiveCloudSync(appVersion: string) {
         state: "error",
         lastError: `Push failed: ${error.message}`,
         lastPushError: error.message || "Push failed",
+        lastOperation: "push",
+        lastOperationAt: Date.now(),
+        lastOperationDetail: `Push failed: ${error.message || "unknown error"}`,
       });
       return;
     }
@@ -465,6 +521,12 @@ export function startLiveCloudSync(appVersion: string) {
       lastPushAt: pushTs,
       lastPushError: "",
       pullSuspended,
+      pullBackoffUntil,
+      consecutivePullTimeouts,
+      realtimeDisabled,
+      lastOperation: "push",
+      lastOperationAt: pushTs,
+      lastOperationDetail: "Push successful",
     });
   }
 
@@ -472,11 +534,27 @@ export function startLiveCloudSync(appVersion: string) {
     const force = !!opts?.force;
     const fullPull = !!opts?.full;
 
+    writeStatus({
+      lastOperation: fullPull ? "pull-full" : "pull",
+      lastOperationAt: Date.now(),
+      lastOperationDetail: fullPull ? "Running full cloud import" : "Running cloud pull",
+      pullSuspended,
+      pullBackoffUntil,
+      consecutivePullTimeouts,
+      realtimeDisabled,
+    });
+
     if (pullSuspended && !force) {
       writeStatus({
         state: "connected",
         lastError: "Automatic pull suspended after repeated mobile network timeouts. Use Retry Sync for manual pull attempts.",
         pullSuspended: true,
+        pullBackoffUntil,
+        consecutivePullTimeouts,
+        realtimeDisabled,
+        lastOperation: "pull",
+        lastOperationAt: Date.now(),
+        lastOperationDetail: "Automatic pull skipped: suspended",
       });
       return;
     }
@@ -489,6 +567,12 @@ export function startLiveCloudSync(appVersion: string) {
           state: "connected",
           lastError: "Pull temporarily paused due to mobile network timeouts. Push + realtime fallback still active.",
           pullSuspended,
+          pullBackoffUntil,
+          consecutivePullTimeouts,
+          realtimeDisabled,
+          lastOperation: "pull",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: "Pull skipped: in cooldown window",
         });
       }
       return;
@@ -553,6 +637,12 @@ export function startLiveCloudSync(appVersion: string) {
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
           pullSuspended,
+          pullBackoffUntil,
+          consecutivePullTimeouts,
+          realtimeDisabled,
+          lastOperation: "pull",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: `Pull issue: ${error.message || "network interruption"}`,
         });
       } else {
         if (isRetryableNetwork) {
@@ -565,6 +655,12 @@ export function startLiveCloudSync(appVersion: string) {
               : "Pull network interruption detected; retrying automatically.",
             lastPullError: "",
             pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            lastOperation: "pull",
+            lastOperationAt: Date.now(),
+            lastOperationDetail: `Pull retry queued: ${error.message || "interruption"}`,
           });
         } else {
           writeStatus({
@@ -572,6 +668,12 @@ export function startLiveCloudSync(appVersion: string) {
             lastError: `Pull failed: ${error.message}`,
             lastPullError: error.message || "Pull failed",
             pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            lastOperation: "pull",
+            lastOperationAt: Date.now(),
+            lastOperationDetail: `Pull failed: ${error.message || "unknown error"}`,
           });
         }
       }
@@ -587,6 +689,12 @@ export function startLiveCloudSync(appVersion: string) {
       lastPullAt: heartbeatTs,
       lastPullError: "",
       pullSuspended,
+      pullBackoffUntil,
+      consecutivePullTimeouts,
+      realtimeDisabled,
+      lastOperation: fullPull ? "pull-full" : "pull",
+      lastOperationAt: heartbeatTs,
+      lastOperationDetail: "Pull metadata check successful",
     });
 
     let remoteUpdatedAt = "";
@@ -650,6 +758,12 @@ export function startLiveCloudSync(appVersion: string) {
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
           pullSuspended,
+          pullBackoffUntil,
+          consecutivePullTimeouts,
+          realtimeDisabled,
+          lastOperation: "pull",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: `Pull payload issue: ${error.message || "network interruption"}`,
         });
       } else {
         if (isRetryableNetwork) {
@@ -662,6 +776,12 @@ export function startLiveCloudSync(appVersion: string) {
               : "Pull network interruption detected; retrying automatically.",
             lastPullError: "",
             pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            lastOperation: "pull",
+            lastOperationAt: Date.now(),
+            lastOperationDetail: `Pull payload retry queued: ${error.message || "interruption"}`,
           });
         } else {
           writeStatus({
@@ -669,6 +789,12 @@ export function startLiveCloudSync(appVersion: string) {
             lastError: `Pull failed: ${error.message}`,
             lastPullError: error.message || "Pull failed",
             pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            lastOperation: "pull",
+            lastOperationAt: Date.now(),
+            lastOperationDetail: `Pull payload failed: ${error.message || "unknown error"}`,
           });
         }
       }
@@ -702,6 +828,12 @@ export function startLiveCloudSync(appVersion: string) {
         lastPullAt: Date.now(),
         lastPullError: "",
         pullSuspended,
+        pullBackoffUntil,
+        consecutivePullTimeouts,
+        realtimeDisabled,
+        lastOperation: fullPull ? "pull-full" : "pull",
+        lastOperationAt: Date.now(),
+        lastOperationDetail: "Pull payload applied",
       });
       notifyStateUpdated();
     } finally {
@@ -786,6 +918,12 @@ export function startLiveCloudSync(appVersion: string) {
             lastPullAt: Date.now(),
             lastPullError: "",
             pullSuspended,
+            pullBackoffUntil,
+            consecutivePullTimeouts,
+            realtimeDisabled,
+            lastOperation: "realtime",
+            lastOperationAt: Date.now(),
+            lastOperationDetail: "Realtime payload applied",
           });
           notifyStateUpdated();
         } finally {
@@ -800,6 +938,12 @@ export function startLiveCloudSync(appVersion: string) {
         if (current.state === "disabled") {
           writeStatus({ state: "connecting", lastError: "Realtime channel connected. Running sync..." });
         }
+        writeStatus({
+          realtimeDisabled,
+          lastOperation: "realtime",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: "Realtime channel subscribed",
+        });
         void runSyncTick({ forcePull: true });
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         realtimeDisabled = true;
@@ -809,6 +953,12 @@ export function startLiveCloudSync(appVersion: string) {
         } else {
           writeStatus({ state: "connecting", lastError: `Realtime unavailable, switching to fallback polling: ${status}` });
         }
+        writeStatus({
+          realtimeDisabled,
+          lastOperation: "realtime",
+          lastOperationAt: Date.now(),
+          lastOperationDetail: `Realtime channel degraded: ${status}`,
+        });
         if (channel) {
           void client.removeChannel(channel);
           channel = null;
@@ -852,7 +1002,14 @@ export function startLiveCloudSync(appVersion: string) {
     pullBackoffUntil = 0;
     pullSuspended = false;
     consecutivePullTimeouts = 0;
-    writeStatus({ state: "connecting", lastError: "Importing latest cloud data...", pullSuspended: false });
+    writeStatus({
+      state: "connecting",
+      lastError: "Importing latest cloud data...",
+      pullSuspended: false,
+      lastOperation: "pull-full",
+      lastOperationAt: Date.now(),
+      lastOperationDetail: "Manual Import Latest requested",
+    });
     void runSyncTick({ forcePull: true, fullPull: true });
   };
   window.addEventListener(SYNC_IMPORT_EVENT_NAME, onSyncImport);
