@@ -15,6 +15,7 @@ const SYNC_SPACE = (import.meta.env.VITE_SYNC_SPACE as string | undefined) || "d
 const POLL_MS = 6000;
 const BACKGROUND_PULL_MS = 120000;
 const FALLBACK_PULL_MS = 30000;
+const PULL_COOLDOWN_MS = 180000;
 const RETRY_DELAY_MS = 1000;
 const PUSH_RETRIES = 2;
 const PULL_RETRIES = 1;
@@ -345,6 +346,7 @@ export function startLiveCloudSync(appVersion: string) {
   let currentSignature = signatureFor(collectLocalValues());
   let lastRemoteUpdatedAt = "";
   let lastForcedPullAt = 0;
+  let pullBackoffUntil = 0;
   let applyingRemote = false;
   let syncInFlight = false;
   let syncQueued = false;
@@ -425,6 +427,18 @@ export function startLiveCloudSync(appVersion: string) {
   }
 
   async function pullRemoteValues() {
+    const nowTs = Date.now();
+    if (nowTs < pullBackoffUntil) {
+      const current = readStatusRaw();
+      if (current.state !== "error") {
+        writeStatus({
+          state: "connected",
+          lastError: "Pull temporarily paused due to mobile network timeouts. Push + realtime fallback still active.",
+        });
+      }
+      return;
+    }
+
     const localValues = collectLocalValues();
     const localSignature = signatureFor(localValues);
     const hasUnsyncedLocalChanges = localSignature !== currentSignature;
@@ -454,19 +468,33 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
+      const isTimeout = (error.message || "").toLowerCase().includes("timed out");
+      if (isTimeout) {
+        pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+      }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: `Pull degraded (using realtime/push): ${error.message}`,
+          lastError: isTimeout
+            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+            : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: error.message || "Pull failed",
         });
       } else {
-        writeStatus({
-          state: "error",
-          lastError: `Pull failed: ${error.message}`,
-          lastPullError: error.message || "Pull failed",
-        });
+        if (isTimeout) {
+          writeStatus({
+            state: "connecting",
+            lastError: `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
+            lastPullError: error.message || "Pull failed",
+          });
+        } else {
+          writeStatus({
+            state: "error",
+            lastError: `Pull failed: ${error.message}`,
+            lastPullError: error.message || "Pull failed",
+          });
+        }
       }
       return;
     }
@@ -511,19 +539,33 @@ export function startLiveCloudSync(appVersion: string) {
 
     if (error) {
       console.warn("[Loadout Sync] Pull failed:", error.message);
+      const isTimeout = (error.message || "").toLowerCase().includes("timed out");
+      if (isTimeout) {
+        pullBackoffUntil = Date.now() + PULL_COOLDOWN_MS;
+      }
       const current = readStatusRaw();
       if (isRecentSync(current.lastSyncAt)) {
         writeStatus({
           state: "connected",
-          lastError: `Pull degraded (using realtime/push): ${error.message}`,
+          lastError: isTimeout
+            ? `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`
+            : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: error.message || "Pull failed",
         });
       } else {
-        writeStatus({
-          state: "error",
-          lastError: `Pull failed: ${error.message}`,
-          lastPullError: error.message || "Pull failed",
-        });
+        if (isTimeout) {
+          writeStatus({
+            state: "connecting",
+            lastError: `Pull timed out on this network; retrying after cooldown (${Math.round(PULL_COOLDOWN_MS / 1000)}s).`,
+            lastPullError: error.message || "Pull failed",
+          });
+        } else {
+          writeStatus({
+            state: "error",
+            lastError: `Pull failed: ${error.message}`,
+            lastPullError: error.message || "Pull failed",
+          });
+        }
       }
       return;
     }
@@ -682,6 +724,7 @@ export function startLiveCloudSync(appVersion: string) {
   window.addEventListener("storage", onStorage);
 
   const onSyncNow = () => {
+    pullBackoffUntil = 0;
     writeStatus({ state: "connecting", lastError: "" });
     void runSyncTick({ forcePull: true });
   };
