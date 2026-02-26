@@ -112,10 +112,13 @@ export type LiveCloudSyncStatus = {
   state: "disabled" | "connecting" | "connected" | "error";
   lastSyncAt: number;
   lastError: string;
+  lastErrorCode: string;
   lastPushAt: number;
   lastPullAt: number;
   lastPushError: string;
+  lastPushErrorCode: string;
   lastPullError: string;
+  lastPullErrorCode: string;
   pullSuspended: boolean;
   pullBackoffUntil: number;
   consecutivePullTimeouts: number;
@@ -134,10 +137,13 @@ function readStatusRaw(): LiveCloudSyncStatus {
         state: "disabled",
         lastSyncAt: 0,
         lastError: "",
+        lastErrorCode: "",
         lastPushAt: 0,
         lastPullAt: 0,
         lastPushError: "",
+        lastPushErrorCode: "",
         lastPullError: "",
+        lastPullErrorCode: "",
         pullSuspended: false,
         pullBackoffUntil: 0,
         consecutivePullTimeouts: 0,
@@ -154,10 +160,13 @@ function readStatusRaw(): LiveCloudSyncStatus {
       state: state === "disabled" || state === "connecting" || state === "connected" || state === "error" ? state : "disabled",
       lastSyncAt: safeNumber(parsed.lastSyncAt, 0),
       lastError: safeString(parsed.lastError, ""),
+      lastErrorCode: safeString(parsed.lastErrorCode, ""),
       lastPushAt: safeNumber(parsed.lastPushAt, 0),
       lastPullAt: safeNumber(parsed.lastPullAt, 0),
       lastPushError: safeString(parsed.lastPushError, ""),
+      lastPushErrorCode: safeString(parsed.lastPushErrorCode, ""),
       lastPullError: safeString(parsed.lastPullError, ""),
+      lastPullErrorCode: safeString(parsed.lastPullErrorCode, ""),
       pullSuspended: !!parsed.pullSuspended,
       pullBackoffUntil: safeNumber(parsed.pullBackoffUntil, 0),
       consecutivePullTimeouts: safeNumber(parsed.consecutivePullTimeouts, 0),
@@ -172,10 +181,13 @@ function readStatusRaw(): LiveCloudSyncStatus {
       state: "disabled",
       lastSyncAt: 0,
       lastError: "",
+      lastErrorCode: "",
       lastPushAt: 0,
       lastPullAt: 0,
       lastPushError: "",
+      lastPushErrorCode: "",
       lastPullError: "",
+      lastPullErrorCode: "",
       pullSuspended: false,
       pullBackoffUntil: 0,
       consecutivePullTimeouts: 0,
@@ -194,10 +206,13 @@ export function readLiveCloudSyncStatus(): LiveCloudSyncStatus {
       state: "disabled",
       lastSyncAt: 0,
       lastError: "",
+      lastErrorCode: "",
       lastPushAt: 0,
       lastPullAt: 0,
       lastPushError: "",
+      lastPushErrorCode: "",
       lastPullError: "",
+      lastPullErrorCode: "",
       pullSuspended: false,
       pullBackoffUntil: 0,
       consecutivePullTimeouts: 0,
@@ -227,10 +242,13 @@ function writeStatus(next: Partial<LiveCloudSyncStatus>) {
     state: next.state ?? prev.state,
     lastSyncAt: typeof next.lastSyncAt === "number" ? next.lastSyncAt : prev.lastSyncAt,
     lastError: typeof next.lastError === "string" ? next.lastError : prev.lastError,
+    lastErrorCode: typeof next.lastErrorCode === "string" ? next.lastErrorCode : prev.lastErrorCode,
     lastPushAt: typeof next.lastPushAt === "number" ? next.lastPushAt : prev.lastPushAt,
     lastPullAt: typeof next.lastPullAt === "number" ? next.lastPullAt : prev.lastPullAt,
     lastPushError: typeof next.lastPushError === "string" ? next.lastPushError : prev.lastPushError,
+    lastPushErrorCode: typeof next.lastPushErrorCode === "string" ? next.lastPushErrorCode : prev.lastPushErrorCode,
     lastPullError: typeof next.lastPullError === "string" ? next.lastPullError : prev.lastPullError,
+    lastPullErrorCode: typeof next.lastPullErrorCode === "string" ? next.lastPullErrorCode : prev.lastPullErrorCode,
     pullSuspended: typeof next.pullSuspended === "boolean" ? next.pullSuspended : prev.pullSuspended,
     pullBackoffUntil: typeof next.pullBackoffUntil === "number" ? next.pullBackoffUntil : prev.pullBackoffUntil,
     consecutivePullTimeouts:
@@ -298,6 +316,18 @@ function isPullTimeoutError(message: string): boolean {
 
 function isPullAbortError(message: string): boolean {
   return message.toLowerCase().includes("aborted");
+}
+
+function classifySyncErrorCode(scope: "config" | "init" | "push" | "pull" | "realtime" | "sync", message: string): string {
+  const text = message.toLowerCase();
+  if (scope === "config" && text.includes("missing")) return "SYNC_CONFIG_MISSING_ENV";
+  if (scope === "config" && text.includes("invalid")) return "SYNC_CONFIG_INVALID_URL";
+  if (scope === "realtime" && text.includes("timed_out")) return "SYNC_REALTIME_TIMED_OUT";
+  if (scope === "realtime" && text.includes("channel_error")) return "SYNC_REALTIME_CHANNEL_ERROR";
+  if (text.includes("timed out")) return `SYNC_${scope.toUpperCase()}_TIMEOUT`;
+  if (text.includes("aborted")) return `SYNC_${scope.toUpperCase()}_ABORTED`;
+  if (text.includes("networkerror") || text.includes("failed to fetch")) return `SYNC_${scope.toUpperCase()}_NETWORK`;
+  return `SYNC_${scope.toUpperCase()}_ERROR`;
 }
 
 function shouldTrackKey(key: string): boolean {
@@ -390,6 +420,7 @@ export function startLiveCloudSync(appVersion: string) {
   writeStatus({
     state: "connecting",
     lastError: "",
+    lastErrorCode: "",
     pullSuspended: false,
     pullBackoffUntil: 0,
     consecutivePullTimeouts: 0,
@@ -402,13 +433,13 @@ export function startLiveCloudSync(appVersion: string) {
 
   if (!SYNC_URL || !SYNC_ANON_KEY) {
     console.info("[Loadout Sync] Cloud sync disabled (missing VITE_SYNC_SUPABASE_URL or VITE_SYNC_SUPABASE_ANON_KEY).");
-    writeStatus({ state: "disabled", lastError: "Missing sync environment variables." });
+    writeStatus({ state: "disabled", lastError: "Missing sync environment variables.", lastErrorCode: "SYNC_CONFIG_MISSING_ENV" });
     return;
   }
 
   if (!/^https?:\/\//i.test(SYNC_URL)) {
     console.warn("[Loadout Sync] Cloud sync disabled (invalid VITE_SYNC_SUPABASE_URL format).");
-    writeStatus({ state: "disabled", lastError: "Invalid sync URL format." });
+    writeStatus({ state: "disabled", lastError: "Invalid sync URL format.", lastErrorCode: "SYNC_CONFIG_INVALID_URL" });
     return;
   }
 
@@ -419,7 +450,7 @@ export function startLiveCloudSync(appVersion: string) {
       });
     } catch (error) {
       console.error("[Loadout Sync] Cloud sync failed to initialize:", error);
-      writeStatus({ state: "error", lastError: "Cloud sync client initialization failed." });
+      writeStatus({ state: "error", lastError: "Cloud sync client initialization failed.", lastErrorCode: "SYNC_INIT_CLIENT_ERROR" });
       return null;
     }
   })();
@@ -431,7 +462,7 @@ export function startLiveCloudSync(appVersion: string) {
     deviceId = getOrCreateDeviceId();
   } catch (error) {
     console.error("[Loadout Sync] Cloud sync disabled (device id setup failed):", error);
-    writeStatus({ state: "error", lastError: "Device sync identity setup failed." });
+    writeStatus({ state: "error", lastError: "Device sync identity setup failed.", lastErrorCode: "SYNC_INIT_DEVICE_ID_ERROR" });
     return;
   }
   let currentSignature = signatureFor(collectLocalValues());
@@ -509,7 +540,9 @@ export function startLiveCloudSync(appVersion: string) {
       writeStatus({
         state: "error",
         lastError: `Push failed: ${error.message}`,
+        lastErrorCode: classifySyncErrorCode("push", error.message || "push failed"),
         lastPushError: error.message || "Push failed",
+        lastPushErrorCode: classifySyncErrorCode("push", error.message || "push failed"),
         lastOperation: "push",
         lastOperationAt: Date.now(),
         lastOperationDetail: `Push failed: ${error.message || "unknown error"}`,
@@ -525,8 +558,10 @@ export function startLiveCloudSync(appVersion: string) {
       state: "connected",
       lastSyncAt: snapshot.updatedAt,
       lastError: "",
+      lastErrorCode: "",
       lastPushAt: pushTs,
       lastPushError: "",
+      lastPushErrorCode: "",
       pullSuspended,
       pullBackoffUntil,
       consecutivePullTimeouts,
@@ -647,6 +682,8 @@ export function startLiveCloudSync(appVersion: string) {
             ? "Pull network interruption detected; retrying automatically."
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
+          lastPullErrorCode: isRetryableNetwork ? "" : classifySyncErrorCode("pull", error.message || "pull failed"),
+          lastErrorCode: classifySyncErrorCode("pull", error.message || "pull failed"),
           pullSuspended,
           pullBackoffUntil,
           consecutivePullTimeouts,
@@ -666,6 +703,8 @@ export function startLiveCloudSync(appVersion: string) {
               ? "Pull request was interrupted on mobile; retrying automatically."
               : "Pull network interruption detected; retrying automatically.",
             lastPullError: "",
+            lastPullErrorCode: "",
+            lastErrorCode: classifySyncErrorCode("pull", error.message || "pull retry queued"),
             pullSuspended,
             pullBackoffUntil,
             consecutivePullTimeouts,
@@ -679,7 +718,9 @@ export function startLiveCloudSync(appVersion: string) {
           writeStatus({
             state: "error",
             lastError: `Pull failed: ${error.message}`,
+            lastErrorCode: classifySyncErrorCode("pull", error.message || "pull failed"),
             lastPullError: error.message || "Pull failed",
+            lastPullErrorCode: classifySyncErrorCode("pull", error.message || "pull failed"),
             pullSuspended,
             pullBackoffUntil,
             consecutivePullTimeouts,
@@ -700,8 +741,10 @@ export function startLiveCloudSync(appVersion: string) {
       state: "connected",
       lastSyncAt: heartbeatTs,
       lastError: "",
+      lastErrorCode: "",
       lastPullAt: heartbeatTs,
       lastPullError: "",
+      lastPullErrorCode: "",
       pullSuspended,
       pullBackoffUntil,
       consecutivePullTimeouts,
@@ -772,6 +815,8 @@ export function startLiveCloudSync(appVersion: string) {
             ? "Pull network interruption detected; retrying automatically."
             : `Pull degraded (using realtime/push): ${error.message}`,
           lastPullError: isRetryableNetwork ? "" : error.message || "Pull failed",
+          lastPullErrorCode: isRetryableNetwork ? "" : classifySyncErrorCode("pull", error.message || "pull failed"),
+          lastErrorCode: classifySyncErrorCode("pull", error.message || "pull issue"),
           pullSuspended,
           pullBackoffUntil,
           consecutivePullTimeouts,
@@ -791,6 +836,8 @@ export function startLiveCloudSync(appVersion: string) {
               ? "Pull request was interrupted on mobile; retrying automatically."
               : "Pull network interruption detected; retrying automatically.",
             lastPullError: "",
+            lastPullErrorCode: "",
+            lastErrorCode: classifySyncErrorCode("pull", error.message || "pull retry queued"),
             pullSuspended,
             pullBackoffUntil,
             consecutivePullTimeouts,
@@ -804,7 +851,9 @@ export function startLiveCloudSync(appVersion: string) {
           writeStatus({
             state: "error",
             lastError: `Pull failed: ${error.message}`,
+            lastErrorCode: classifySyncErrorCode("pull", error.message || "pull failed"),
             lastPullError: error.message || "Pull failed",
+            lastPullErrorCode: classifySyncErrorCode("pull", error.message || "pull failed"),
             pullSuspended,
             pullBackoffUntil,
             consecutivePullTimeouts,
@@ -843,8 +892,10 @@ export function startLiveCloudSync(appVersion: string) {
         state: "connected",
         lastSyncAt: snapshot.updatedAt,
         lastError: "",
+        lastErrorCode: "",
         lastPullAt: Date.now(),
         lastPullError: "",
+        lastPullErrorCode: "",
         pullSuspended,
         pullBackoffUntil,
         consecutivePullTimeouts,
@@ -883,7 +934,7 @@ export function startLiveCloudSync(appVersion: string) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error";
       console.error("[Loadout Sync] Sync tick failed:", error);
-      writeStatus({ state: "error", lastError: `Sync failed: ${message}`, pullSuspended });
+      writeStatus({ state: "error", lastError: `Sync failed: ${message}`, lastErrorCode: classifySyncErrorCode("sync", message), pullSuspended });
     } finally {
       syncInFlight = false;
       if (syncQueued) {
@@ -934,8 +985,10 @@ export function startLiveCloudSync(appVersion: string) {
             state: "connected",
             lastSyncAt: snapshot.updatedAt,
             lastError: "",
+            lastErrorCode: "",
             lastPullAt: Date.now(),
             lastPullError: "",
+            lastPullErrorCode: "",
             pullSuspended,
             pullBackoffUntil,
             consecutivePullTimeouts,
@@ -969,6 +1022,7 @@ export function startLiveCloudSync(appVersion: string) {
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         realtimeDisabled = true;
         writeStatus({ state: "connected", lastError: `Realtime channel unavailable (${status}). Fallback polling active.` });
+        writeStatus({ lastErrorCode: classifySyncErrorCode("realtime", String(status)) });
         writeStatus({
           realtimeDisabled,
           pullCooldownActive: Date.now() < pullBackoffUntil,
@@ -1006,7 +1060,16 @@ export function startLiveCloudSync(appVersion: string) {
     pullBackoffUntil = 0;
     pullSuspended = false;
     consecutivePullTimeouts = 0;
-    writeStatus({ state: "connecting", lastError: "", pullSuspended: false });
+    writeStatus({
+      state: "connecting",
+      lastError: "",
+      lastErrorCode: "",
+      lastPushError: "",
+      lastPushErrorCode: "",
+      lastPullError: "",
+      lastPullErrorCode: "",
+      pullSuspended: false,
+    });
     void runSyncTick({ forcePull: true });
   };
   window.addEventListener(SYNC_NOW_EVENT_NAME, onSyncNow);
@@ -1018,6 +1081,11 @@ export function startLiveCloudSync(appVersion: string) {
     writeStatus({
       state: "connecting",
       lastError: "Importing latest cloud data...",
+      lastErrorCode: "",
+      lastPushError: "",
+      lastPushErrorCode: "",
+      lastPullError: "",
+      lastPullErrorCode: "",
       pullSuspended: false,
       pullCooldownActive: false,
       lastOperation: "pull-full",

@@ -511,8 +511,11 @@ export default function App() {
             <div className="appSyncPanelLine">Last Operation: {syncStatus.lastOperation || "—"}</div>
             <div className="appSyncPanelLine">Last Operation Time: {syncStatus.lastOperationAt > 0 ? fmt(syncStatus.lastOperationAt) : "—"}</div>
             <div className="appSyncPanelLine">Operation Detail: {syncStatus.lastOperationDetail || "None"}</div>
+            <div className="appSyncPanelLine">Error Code: {syncStatus.lastErrorCode || "None"}</div>
             <div className="appSyncPanelLine">Push Error: {syncStatus.lastPushError || "None"}</div>
+            <div className="appSyncPanelLine">Push Error Code: {syncStatus.lastPushErrorCode || "None"}</div>
             <div className="appSyncPanelLine">Pull Error: {syncStatus.lastPullError || "None"}</div>
+            <div className="appSyncPanelLine">Pull Error Code: {syncStatus.lastPullErrorCode || "None"}</div>
             <div className="appSyncPanelLine">Details: {syncStatus.lastError || "No active errors."}</div>
             <div className="appSyncPanelActions">
               <button
