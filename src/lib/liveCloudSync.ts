@@ -968,12 +968,7 @@ export function startLiveCloudSync(appVersion: string) {
         void runSyncTick({ forcePull: true });
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         realtimeDisabled = true;
-        const current = readStatusRaw();
-        if (isRecentSync(current.lastSyncAt)) {
-          writeStatus({ state: "connected", lastError: `Realtime unavailable, fallback polling active: ${status}` });
-        } else {
-          writeStatus({ state: "connecting", lastError: `Realtime unavailable, switching to fallback polling: ${status}` });
-        }
+        writeStatus({ state: "connected", lastError: `Realtime channel unavailable (${status}). Fallback polling active.` });
         writeStatus({
           realtimeDisabled,
           pullCooldownActive: Date.now() < pullBackoffUntil,
