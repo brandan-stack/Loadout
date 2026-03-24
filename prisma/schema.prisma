@@ -1,0 +1,211 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id                    String   @id @default(cuid())
+  name                  String
+  barcode               String?  @unique
+  description           String?
+  quantityOnHand        Int      @default(0)
+  quantityUsedTotal     Int      @default(0)
+  
+  // Low stock thresholds
+  lowStockAmberThreshold Int      @default(5)
+  lowStockRedThreshold   Int      @default(2)
+  
+  // Supplier
+  preferredSupplierId   String?
+  preferredSupplier     Supplier?  @relation(fields: [preferredSupplierId], references: [id])
+  lastUnitCost          Float?
+  
+  // Variants (Wave B feature)
+  unitOfMeasure         String   @default("each")
+  
+  // Lot/expiry (Wave B feature)
+  enableLotTracking     Boolean  @default(false)
+  enableExpiryTracking  Boolean  @default(false)
+  
+  // Photos
+  photos                ItemPhoto[]
+  
+  // Transactions
+  transactions          InventoryTransaction[]
+  
+  // Variants (Wave B feature)
+  variants              ItemVariant[]
+  
+  // Multi-location stock
+  locationStock         LocationStock[]
+  
+  // Dates
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@index([barcode])
+  @@index([lowStockRedThreshold])
+}
+
+model ItemPhoto {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fileName  String
+  filePath  String
+  isPrimary Boolean  @default(false)
+  notes     String?
+  size      Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  @@index([itemId])
+}
+
+model InventoryTransaction {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  type      String   // "add" | "use" | "adjust"
+  quantity  Int
+  
+  // Optional lot/expiry tracking
+  lotNumber String?
+  expiryDate DateTime?
+  
+  notes     String?
+  createdAt DateTime @default(now())
+  
+  @@index([itemId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  contact   String?
+  leadTimeD Int      @default(7)
+  notes     String?
+  archived  Boolean  @default(false)
+  items     Item[]   @relation()
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReportView {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
+  filters   String   @default("{}") // JSON stored as string
+  sortBy    String   @default("name")
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShareLog {
+  id           String   @id @default(cuid())
+  type         String   // "pdf" | "email"
+  reportType   String?
+  emailClient  String?  // "apple_mail" | "gmail" | "outlook" | "default"
+  filters      String   @default("{}") // JSON
+  createdAt    DateTime @default(now())
+}
+
+model ItemVariant {
+  id             String   @id @default(cuid())
+  itemId         String
+  item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  name           String   // e.g. "Red / Large"
+  sku            String?  @unique
+  quantityOnHand Int      @default(0)
+  attributes     String   @default("{}") // JSON: { size, color, etc. }
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([itemId])
+}
+
+model Location {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  archived    Boolean        @default(false)
+  stock       LocationStock[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model LocationStock {
+  id             String   @id @default(cuid())
+  locationId     String
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantityOnHand Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([locationId, itemId])
+  @@index([locationId])
+  @@index([itemId])
+}
+
+model LocationTransfer {
+  id             String   @id @default(cuid())
+  fromLocationId String
+  toLocationId   String
+  itemId         String
+  quantity       Int
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([itemId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+}
+
+model ScheduledReport {
+  id         String   @id @default(cuid())
+  name       String
+  reportType String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
+  frequency  String   // "daily" | "weekly" | "monthly"
+  filters    String   @default("{}") // JSON
+  lastRun    DateTime?
+  nextRun    DateTime
+  archived   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Settings {
+  id                    String    @id @default(cuid())
+  premiumEnabled        Boolean   @default(false)
+  simpleMode            Boolean   @default(true)
+  
+  // Feature toggles
+  enableMultiLocation   Boolean   @default(false)
+  enableVariants        Boolean   @default(false)
+  enableImportWizard    Boolean   @default(false)
+  enableLotExpiry       Boolean   @default(false)
+  enableBackupZip       Boolean   @default(false)
+  enableReportScheduler Boolean   @default(false)
+  enableAITagging       Boolean   @default(false)
+  
+  // Email
+  preferredEmailClient  String    @default("default") // "apple_mail" | "gmail" | "outlook" | "default"
+  composeSubjectTemplate String   @default("Inventory Report - {date}")
+  
+  // Thresholds
+  defaultLowStockAmber  Int       @default(5)
+  defaultLowStockRed    Int       @default(2)
+  
+  updatedAt             DateTime  @updatedAt
+}
