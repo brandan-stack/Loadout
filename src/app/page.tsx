@@ -6,28 +6,28 @@ const PRIMARY_CARDS = [
     label: "Scan",
     description: "Capture barcode and update stock in seconds",
     icon: "⬡",
-    color: "from-cyan-100/90 to-sky-100/90",
+    color: "from-cyan-950/90 to-sky-900/80",
   },
   {
     href: "/items",
     label: "Items",
     description: "Search catalog, adjust thresholds, and add new items",
     icon: "📦",
-    color: "from-indigo-100/90 to-blue-100/90",
+    color: "from-indigo-950/90 to-blue-900/80",
   },
   {
     href: "/reports",
     label: "Reports",
     description: "Spot trends, low stock, and dead inventory quickly",
     icon: "📊",
-    color: "from-emerald-100/90 to-teal-100/90",
+    color: "from-emerald-950/90 to-teal-900/80",
   },
   {
     href: "/reorder",
     label: "Reorder",
     description: "Use recommendations to plan your next purchase",
     icon: "🔄",
-    color: "from-amber-100/90 to-orange-100/90",
+    color: "from-amber-950/90 to-orange-900/80",
   },
 ];
 
@@ -88,14 +88,14 @@ export default function Home() {
             key={href}
             href={href}
             prefetch={false}
-            className={`card-lift rounded-2xl p-4 sm:p-5 block border border-slate-200 bg-gradient-to-br ${color} active:scale-[0.99]`}
+            className={`card-lift rounded-2xl p-4 sm:p-5 block border border-slate-700/80 bg-gradient-to-br ${color} shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] active:scale-[0.99]`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="font-bold text-lg leading-tight">{label}</div>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1">{description}</p>
+                <div className="font-bold text-lg leading-tight text-slate-50">{label}</div>
+                <p className="text-xs sm:text-sm text-slate-200 mt-1">{description}</p>
               </div>
-              <div className="text-2xl sm:text-3xl" aria-hidden>
+              <div className="text-2xl sm:text-3xl opacity-95" aria-hidden>
                 {icon}
               </div>
             </div>
