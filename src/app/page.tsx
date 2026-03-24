@@ -33,6 +33,7 @@ const PRIMARY_CARDS = [
 
 const SECONDARY_CARDS = [
   { href: "/suppliers", label: "Suppliers", icon: "🏭" },
+  { href: "/tools", label: "Tools", icon: "🧰" },
   { href: "/locations", label: "Locations", icon: "📍" },
   { href: "/import", label: "Import CSV", icon: "⬆" },
   { href: "/reports/expiry", label: "Expiry Alerts", icon: "⏰" },
