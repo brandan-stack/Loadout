@@ -14,6 +14,7 @@ interface ScanViewProps {
 
 export function ScanView({ onScan, onCancel }: ScanViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [permission, setPermission] = useState<"asking" | "granted" | "denied">(
     "asking"
   );
@@ -42,6 +43,7 @@ export function ScanView({ onScan, onCancel }: ScanViewProps) {
         audio: false,
       });
       videoRef.current.srcObject = stream;
+      setScanning(true);
       startScanning();
     } catch (err) {
       setError("Failed to start camera");
@@ -50,22 +52,41 @@ export function ScanView({ onScan, onCancel }: ScanViewProps) {
 
   const startScanning = () => {
     if (!videoRef.current) return;
-    
-    const scanInterval = setInterval(async () => {
+
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+
+    scanIntervalRef.current = setInterval(async () => {
       if (!videoRef.current || !videoRef.current.readyState) return;
-      
+
       try {
         const result = await scanBarcodeFromVideo(videoRef.current);
         if (result) {
           setScannedBarcode(result.code);
           setScanning(false);
-          clearInterval(scanInterval);
+          if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+            scanIntervalRef.current = null;
+          }
         }
       } catch (err) {
         // Continue scanning
       }
     }, 300);
   };
+
+  useEffect(() => {
+    const videoElement = videoRef.current;
+
+    return () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+      const stream = videoElement?.srcObject as MediaStream | null;
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();

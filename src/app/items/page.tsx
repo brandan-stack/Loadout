@@ -28,6 +28,7 @@ export default function ItemCatalog() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState<string>("");
   const [formData, setFormData] = useState({
     name: "",
     barcode: "",
@@ -49,12 +50,17 @@ export default function ItemCatalog() {
         fetch("/api/items"),
         fetch("/api/suppliers"),
       ]);
+      if (!itemsRes.ok || !supplierRes.ok) {
+        throw new Error("Failed to load inventory data");
+      }
       const itemsData = await itemsRes.json();
       const suppliersData = await supplierRes.json();
-      setItems(itemsData);
-      setSuppliers(suppliersData);
+      setItems(Array.isArray(itemsData) ? itemsData : []);
+      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+      setError("");
     } catch (error) {
       console.error("Failed to fetch data:", error);
+      setError("Could not load items right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -62,6 +68,13 @@ export default function ItemCatalog() {
 
   async function handleAddItem(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+
+    if (!formData.name.trim()) {
+      setError("Item name is required.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/items", {
         method: "POST",
@@ -82,9 +95,13 @@ export default function ItemCatalog() {
         });
         setShowForm(false);
         fetchData();
+      } else {
+        const payload = await res.json().catch(() => null);
+        setError(payload?.error || "Failed to save item.");
       }
     } catch (error) {
       console.error("Failed to add item:", error);
+      setError("Failed to save item. Please try again.");
     }
   }
 
@@ -109,6 +126,12 @@ export default function ItemCatalog() {
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
       <h1 className="text-3xl sm:text-4xl font-bold mb-6">Inventory Catalog</h1>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-400/35 bg-red-500/10 p-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
 
       <button
         onClick={() => setShowForm(!showForm)}
@@ -147,7 +170,9 @@ export default function ItemCatalog() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    quantityOnHand: parseFloat(e.target.value),
+                    quantityOnHand: Number.isNaN(e.currentTarget.valueAsNumber)
+                      ? 0
+                      : e.currentTarget.valueAsNumber,
                   })
                 }
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -160,7 +185,11 @@ export default function ItemCatalog() {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      lowStockAmberThreshold: parseFloat(e.target.value),
+                      lowStockAmberThreshold: Number.isNaN(
+                        e.currentTarget.valueAsNumber
+                      )
+                        ? 0
+                        : e.currentTarget.valueAsNumber,
                     })
                   }
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -172,7 +201,11 @@ export default function ItemCatalog() {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      lowStockRedThreshold: parseFloat(e.target.value),
+                      lowStockRedThreshold: Number.isNaN(
+                        e.currentTarget.valueAsNumber
+                      )
+                        ? 0
+                        : e.currentTarget.valueAsNumber,
                     })
                   }
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
