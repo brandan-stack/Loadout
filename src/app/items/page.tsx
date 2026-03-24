@@ -12,6 +12,10 @@ interface Supplier {
 interface Item {
   id: string;
   name: string;
+  manufacturer?: string;
+  partNumber?: string;
+  modelNumber?: string;
+  serialNumber?: string;
   barcode?: string;
   quantityOnHand: number;
   quantityUsedTotal: number;
@@ -31,10 +35,14 @@ export default function ItemCatalog() {
   const [error, setError] = useState<string>("");
   const [formData, setFormData] = useState({
     name: "",
+    manufacturer: "",
+    partNumber: "",
+    modelNumber: "",
+    serialNumber: "",
     barcode: "",
-    quantityOnHand: 0,
-    lowStockAmberThreshold: 10,
-    lowStockRedThreshold: 5,
+    quantityOnHand: "",
+    lowStockAmberThreshold: "",
+    lowStockRedThreshold: "",
     preferredSupplierId: "",
     lastUnitCost: 0,
     unitOfMeasure: "units",
@@ -75,20 +83,81 @@ export default function ItemCatalog() {
       return;
     }
 
+    if (!formData.manufacturer.trim()) {
+      setError("Manufacturer is required.");
+      return;
+    }
+
+    if (!formData.partNumber.trim()) {
+      setError("Part number is required.");
+      return;
+    }
+
+    if (!formData.modelNumber.trim()) {
+      setError("Model number is required.");
+      return;
+    }
+
+    if (!formData.serialNumber.trim()) {
+      setError("Serial number is required.");
+      return;
+    }
+
+    if (!formData.preferredSupplierId) {
+      setError("Supplier is required.");
+      return;
+    }
+
+    const lowStockAlert = Number(formData.lowStockAmberThreshold);
+    const criticalStockAlert = Number(formData.lowStockRedThreshold);
+    const quantityOnHand =
+      formData.quantityOnHand === "" ? 0 : Number(formData.quantityOnHand);
+
+    if (!Number.isFinite(lowStockAlert) || lowStockAlert < 1) {
+      setError("Low stock alert must be at least 1.");
+      return;
+    }
+
+    if (!Number.isFinite(criticalStockAlert) || criticalStockAlert < 0) {
+      setError("Critical stock alert must be 0 or greater.");
+      return;
+    }
+
+    if (criticalStockAlert > lowStockAlert) {
+      setError("Critical stock alert must be less than or equal to low stock alert.");
+      return;
+    }
+
+    if (!Number.isFinite(quantityOnHand) || quantityOnHand < 0) {
+      setError("Quantity on hand must be 0 or greater.");
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      quantityOnHand,
+      lowStockAmberThreshold: lowStockAlert,
+      lowStockRedThreshold: criticalStockAlert,
+    };
+
     try {
       const res = await fetch("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setFormData({
           name: "",
+          manufacturer: "",
+          partNumber: "",
+          modelNumber: "",
+          serialNumber: "",
           barcode: "",
-          quantityOnHand: 0,
-          lowStockAmberThreshold: 10,
-          lowStockRedThreshold: 5,
+          quantityOnHand: "",
+          lowStockAmberThreshold: "",
+          lowStockRedThreshold: "",
           preferredSupplierId: "",
           lastUnitCost: 0,
           unitOfMeasure: "units",
@@ -154,6 +223,48 @@ export default function ItemCatalog() {
                 required
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <input
+                  type="text"
+                  placeholder="Manufacturer"
+                  value={formData.manufacturer}
+                  onChange={(e) =>
+                    setFormData({ ...formData, manufacturer: e.target.value })
+                  }
+                  required
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Part Number"
+                  value={formData.partNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, partNumber: e.target.value })
+                  }
+                  required
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Model Number"
+                  value={formData.modelNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, modelNumber: e.target.value })
+                  }
+                  required
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Serial Number"
+                  value={formData.serialNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, serialNumber: e.target.value })
+                  }
+                  required
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
               <input
                 type="text"
                 placeholder="Barcode"
@@ -165,14 +276,12 @@ export default function ItemCatalog() {
               />
               <input
                 type="number"
-                placeholder="Quantity on Hand"
+                placeholder="Quantity on Hand (optional; defaults to 0)"
                 value={formData.quantityOnHand}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    quantityOnHand: Number.isNaN(e.currentTarget.valueAsNumber)
-                      ? 0
-                      : e.currentTarget.valueAsNumber,
+                    quantityOnHand: e.target.value,
                   })
                 }
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -180,36 +289,42 @@ export default function ItemCatalog() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
                   type="number"
-                  placeholder="Amber Threshold"
+                  placeholder="Low Stock Alert"
                   value={formData.lowStockAmberThreshold}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      lowStockAmberThreshold: Number.isNaN(
-                        e.currentTarget.valueAsNumber
-                      )
-                        ? 0
-                        : e.currentTarget.valueAsNumber,
+                      lowStockAmberThreshold: e.target.value,
                     })
                   }
+                  min={1}
+                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <input
                   type="number"
-                  placeholder="Red Threshold"
+                  placeholder="Critical Stock Alert"
                   value={formData.lowStockRedThreshold}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      lowStockRedThreshold: Number.isNaN(
-                        e.currentTarget.valueAsNumber
-                      )
-                        ? 0
-                        : e.currentTarget.valueAsNumber,
+                      lowStockRedThreshold: e.target.value,
                     })
                   }
+                  min={0}
+                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
+              </div>
+              <div className="rounded-lg border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-300">
+                <p>
+                  <span className="font-semibold text-amber-300">Low Stock Alert</span>: when quantity on hand is at or below this value,
+                  the item is flagged as low stock.
+                </p>
+                <p className="mt-1">
+                  <span className="font-semibold text-red-300">Critical Stock Alert</span>: when quantity on hand is at or below this lower value,
+                  the item is marked critical and should be prioritized.
+                </p>
               </div>
               <select
                 value={formData.preferredSupplierId}
@@ -219,9 +334,10 @@ export default function ItemCatalog() {
                     preferredSupplierId: e.target.value,
                   })
                 }
+                required
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Select Supplier</option>
+                <option value="">Select Supplier (Required)</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.name}
@@ -247,6 +363,12 @@ export default function ItemCatalog() {
           >
             <div>
               <h3 className="text-lg font-semibold">{item.name}</h3>
+              <p className="text-xs text-gray-600">
+                {item.manufacturer || "Unknown Manufacturer"} · {item.partNumber || "No Part #"} · {item.modelNumber || "No Model #"}
+              </p>
+              <p className="text-xs text-gray-600">
+                Serial: {item.serialNumber || "No Serial #"}
+              </p>
               {item.barcode && (
                 <p className="text-xs text-gray-600 font-mono">
                   {item.barcode}
@@ -261,7 +383,7 @@ export default function ItemCatalog() {
                   Total Used: {item.quantityUsedTotal}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Thresholds: Amber {item.lowStockAmberThreshold} / Red{" "}
+                  Alerts: Low {item.lowStockAmberThreshold} / Critical{" "}
                   {item.lowStockRedThreshold}
                 </p>
               </div>

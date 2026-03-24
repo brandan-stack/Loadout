@@ -8,6 +8,10 @@ const dbAny = prisma as any;
 
 const itemUpdateSchema = z.object({
   name: z.string().min(1).optional(),
+  manufacturer: z.string().min(1).optional(),
+  partNumber: z.string().min(1).optional(),
+  modelNumber: z.string().min(1).optional(),
+  serialNumber: z.string().min(1).optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
   lowStockAmberThreshold: z.number().min(0).optional(),

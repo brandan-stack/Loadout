@@ -8,16 +8,23 @@ const dbAny = prisma as any;
 
 const itemSchema = z.object({
   name: z.string().min(1, "Name required"),
+  manufacturer: z.string().min(1, "Manufacturer required"),
+  partNumber: z.string().min(1, "Part number required"),
+  modelNumber: z.string().min(1, "Model number required"),
+  serialNumber: z.string().min(1, "Serial number required"),
   barcode: z.string().optional(),
   description: z.string().optional(),
   quantityOnHand: z.number().min(0).default(0),
-  lowStockAmberThreshold: z.number().min(0).default(10),
-  lowStockRedThreshold: z.number().min(0).default(5),
-  preferredSupplierId: z.string().optional(),
+  lowStockAmberThreshold: z.number().min(1, "Low stock alert must be at least 1"),
+  lowStockRedThreshold: z.number().min(0, "Critical stock alert must be 0 or more"),
+  preferredSupplierId: z.string().min(1, "Supplier required"),
   lastUnitCost: z.number().min(0).optional(),
   unitOfMeasure: z.string().default("units"),
   enableLotTracking: z.boolean().default(false),
   enableExpiryTracking: z.boolean().default(false),
+}).refine((data) => data.lowStockRedThreshold <= data.lowStockAmberThreshold, {
+  message: "Critical stock alert must be less than or equal to low stock alert",
+  path: ["lowStockRedThreshold"],
 });
 
 type ItemInput = z.infer<typeof itemSchema>;

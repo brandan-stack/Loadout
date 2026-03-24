@@ -16,6 +16,7 @@ model Item {
   manufacturer          String?
   partNumber            String?
   modelNumber           String?
+  serialNumber          String?
   barcode               String?  @unique
   description           String?
   quantityOnHand        Int      @default(0)
