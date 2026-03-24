@@ -9,9 +9,9 @@ const dbAny = prisma as any;
 const unknownBarcodeSchema = z.object({
   barcode: z.string().min(1),
   itemName: z.string().min(1, "Item name required"),
-  quantityOnHand: z.number().min(0).default(1),
-  lowStockAmberThreshold: z.number().min(0).default(10),
-  lowStockRedThreshold: z.number().min(0).default(5),
+  quantityOnHand: z.number().int().min(0).default(1),
+  lowStockAmberThreshold: z.number().int().min(1).default(10),
+  lowStockRedThreshold: z.number().int().min(0).default(5),
 });
 
 type UnknownBarcodeInput = z.infer<typeof unknownBarcodeSchema>;

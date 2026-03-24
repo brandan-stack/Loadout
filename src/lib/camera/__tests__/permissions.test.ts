@@ -3,15 +3,26 @@
 import { requestCameraPermission, hasCameraSupport } from "@/lib/camera/permissions";
 
 describe("Camera Permissions", () => {
+  let originalMediaDevices: MediaDevices | undefined;
+
   beforeEach(() => {
-    // Mock navigator.mediaDevices
-    jest.spyOn(global.navigator, "mediaDevices", "get").mockReturnValue({
-      getUserMedia: jest.fn().mockResolvedValue({
-        getTracks: jest.fn(() => [
-          { stop: jest.fn() as any },
-        ] as any),
-      } as any),
-    } as any);
+    originalMediaDevices = global.navigator.mediaDevices;
+
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue({
+          getTracks: jest.fn(() => [{ stop: jest.fn() }] as any),
+        }),
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: originalMediaDevices,
+    });
   });
 
   it("should report camera support when available", () => {

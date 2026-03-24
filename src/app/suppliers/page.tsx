@@ -16,6 +16,7 @@ export default function SupplierManagement() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     contact: "",
@@ -41,20 +42,46 @@ export default function SupplierManagement() {
 
   async function handleAddSupplier(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+
+    if (!formData.name.trim()) {
+      setError("Supplier name is required.");
+      return;
+    }
+
+    if (!Number.isFinite(formData.leadTimeD) || formData.leadTimeD < 0) {
+      setError("Lead time must be 0 or greater.");
+      return;
+    }
+
+    if (!Number.isInteger(formData.leadTimeD)) {
+      setError("Lead time must be a whole number.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/suppliers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          name: formData.name.trim(),
+          contact: formData.contact.trim(),
+          notes: formData.notes.trim(),
+        }),
       });
 
       if (res.ok) {
         setFormData({ name: "", contact: "", leadTimeD: 7, notes: "" });
         setShowForm(false);
         fetchSuppliers();
+      } else {
+        const payload = await res.json().catch(() => null);
+        setError(payload?.error || "Failed to save supplier.");
       }
     } catch (error) {
       console.error("Failed to add supplier:", error);
+      setError("Failed to save supplier. Please try again.");
     }
   }
 
@@ -82,6 +109,12 @@ export default function SupplierManagement() {
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
       <h1 className="text-3xl sm:text-4xl font-bold mb-6">Suppliers</h1>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-400/35 bg-red-500/10 p-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
 
       <button
         onClick={() => setShowForm(!showForm)}
@@ -120,9 +153,12 @@ export default function SupplierManagement() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    leadTimeD: parseInt(e.target.value),
+                    leadTimeD:
+                      e.target.value === "" ? 0 : Number.parseInt(e.target.value, 10),
                   })
                 }
+                min={0}
+                step={1}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <textarea

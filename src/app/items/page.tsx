@@ -117,9 +117,17 @@ export default function ItemCatalog() {
       setError("Low stock alert must be at least 1.");
       return;
     }
+    if (!Number.isInteger(lowStockAlert)) {
+      setError("Low stock alert must be a whole number.");
+      return;
+    }
 
     if (!Number.isFinite(criticalStockAlert) || criticalStockAlert < 0) {
       setError("Critical stock alert must be 0 or greater.");
+      return;
+    }
+    if (!Number.isInteger(criticalStockAlert)) {
+      setError("Critical stock alert must be a whole number.");
       return;
     }
 
@@ -130,6 +138,10 @@ export default function ItemCatalog() {
 
     if (!Number.isFinite(quantityOnHand) || quantityOnHand < 0) {
       setError("Quantity on hand must be 0 or greater.");
+      return;
+    }
+    if (!Number.isInteger(quantityOnHand)) {
+      setError("Quantity on hand must be a whole number.");
       return;
     }
 
@@ -284,6 +296,8 @@ export default function ItemCatalog() {
                     quantityOnHand: e.target.value,
                   })
                 }
+                min={0}
+                step={1}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -298,6 +312,7 @@ export default function ItemCatalog() {
                     })
                   }
                   min={1}
+                  step={1}
                   required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
@@ -312,6 +327,7 @@ export default function ItemCatalog() {
                     })
                   }
                   min={0}
+                  step={1}
                   required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 />

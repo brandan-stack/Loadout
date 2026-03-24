@@ -14,13 +14,26 @@ const itemUpdateSchema = z.object({
   serialNumber: z.string().min(1).optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
-  lowStockAmberThreshold: z.number().min(0).optional(),
-  lowStockRedThreshold: z.number().min(0).optional(),
+  quantityOnHand: z.number().int().min(0).optional(),
+  lowStockAmberThreshold: z.number().int().min(1).optional(),
+  lowStockRedThreshold: z.number().int().min(0).optional(),
   preferredSupplierId: z.string().optional(),
   lastUnitCost: z.number().min(0).optional(),
   unitOfMeasure: z.string().optional(),
   enableLotTracking: z.boolean().optional(),
   enableExpiryTracking: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (
+    data.lowStockAmberThreshold !== undefined &&
+    data.lowStockRedThreshold !== undefined &&
+    data.lowStockRedThreshold > data.lowStockAmberThreshold
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Critical stock alert must be less than or equal to low stock alert",
+      path: ["lowStockRedThreshold"],
+    });
+  }
 });
 
 type ItemUpdate = z.infer<typeof itemUpdateSchema>;

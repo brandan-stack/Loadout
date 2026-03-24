@@ -7,7 +7,7 @@ import { z } from "zod";
 const dbAny = prisma as any;
 
 const useInventorySchema = z.object({
-  quantity: z.number().min(0.01),
+  quantity: z.number().int().min(1),
   notes: z.string().optional(),
   lotNumber: z.string().optional(),
 });

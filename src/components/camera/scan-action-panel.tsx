@@ -27,6 +27,14 @@ export function ScanActionPanel({
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState(1);
 
+  const parseQuantityInput = (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return 1;
+    }
+    return parsed;
+  };
+
   // Load item data on mount
   useEffect(() => {
     (async () => {
@@ -113,10 +121,10 @@ export function ScanActionPanel({
               <label className="text-sm">Qty:</label>
               <input
                 type="number"
-                min={0.1}
-                step={0.1}
+                min={1}
+                step={1}
                 value={quantity}
-                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+                onChange={(e) => setQuantity(parseQuantityInput(e.target.value))}
                 className="w-16 px-2 py-1 border rounded text-sm"
               />
             </div>
@@ -165,10 +173,10 @@ export function ScanActionPanel({
               <label className="text-sm">Initial qty:</label>
               <input
                 type="number"
-                min={0.1}
-                step={0.1}
+                min={1}
+                step={1}
                 value={quantity}
-                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+                onChange={(e) => setQuantity(parseQuantityInput(e.target.value))}
                 className="w-16 px-2 py-1 border rounded text-sm"
               />
             </div>
