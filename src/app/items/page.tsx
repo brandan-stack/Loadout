@@ -3,6 +3,16 @@
 import { useState, useEffect } from "react";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 
+interface AiResult {
+  name?: string;
+  manufacturer?: string;
+  partNumber?: string;
+  modelNumber?: string;
+  description?: string;
+  material?: string;
+  confidence?: number;
+}
+
 interface Supplier {
   id: string;
   name: string;
@@ -33,6 +43,9 @@ export default function ItemCatalog() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string>("");
+  const [aiScanning, setAiScanning] = useState(false);
+  const [aiResult, setAiResult] = useState<AiResult | null>(null);
+  const [aiError, setAiError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     manufacturer: "",
@@ -74,6 +87,39 @@ export default function ItemCatalog() {
     }
   }
 
+  async function handleAIScan(file: File) {
+    setAiScanning(true);
+    setAiError("");
+    setAiResult(null);
+    try {
+      const body = new FormData();
+      body.append("image", file);
+      const res = await fetch("/api/ai/identify-item", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || "AI scan failed.");
+        return;
+      }
+      setAiResult(data as AiResult);
+    } catch {
+      setAiError("AI scan failed. Please try again.");
+    } finally {
+      setAiScanning(false);
+    }
+  }
+
+  function applyAiResult() {
+    if (!aiResult) return;
+    setFormData((prev) => ({
+      ...prev,
+      name: aiResult!.name || prev.name,
+      manufacturer: aiResult!.manufacturer || prev.manufacturer,
+      partNumber: aiResult!.partNumber || prev.partNumber,
+      modelNumber: aiResult!.modelNumber || prev.modelNumber,
+    }));
+    setAiResult(null);
+  }
+
   async function handleAddItem(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -83,33 +129,10 @@ export default function ItemCatalog() {
       return;
     }
 
-    if (!formData.manufacturer.trim()) {
-      setError("Manufacturer is required.");
-      return;
-    }
-
-    if (!formData.partNumber.trim()) {
-      setError("Part number is required.");
-      return;
-    }
-
-    if (!formData.modelNumber.trim()) {
-      setError("Model number is required.");
-      return;
-    }
-
-    if (!formData.serialNumber.trim()) {
-      setError("Serial number is required.");
-      return;
-    }
-
-    if (!formData.preferredSupplierId) {
-      setError("Supplier is required.");
-      return;
-    }
-
-    const lowStockAlert = Number(formData.lowStockAmberThreshold);
-    const criticalStockAlert = Number(formData.lowStockRedThreshold);
+    const lowStockAlert =
+      formData.lowStockAmberThreshold === "" ? 5 : Number(formData.lowStockAmberThreshold);
+    const criticalStockAlert =
+      formData.lowStockRedThreshold === "" ? 2 : Number(formData.lowStockRedThreshold);
     const quantityOnHand =
       formData.quantityOnHand === "" ? 0 : Number(formData.quantityOnHand);
 
@@ -177,8 +200,8 @@ export default function ItemCatalog() {
         setShowForm(false);
         fetchData();
       } else {
-        const payload = await res.json().catch(() => null);
-        setError(payload?.error || "Failed to save item.");
+        const errBody = await res.json().catch(() => null);
+        setError(errBody?.error || "Failed to save item.");
       }
     } catch (error) {
       console.error("Failed to add item:", error);
@@ -223,11 +246,108 @@ export default function ItemCatalog() {
 
       {showForm && (
         <GlassBubbleCard className="mb-6">
+          {/* AI Scan panel */}
+          <div className="mb-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
+            <p className="text-sm font-semibold text-slate-200 mb-1">📷 AI Item Recognition</p>
+            <p className="text-xs text-slate-400 mb-3">
+              Take or upload a photo — AI will try to identify the item and pre-fill the form.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-sm font-semibold cursor-pointer select-none">
+                📷 Use Camera
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  disabled={aiScanning}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleAIScan(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold cursor-pointer select-none">
+                🖼 Upload Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={aiScanning}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleAIScan(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            {aiScanning && (
+              <p className="mt-2 text-xs text-cyan-400 animate-pulse">Analyzing image with AI…</p>
+            )}
+            {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
+            {aiResult && (
+              <div className="mt-3 rounded-lg border border-cyan-700/50 bg-cyan-950/40 p-3 text-sm">
+                <p className="font-semibold text-cyan-200 mb-2">AI Detected:</p>
+                {aiResult.name && (
+                  <p className="text-slate-300">
+                    <span className="text-slate-400">Name:</span> {aiResult.name}
+                  </p>
+                )}
+                {aiResult.manufacturer && (
+                  <p className="text-slate-300">
+                    <span className="text-slate-400">Brand:</span> {aiResult.manufacturer}
+                  </p>
+                )}
+                {aiResult.partNumber && (
+                  <p className="text-slate-300">
+                    <span className="text-slate-400">Part #:</span> {aiResult.partNumber}
+                  </p>
+                )}
+                {aiResult.modelNumber && (
+                  <p className="text-slate-300">
+                    <span className="text-slate-400">Model:</span> {aiResult.modelNumber}
+                  </p>
+                )}
+                {aiResult.material && (
+                  <p className="text-slate-300">
+                    <span className="text-slate-400">Material:</span> {aiResult.material}
+                  </p>
+                )}
+                {aiResult.description && (
+                  <p className="text-xs text-slate-400 mt-1">{aiResult.description}</p>
+                )}
+                {aiResult.confidence !== undefined && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Confidence: {Math.round(aiResult.confidence * 100)}%
+                  </p>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={applyAiResult}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold"
+                  >
+                    Apply to Form
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiResult(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <form onSubmit={handleAddItem}>
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Item Name"
+                placeholder="Item Name *"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -238,48 +358,44 @@ export default function ItemCatalog() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <input
                   type="text"
-                  placeholder="Manufacturer"
+                  placeholder="Manufacturer (optional)"
                   value={formData.manufacturer}
                   onChange={(e) =>
                     setFormData({ ...formData, manufacturer: e.target.value })
                   }
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
                   type="text"
-                  placeholder="Part Number"
+                  placeholder="Part Number (optional)"
                   value={formData.partNumber}
                   onChange={(e) =>
                     setFormData({ ...formData, partNumber: e.target.value })
                   }
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
                   type="text"
-                  placeholder="Model Number"
+                  placeholder="Model Number (optional)"
                   value={formData.modelNumber}
                   onChange={(e) =>
                     setFormData({ ...formData, modelNumber: e.target.value })
                   }
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
                   type="text"
-                  placeholder="Serial Number"
+                  placeholder="Serial Number (optional)"
                   value={formData.serialNumber}
                   onChange={(e) =>
                     setFormData({ ...formData, serialNumber: e.target.value })
                   }
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <input
                 type="text"
-                placeholder="Barcode"
+                placeholder="Barcode (optional)"
                 value={formData.barcode}
                 onChange={(e) =>
                   setFormData({ ...formData, barcode: e.target.value })
@@ -303,7 +419,7 @@ export default function ItemCatalog() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
                   type="number"
-                  placeholder="Low Stock Alert"
+                  placeholder="Low Stock Alert (optional; defaults to 5)"
                   value={formData.lowStockAmberThreshold}
                   onChange={(e) =>
                     setFormData({
@@ -313,12 +429,11 @@ export default function ItemCatalog() {
                   }
                   min={1}
                   step={1}
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <input
                   type="number"
-                  placeholder="Critical Stock Alert"
+                  placeholder="Critical Stock Alert (optional; defaults to 2)"
                   value={formData.lowStockRedThreshold}
                   onChange={(e) =>
                     setFormData({
@@ -328,7 +443,6 @@ export default function ItemCatalog() {
                   }
                   min={0}
                   step={1}
-                  required
                   className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
@@ -350,10 +464,9 @@ export default function ItemCatalog() {
                     preferredSupplierId: e.target.value,
                   })
                 }
-                required
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Select Supplier (Required)</option>
+                <option value="">Select Supplier (optional)</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.name}

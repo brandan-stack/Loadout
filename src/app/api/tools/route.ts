@@ -6,12 +6,13 @@ const dbAny = prisma as any;
 
 const toolSchema = z.object({
   name: z.string().min(1, "Tool name is required"),
-  manufacturer: z.string().min(1, "Manufacturer is required"),
-  partNumber: z.string().min(1, "Part number is required"),
-  modelNumber: z.string().min(1, "Model number is required"),
-  supplier: z.string().min(1, "Supplier is required"),
-  cost: z.number().min(0, "Cost must be 0 or greater"),
+  manufacturer: z.string().optional(),
+  partNumber: z.string().optional(),
+  modelNumber: z.string().optional(),
+  supplier: z.string().optional(),
+  cost: z.number().min(0, "Cost must be 0 or greater").default(0),
   notes: z.string().optional(),
+  photoUrl: z.string().optional(),
 });
 
 export async function GET() {

@@ -6,11 +6,12 @@ import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 interface Tool {
   id: string;
   name: string;
-  manufacturer: string;
-  partNumber: string;
-  modelNumber: string;
-  supplier: string;
+  manufacturer?: string | null;
+  partNumber?: string | null;
+  modelNumber?: string | null;
+  supplier?: string | null;
   cost: number;
+  photoUrl?: string | null;
   notes?: string | null;
   createdAt: string;
 }
@@ -35,6 +36,36 @@ const initialForm: ToolFormState = {
   notes: "",
 };
 
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 600;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) {
+            height = Math.round((height * MAX) / width);
+            width = MAX;
+          } else {
+            width = Math.round((width * MAX) / height);
+            height = MAX;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ToolsPage() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +73,8 @@ export default function ToolsPage() {
   const [error, setError] = useState("");
   const [form, setForm] = useState<ToolFormState>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState("");
 
   const totalCost = useMemo(
     () => tools.reduce((sum, tool) => sum + (Number.isFinite(tool.cost) ? tool.cost : 0), 0),
@@ -70,10 +103,6 @@ export default function ToolsPage() {
 
   function validateForm() {
     if (!form.name.trim()) return "Tool name is required.";
-    if (!form.manufacturer.trim()) return "Manufacturer is required.";
-    if (!form.partNumber.trim()) return "Part number is required.";
-    if (!form.modelNumber.trim()) return "Model number is required.";
-    if (!form.supplier.trim()) return "Supplier is required.";
     if (!Number.isFinite(form.cost) || form.cost < 0) return "Cost must be 0 or greater.";
     return "";
   }
@@ -90,14 +119,27 @@ export default function ToolsPage() {
     setSaving(true);
     setError("");
 
+    let photoUrl: string | undefined | null;
+    if (photoFile) {
+      try {
+        photoUrl = await compressImage(photoFile);
+      } catch {
+        // ignore compression errors, proceed without photo
+      }
+    } else if (editingId) {
+      const existing = tools.find((t) => t.id === editingId);
+      photoUrl = existing?.photoUrl ?? null;
+    }
+
     const payload = {
       name: form.name.trim(),
-      manufacturer: form.manufacturer.trim(),
-      partNumber: form.partNumber.trim(),
-      modelNumber: form.modelNumber.trim(),
-      supplier: form.supplier.trim(),
+      manufacturer: form.manufacturer.trim() || undefined,
+      partNumber: form.partNumber.trim() || undefined,
+      modelNumber: form.modelNumber.trim() || undefined,
+      supplier: form.supplier.trim() || undefined,
       cost: Number(form.cost),
       notes: form.notes.trim() || undefined,
+      photoUrl: photoUrl ?? null,
     };
 
     try {
@@ -114,6 +156,8 @@ export default function ToolsPage() {
 
       setForm(initialForm);
       setEditingId(null);
+      setPhotoFile(null);
+      setPhotoPreview("");
       await loadTools();
     } catch (err) {
       console.error(err);
@@ -126,20 +170,24 @@ export default function ToolsPage() {
   function startEdit(tool: Tool) {
     setForm({
       name: tool.name,
-      manufacturer: tool.manufacturer,
-      partNumber: tool.partNumber,
-      modelNumber: tool.modelNumber,
-      supplier: tool.supplier,
+      manufacturer: tool.manufacturer || "",
+      partNumber: tool.partNumber || "",
+      modelNumber: tool.modelNumber || "",
+      supplier: tool.supplier || "",
       cost: tool.cost,
       notes: tool.notes || "",
     });
     setEditingId(tool.id);
+    setPhotoFile(null);
+    setPhotoPreview(tool.photoUrl || "");
     setError("");
   }
 
   function cancelEdit() {
     setEditingId(null);
     setForm(initialForm);
+    setPhotoFile(null);
+    setPhotoPreview("");
     setError("");
   }
 
@@ -190,7 +238,7 @@ export default function ToolsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
-              placeholder="Tool Name"
+              placeholder="Tool Name *"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
@@ -198,41 +246,37 @@ export default function ToolsPage() {
             />
             <input
               type="text"
-              placeholder="Manufacturer"
+              placeholder="Manufacturer (optional)"
               value={form.manufacturer}
               onChange={(e) => setForm({ ...form, manufacturer: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
-              required
             />
             <input
               type="text"
-              placeholder="Part Number"
+              placeholder="Part Number (optional)"
               value={form.partNumber}
               onChange={(e) => setForm({ ...form, partNumber: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
-              required
             />
             <input
               type="text"
-              placeholder="Model Number"
+              placeholder="Model Number (optional)"
               value={form.modelNumber}
               onChange={(e) => setForm({ ...form, modelNumber: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
-              required
             />
             <input
               type="text"
-              placeholder="Supplier"
+              placeholder="Supplier (optional)"
               value={form.supplier}
               onChange={(e) => setForm({ ...form, supplier: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
-              required
             />
             <input
               type="number"
               min={0}
               step="0.01"
-              placeholder="Cost"
+              placeholder="Cost (optional; defaults to 0)"
               value={form.cost}
               onChange={(e) =>
                 setForm({
@@ -243,8 +287,60 @@ export default function ToolsPage() {
                 })
               }
               className="w-full px-3 py-2 border rounded-lg"
-              required
             />
+          </div>
+
+          {/* Photo upload */}
+          <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
+            <p className="text-sm font-semibold text-slate-200 mb-2">📷 Tool Photo (optional)</p>
+            <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-sm font-semibold cursor-pointer select-none">
+                📷 Take Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setPhotoFile(file);
+                      setPhotoPreview(URL.createObjectURL(file));
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold cursor-pointer select-none">
+                🖼 Upload Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setPhotoFile(file);
+                      setPhotoPreview(URL.createObjectURL(file));
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {photoPreview && (
+                <button
+                  type="button"
+                  onClick={() => { setPhotoFile(null); setPhotoPreview(""); }}
+                  className="px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {photoPreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoPreview} alt="Preview" className="mt-3 rounded-lg max-h-40 object-contain" />
+            )}
           </div>
 
           <textarea
@@ -288,18 +384,26 @@ export default function ToolsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {tools.map((tool) => (
             <GlassBubbleCard key={tool.id} className="border border-slate-700/70 bg-slate-900/60">
+              {tool.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tool.photoUrl}
+                  alt={tool.name}
+                  className="w-full h-36 object-cover rounded-lg mb-3"
+                />
+              )}
               <div className="flex justify-between items-start gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-100">{tool.name}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{tool.manufacturer}</p>
+                  {tool.manufacturer && <p className="text-xs text-slate-400 mt-1">{tool.manufacturer}</p>}
                 </div>
                 <span className="text-base font-bold text-emerald-300">${tool.cost.toFixed(2)}</span>
               </div>
 
               <div className="mt-3 text-sm space-y-1 text-slate-300">
-                <p>Part: {tool.partNumber}</p>
-                <p>Model: {tool.modelNumber}</p>
-                <p>Supplier: {tool.supplier}</p>
+                {tool.partNumber && <p>Part: {tool.partNumber}</p>}
+                {tool.modelNumber && <p>Model: {tool.modelNumber}</p>}
+                {tool.supplier && <p>Supplier: {tool.supplier}</p>}
                 {tool.notes ? <p className="text-slate-400">Notes: {tool.notes}</p> : null}
               </div>
 

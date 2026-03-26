@@ -107,12 +107,13 @@ model Supplier {
 model Tool {
   id           String   @id @default(cuid())
   name         String
-  manufacturer String
-  partNumber   String
-  modelNumber  String
-  supplier     String
-  cost         Float
+  manufacturer String?
+  partNumber   String?
+  modelNumber  String?
+  supplier     String?
+  cost         Float    @default(0)
   notes        String?
+  photoUrl     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -40,13 +40,13 @@ export default function ReorderPage() {
   const priorityColor = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return "bg-red-100 border-l-4 border-red-500";
+        return "bg-red-950/40 border-l-4 border-red-500";
       case "high":
-        return "bg-amber-100 border-l-4 border-amber-500";
+        return "bg-amber-950/40 border-l-4 border-amber-500";
       case "medium":
-        return "bg-blue-100 border-l-4 border-blue-500";
+        return "bg-blue-950/40 border-l-4 border-blue-500";
       default:
-        return "bg-gray-100 border-l-4 border-gray-300";
+        return "bg-slate-800/60 border-l-4 border-slate-600";
     }
   };
 
@@ -66,7 +66,7 @@ export default function ReorderPage() {
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-6xl">
       <h1 className="text-2xl sm:text-4xl font-bold mb-2 leading-tight">Reorder Recommendations</h1>
-      <p className="text-gray-600 mb-6">
+      <p className="text-slate-400 mb-6">
         Smart reorder suggestions based on usage velocity and supplier lead
         times.
       </p>
@@ -128,37 +128,37 @@ export default function ReorderPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-3 text-sm">
                 <div>
-                  <p className="text-xs text-gray-600">Current</p>
+                  <p className="text-xs text-slate-400">Current</p>
                   <p className="font-bold">{rec.currentQuantity}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Min</p>
+                  <p className="text-xs text-slate-400">Min</p>
                   <p className="font-bold">{rec.minQuantity.toFixed(0)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Max</p>
+                  <p className="text-xs text-slate-400">Max</p>
                   <p className="font-bold">{rec.maxQuantity.toFixed(0)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Usage/Day</p>
+                  <p className="text-xs text-slate-400">Usage/Day</p>
                   <p className="font-bold">{rec.usagePerDay}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Lead Time</p>
+                  <p className="text-xs text-slate-400">Lead Time</p>
                   <p className="font-bold">{rec.leadTimeDays}d</p>
                 </div>
               </div>
 
-              <p className="text-sm mb-3">{rec.reason}</p>
+              <p className="text-sm text-slate-300 mb-3">{rec.reason}</p>
 
               <div className="flex flex-wrap gap-2 items-center">
                 <div className="bg-white/50 px-3 py-1 rounded text-sm font-semibold">
                   Order: {rec.suggestedOrderQuantity.toFixed(0)} units
                 </div>
                 {rec.preferredSupplier && (
-                  <div className="text-xs text-gray-700">
+                  <div className="text-xs text-slate-300">
                     Via <strong>{rec.preferredSupplier.name}</strong> (Arrives{" "}
-                    {rec.estimatedArrivalDate.toLocaleDateString()})
+                    {new Date(rec.estimatedArrivalDate).toLocaleDateString()})
                   </div>
                 )}
                 <Link
@@ -173,9 +173,9 @@ export default function ReorderPage() {
         </div>
       )}
 
-      <GlassBubbleCard className="mt-8 p-6 bg-blue-50">
+      <GlassBubbleCard className="mt-8 p-6 bg-blue-950/30">
         <h3 className="font-bold text-lg mb-2">📋 How It Works</h3>
-        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+        <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
           <li>
             <strong>Minimum Stock:</strong> Based on supplier lead time ×
             daily usage

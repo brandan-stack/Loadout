@@ -70,19 +70,30 @@ export async function getSettings(): Promise<AppSettings> {
   return result;
 }
 
+const DEFAULT_SETTINGS_CREATE = {
+  premiumEnabled: false,
+  simpleMode: true,
+  enableMultiLocation: false,
+  enableVariants: false,
+  enableImportWizard: false,
+  enableLotExpiry: false,
+  enableBackupZip: false,
+  enableReportScheduler: false,
+  enableAITagging: false,
+  preferredEmailClient: "default",
+  composeSubjectTemplate: "${reportType} Report - ${date}",
+  defaultLowStockAmber: 5,
+  defaultLowStockRed: 2,
+};
+
 export async function updateSettings(
   updates: Partial<AppSettings>
 ): Promise<AppSettings> {
   const existing = await prisma.settings.findFirst();
 
-  if (!existing) {
-    throw new Error("Settings record not found");
-  }
-
-  const updated = await prisma.settings.update({
-    where: { id: existing.id },
-    data: updates,
-  });
+  const updated = existing
+    ? await prisma.settings.update({ where: { id: existing.id }, data: updates })
+    : await prisma.settings.create({ data: { ...DEFAULT_SETTINGS_CREATE, ...updates } });
 
   // Invalidate cache
   cachedSettings = null;

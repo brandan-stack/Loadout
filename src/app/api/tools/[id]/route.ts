@@ -6,12 +6,13 @@ const dbAny = prisma as any;
 
 const toolUpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  manufacturer: z.string().min(1).optional(),
-  partNumber: z.string().min(1).optional(),
-  modelNumber: z.string().min(1).optional(),
-  supplier: z.string().min(1).optional(),
+  manufacturer: z.string().optional(),
+  partNumber: z.string().optional(),
+  modelNumber: z.string().optional(),
+  supplier: z.string().optional(),
   cost: z.number().min(0).optional(),
   notes: z.string().optional(),
+  photoUrl: z.string().optional().nullable(),
 });
 
 export async function GET(

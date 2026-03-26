@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [storageUsage, setStorageUsage] = useState<{
@@ -123,6 +124,7 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!settings) return;
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
@@ -132,9 +134,13 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+      } else {
+        const body = await res.json().catch(() => null);
+        setSaveError(body?.error || "Failed to save settings.");
       }
     } catch (error) {
       console.error("Failed to save settings:", error);
+      setSaveError("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -166,7 +172,7 @@ export default function SettingsPage() {
     settingKey: keyof AppSettings;
     badge?: string;
   }) => (
-    <div className="flex items-start justify-between py-3 border-b border-gray-100 last:border-0">
+    <div className="flex items-start justify-between py-3 border-b border-slate-700/50 last:border-0">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{label}</span>
@@ -181,7 +187,7 @@ export default function SettingsPage() {
       <button
         onClick={() => toggle(settingKey)}
         className={`relative ml-4 inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          settings[settingKey] ? "bg-blue-500" : "bg-gray-300"
+          settings[settingKey] ? "bg-blue-500" : "bg-slate-600"
         }`}
       >
         <span
@@ -363,6 +369,9 @@ export default function SettingsPage() {
         >
           {saving ? "Saving..." : saved ? "Saved!" : "Save Settings"}
         </button>
+        {saveError && (
+          <p className="mt-2 text-sm text-red-400 text-center">{saveError}</p>
+        )}
       </div>
 
       {/* Storage controls */}
