@@ -17,7 +17,7 @@ export function ScanActionPanel({
   onSuccess,
 }: ScanActionPanelProps) {
   const { lookup, createFromUnknown } = useBarcode();
-  const { addInventory, useInventory: performUseInventory } = useInventory();
+  const { addInventory, consumeInventory: performUseInventory } = useInventory();
 
   const [state, setState] = useState<
     "loading" | "found" | "unknown" | "creating" | "error"
