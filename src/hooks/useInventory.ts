@@ -58,7 +58,7 @@ export function useInventory() {
     []
   );
 
-  const useInventory = useCallback(
+  const consumeInventory = useCallback(
     async (
       itemId: string,
       quantity: number,
@@ -104,5 +104,5 @@ export function useInventory() {
     []
   );
 
-  return { addInventory, useInventory, loading };
+  return { addInventory, consumeInventory, loading };
 }

@@ -15,25 +15,17 @@ import {
 export async function getLowStockReport(
   filters: ReportFilters
 ): Promise<LowStockItem[]> {
-  const items = (await prisma.item.findMany({
-    where: {
-      OR: [
-        {
-          quantityOnHand: {
-            lte: prisma.item.fields.lowStockRedThreshold,
-          },
-        },
-        {
-          quantityOnHand: {
-            lte: prisma.item.fields.lowStockAmberThreshold,
-          },
-        },
-      ],
-    },
+  const allItems = (await prisma.item.findMany({
     include: {
       preferredSupplier: true,
     },
   } as any)) as any[];
+
+  const items = allItems.filter(
+    (item: any) =>
+      item.quantityOnHand <= item.lowStockRedThreshold ||
+      item.quantityOnHand <= item.lowStockAmberThreshold
+  );
 
   // Map to LowStockItem with severity
   const lowStock = items

@@ -76,15 +76,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!dryRun) {
-    const okRows = toCreate.filter((_, i) => results.find((r) => r.index === i && r.status === "ok"));
-    // Only import rows that passed validation
-    const validToCreate = results
-      .filter((r) => r.status === "ok")
-      .map((r) => toCreate[results.filter((x) => x.status === "ok").indexOf(r)]);
-
-    if (validToCreate.length > 0) {
+    if (toCreate.length > 0) {
       await prisma.item.createMany({
-        data: validToCreate.map((item) => ({
+        data: toCreate.map((item) => ({
           name: item.name,
           barcode: item.barcode || null,
           description: item.description || null,
@@ -95,7 +89,6 @@ export async function POST(req: NextRequest) {
         })),
       });
     }
-    void okRows; // suppress unused warning
   }
 
   const summary = {
