@@ -8,8 +8,11 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
 
   try {
-    // Apply the same /tmp redirect as lib/db.ts so both point to the same file.
-    if (process.env.DATABASE_URL?.startsWith("file:./")) {
+    // Ensure DATABASE_URL is set and points to a writable path before
+    // lib/db.ts is first imported (it uses this env var as a fallback).
+    if (!process.env.DATABASE_URL) {
+      process.env.DATABASE_URL = "file:/tmp/dev.db";
+    } else if (process.env.DATABASE_URL.startsWith("file:./")) {
       const filename = process.env.DATABASE_URL.replace("file:./", "");
       process.env.DATABASE_URL = `file:/tmp/${filename}`;
     }

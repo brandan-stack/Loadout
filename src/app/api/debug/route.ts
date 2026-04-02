@@ -35,11 +35,12 @@ export async function GET() {
   }
   
   return NextResponse.json({
-    dbUrl,
+    dbUrlBeforeImport: dbUrl,
+    dbUrlAfterImport: process.env.DATABASE_URL ?? "NOT_SET",
     queryResult,
-    queryError: queryError.substring(0, 300),
+    queryError: queryError.substring(0, 400),
     initResult,
-    initError: initError.substring(0, 300),
+    initError: initError.substring(0, 400),
     cwd: process.cwd(),
     nodeEnv: process.env.NODE_ENV,
   });
