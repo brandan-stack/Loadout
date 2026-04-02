@@ -12,6 +12,17 @@ interface Supplier {
   archived: boolean;
 }
 
+function readApiError(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const candidate = (payload as { error?: unknown }).error;
+  if (typeof candidate === "string") return candidate;
+  if (Array.isArray(candidate)) {
+    const first = candidate[0] as { message?: unknown } | undefined;
+    if (first && typeof first.message === "string") return first.message;
+  }
+  return null;
+}
+
 export default function SupplierManagement() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,12 +40,21 @@ export default function SupplierManagement() {
   }, []);
 
   async function fetchSuppliers() {
+    setLoading(true);
     try {
       const res = await fetch("/api/suppliers");
-      const data = await res.json();
-      setSuppliers(data);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSuppliers([]);
+        setError(readApiError(data) || "Failed to load suppliers.");
+        return;
+      }
+      setSuppliers(Array.isArray(data) ? data : []);
+      setError("");
     } catch (error) {
       console.error("Failed to fetch suppliers:", error);
+      setSuppliers([]);
+      setError("Failed to load suppliers. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -74,10 +94,10 @@ export default function SupplierManagement() {
       if (res.ok) {
         setFormData({ name: "", contact: "", leadTimeD: 7, notes: "" });
         setShowForm(false);
-        fetchSuppliers();
+        await fetchSuppliers();
       } else {
         const payload = await res.json().catch(() => null);
-        setError(payload?.error || "Failed to save supplier.");
+        setError(readApiError(payload) || "Failed to save supplier.");
       }
     } catch (error) {
       console.error("Failed to add supplier:", error);
@@ -87,14 +107,20 @@ export default function SupplierManagement() {
 
   async function handleArchiveSupplier(id: string) {
     try {
-      await fetch(`/api/suppliers/${id}`, {
+      const res = await fetch(`/api/suppliers/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived: true }),
       });
-      fetchSuppliers();
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        setError(readApiError(payload) || "Failed to archive supplier.");
+        return;
+      }
+      await fetchSuppliers();
     } catch (error) {
       console.error("Failed to archive supplier:", error);
+      setError("Failed to archive supplier. Please try again.");
     }
   }
 

@@ -37,6 +37,11 @@ interface Item {
   createdAt: string;
 }
 
+function normalizeOptionalText(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export default function ItemCatalog() {
   const [items, setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -169,10 +174,18 @@ export default function ItemCatalog() {
     }
 
     const payload = {
-      ...formData,
+      name: formData.name.trim(),
+      manufacturer: normalizeOptionalText(formData.manufacturer),
+      partNumber: normalizeOptionalText(formData.partNumber),
+      modelNumber: normalizeOptionalText(formData.modelNumber),
+      serialNumber: normalizeOptionalText(formData.serialNumber),
+      barcode: normalizeOptionalText(formData.barcode),
       quantityOnHand,
       lowStockAmberThreshold: lowStockAlert,
       lowStockRedThreshold: criticalStockAlert,
+      preferredSupplierId: normalizeOptionalText(formData.preferredSupplierId),
+      lastUnitCost: Number.isFinite(formData.lastUnitCost) ? formData.lastUnitCost : undefined,
+      unitOfMeasure: normalizeOptionalText(formData.unitOfMeasure) || "units",
     };
 
     try {
@@ -201,7 +214,12 @@ export default function ItemCatalog() {
         fetchData();
       } else {
         const errBody = await res.json().catch(() => null);
-        setError(errBody?.error || "Failed to save item.");
+        if (Array.isArray(errBody?.error)) {
+          const message = errBody.error[0]?.message;
+          setError(typeof message === "string" ? message : "Failed to save item.");
+        } else {
+          setError(errBody?.error || "Failed to save item.");
+        }
       }
     } catch (error) {
       console.error("Failed to add item:", error);

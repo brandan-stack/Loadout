@@ -50,7 +50,8 @@ export async function PUT(
     return NextResponse.json(supplier);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      const message = error.errors[0]?.message || "Invalid supplier data";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     console.error("Supplier PUT error:", error);
     return NextResponse.json({ error: "Failed to update supplier" }, { status: 500 });

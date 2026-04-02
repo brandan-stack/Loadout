@@ -24,7 +24,7 @@ export default function ReorderPage() {
     try {
       const res = await fetch("/api/reorder/recommendations");
       const data = await res.json();
-      setRecommendations(data.recommendations);
+      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : []);
       setStats({
         urgent: data.urgent || 0,
         high: data.high || 0,
