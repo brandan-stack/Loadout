@@ -2,15 +2,21 @@
 // Runs once when the Next.js server starts.
 // Ensures the SQLite database schema is created/migrated before any
 // API request is served (critical for Vercel deployments where the DB
-// file is not pre-populated).
+// file is not pre-populated and /tmp is the only writable location).
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
 
   try {
+    // Apply the same /tmp redirect as lib/db.ts so both point to the same file.
+    if (process.env.DATABASE_URL?.startsWith("file:./")) {
+      const filename = process.env.DATABASE_URL.replace("file:./", "");
+      process.env.DATABASE_URL = `file:/tmp/${filename}`;
+    }
+
     const { prisma } = await import("@/lib/db");
 
-    // Quick check — if supplier table is accessible, DB is already ready.
+    // Quick check — if Supplier table is accessible, schema is already ready.
     try {
       await prisma.$queryRaw`SELECT 1 FROM "Supplier" LIMIT 1`;
       return;
@@ -18,8 +24,7 @@ export async function register() {
       // Table doesn't exist yet — run DDL below.
     }
 
-    // Apply all schema DDL idempotently via $executeRawUnsafe.
-    // Using IF NOT EXISTS / IGNORE patterns so re-running is safe.
+    // Apply all schema DDL idempotently. Safe to run on every cold start.
     const statements = [
       `CREATE TABLE IF NOT EXISTS "Supplier" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -137,7 +142,7 @@ export async function register() {
       `CREATE INDEX IF NOT EXISTS "Tool_name_idx" ON "Tool"("name")`,
       `CREATE INDEX IF NOT EXISTS "Tool_supplier_idx" ON "Tool"("supplier")`,
       `CREATE TABLE IF NOT EXISTS "Settings" (
-        "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'singleton',
+        "id" TEXT NOT NULL PRIMARY KEY,
         "simpleMode" BOOLEAN NOT NULL DEFAULT false,
         "premiumEnabled" BOOLEAN NOT NULL DEFAULT false,
         "enableMultiLocation" BOOLEAN NOT NULL DEFAULT false,
@@ -154,16 +159,6 @@ export async function register() {
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
-        "id" TEXT NOT NULL PRIMARY KEY,
-        "checksum" TEXT NOT NULL,
-        "finished_at" DATETIME,
-        "migration_name" TEXT NOT NULL,
-        "logs" TEXT,
-        "rolled_back_at" DATETIME,
-        "started_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "applied_steps_count" INTEGER NOT NULL DEFAULT 0
-      )`,
     ];
 
     for (const sql of statements) {
@@ -175,4 +170,3 @@ export async function register() {
     console.error("[instrumentation] Database initialization failed:", err);
   }
 }
-
