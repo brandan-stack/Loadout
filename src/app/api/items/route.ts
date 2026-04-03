@@ -21,6 +21,7 @@ const itemSchema = z.object({
   serialNumber: z.string().optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
+  photoUrl: z.string().optional(),
   quantityOnHand: z.number().int().min(0).default(0),
   lowStockAmberThreshold: z.number().int().min(1).default(5),
   lowStockRedThreshold: z.number().int().min(0).default(2),
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       serialNumber: normalizeOptionalText(body?.serialNumber),
       barcode: normalizeOptionalText(body?.barcode),
       description: normalizeOptionalText(body?.description),
+      photoUrl: typeof body?.photoUrl === "string" && body.photoUrl ? body.photoUrl : undefined,
       preferredSupplierId: normalizeOptionalText(body?.preferredSupplierId),
       unitOfMeasure: normalizeOptionalText(body?.unitOfMeasure),
     };

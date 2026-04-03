@@ -7,7 +7,10 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 interface Item {
   id: string;
   name: string;
+  manufacturer?: string | null;
   partNumber?: string | null;
+  modelNumber?: string | null;
+  description?: string | null;
   quantityOnHand: number;
   lastUnitCost?: number | null;
   unitOfMeasure: string;
@@ -124,7 +127,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const filteredItems = items.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      (item.partNumber ?? "").toLowerCase().includes(search.toLowerCase())
+      (item.partNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.manufacturer ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.modelNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.description ?? "").toLowerCase().includes(search.toLowerCase())
   ).slice(0, 20);
 
   const totalMaterialCost = job?.parts.reduce((sum, p) => sum + p.quantity * (p.unitCost ?? 0), 0) ?? 0;
@@ -244,7 +250,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div>
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="Search parts by name or part number…"
+                placeholder="Search by name, part #, manufacturer, model, or description…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setAddForm({ ...addForm, itemId: "" }); }}
               />
@@ -258,11 +264,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                       onClick={() => { setAddForm({ ...addForm, itemId: item.id }); setSearch(item.name + (item.partNumber ? ` (${item.partNumber})` : "")); }}
                       className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
                     >
-                      <span className="text-sm text-slate-100">{item.name}</span>
-                      {item.partNumber && <span className="text-xs text-slate-400 ml-2">{item.partNumber}</span>}
-                      <span className={`text-xs ml-2 ${item.quantityOnHand > 0 ? "text-teal-400" : "text-red-400"}`}>
-                        In stock: {item.quantityOnHand}
-                      </span>
+                      <span className="text-sm text-slate-100 font-medium">{item.name}</span>
+                      {item.manufacturer && <span className="text-xs text-slate-400 ml-2">{item.manufacturer}</span>}
+                      {item.partNumber && <span className="text-xs text-slate-500 ml-2">#{item.partNumber}</span>}
+                      {item.modelNumber && <span className="text-xs text-slate-500 ml-1">· {item.modelNumber}</span>}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs ${item.quantityOnHand > 0 ? "text-teal-400" : "text-red-400"}`}>
+                          In stock: {item.quantityOnHand} {item.unitOfMeasure}
+                        </span>
+                        {item.description && (
+                          <span className="text-xs text-slate-500 truncate">{item.description}</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>

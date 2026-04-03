@@ -14,6 +14,7 @@ const itemUpdateSchema = z.object({
   serialNumber: z.string().min(1).optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
+  photoUrl: z.string().optional().nullable(),
   quantityOnHand: z.number().int().min(0).optional(),
   lowStockAmberThreshold: z.number().int().min(1).optional(),
   lowStockRedThreshold: z.number().int().min(0).optional(),

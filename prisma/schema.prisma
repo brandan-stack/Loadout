@@ -39,6 +39,7 @@ model Item {
   enableExpiryTracking  Boolean  @default(false)
   
   // Photos
+  photoUrl              String?
   photos                ItemPhoto[]
   
   // Transactions
@@ -99,6 +100,7 @@ model Supplier {
   id        String   @id @default(cuid())
   name      String   @unique
   contact   String?
+  website   String?
   leadTimeD Int      @default(7)
   notes     String?
   archived  Boolean  @default(false)
