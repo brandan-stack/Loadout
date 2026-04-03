@@ -24,7 +24,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/items", label: "Parts", icon: "📦" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
+  { href: "/admin/users", label: "Users", icon: "👥" },
 ];
 
 export function BottomNav() {

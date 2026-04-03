@@ -71,6 +71,12 @@ export async function POST(request: NextRequest) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.errors }, { status: 400 });
     }
+    if (
+      typeof err === "object" && err !== null &&
+      "code" in err && (err as { code: string }).code === "P2002"
+    ) {
+      return NextResponse.json({ error: "A job with that number already exists" }, { status: 409 });
+    }
     console.error("Jobs POST error:", err);
     return NextResponse.json({ error: "Failed to create job" }, { status: 500 });
   }
