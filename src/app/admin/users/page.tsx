@@ -38,7 +38,7 @@ export default function UsersPage() {
     if (meLoading) return;
     if (me?.role !== "SUPER_ADMIN") { router.push("/"); return; }
     fetchUsers();
-  }, [me, meLoading]);
+  }, [me, meLoading, router]);
 
   async function fetchUsers() {
     try {
