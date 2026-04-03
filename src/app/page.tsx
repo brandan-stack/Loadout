@@ -11,15 +11,6 @@ const ALL_TILES = [
     gradient: "linear-gradient(140deg, rgba(14,36,34,0.97) 0%, rgba(9,15,26,0.99) 100%)",
   },
   {
-    href: "/scan",
-    label: "Scan",
-    description: "Capture barcodes instantly",
-    icon: "⬡",
-    accent: "#38bdf8",
-    glow: "rgba(56,189,248,0.13)",
-    gradient: "linear-gradient(140deg, rgba(10,28,46,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
     href: "/items",
     label: "Inventory",
     description: "Catalog & stock levels",

@@ -10,7 +10,7 @@ const TECH_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/items", label: "Inventory", icon: "📦" },
-  { href: "/scan", label: "Scan", icon: "⬡" },
+  { href: "/reports", label: "Reports", icon: "📊" },
 ];
 
 const OFFICE_NAV: NavItem[] = [
