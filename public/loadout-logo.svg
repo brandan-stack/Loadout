@@ -1,0 +1,28 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cubeGrad" x1="12" y1="10" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#glow)">
+    <!-- top face -->
+    <path d="M32 10L50 20L32 30L14 20Z" fill="url(#cubeGrad)"/>
+    <!-- left face -->
+    <path d="M14 20L32 30V50L14 40Z" fill="#38BDF8"/>
+    <!-- right face -->
+    <path d="M50 20L32 30V50L50 40Z" fill="#5EEAD4"/>
+    <!-- subtle edge highlights -->
+    <path d="M32 10L50 20L32 30L14 20Z" stroke="white" stroke-opacity="0.20" stroke-width="0.5"/>
+    <path d="M14 20L32 30V50L14 40Z" stroke="white" stroke-opacity="0.12" stroke-width="0.5"/>
+    <path d="M50 20L32 30V50L50 40Z" stroke="white" stroke-opacity="0.12" stroke-width="0.5"/>
+  </g>
+</svg>

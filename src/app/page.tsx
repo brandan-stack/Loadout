@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { LoadoutLogo } from "@/components/ui/LoadoutLogo";
 
 const PRIMARY_CARDS = [
   {
@@ -65,43 +65,7 @@ export default function Home() {
         }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative flex-shrink-0">
-            <div
-              className="absolute -inset-1.5 rounded-2xl blur-md pointer-events-none"
-              style={{ background: "radial-gradient(circle, rgba(34,211,238,0.22) 0%, transparent 70%)" }}
-              aria-hidden
-            />
-            <Image
-              src="/loadout-logo.png"
-              alt="Loadout"
-              width={40}
-              height={40}
-              className="relative rounded-xl w-8 h-8 sm:w-9 sm:h-9 object-contain"
-              style={{
-                filter: "drop-shadow(0 0 8px rgba(34,211,238,0.65)) drop-shadow(0 0 3px rgba(34,211,238,0.85)) drop-shadow(0 0 1px rgba(255,255,255,0.3))",
-              }}
-              priority
-            />
-          </div>
-          <div className="leading-none select-none min-w-0">
-            <p
-              className="font-extrabold text-[17px] sm:text-[19px] text-white tracking-tighter leading-none"
-              style={{
-                fontFamily: "var(--font-heading), var(--font-body), sans-serif",
-                letterSpacing: "-0.04em",
-              }}
-            >
-              LOADOUT
-            </p>
-            <p
-              className="text-[9px] sm:text-[9.5px] font-semibold tracking-[0.16em] uppercase mt-[4px] leading-none"
-              style={{ color: "rgba(125,211,252,0.6)" }}
-            >
-              Field Parts Tracking
-            </p>
-          </div>
-        </div>
+        <LoadoutLogo />
 
         {/* New Job CTA */}
         <Link
