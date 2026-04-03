@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 import { ReorderRecommendation } from "@/lib/reorder/types";
 
 export default function ReorderPage() {
@@ -37,161 +36,183 @@ export default function ReorderPage() {
     }
   }
 
-  const priorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-950/40 border-l-4 border-red-500";
-      case "high":
-        return "bg-amber-950/40 border-l-4 border-amber-500";
-      case "medium":
-        return "bg-blue-950/40 border-l-4 border-blue-500";
-      default:
-        return "bg-slate-800/60 border-l-4 border-slate-600";
-    }
-  };
-
-  const priorityBadge = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "bg-red-600 text-white";
-      case "high":
-        return "bg-amber-500 text-white";
-      case "medium":
-        return "bg-blue-500 text-white";
-      default:
-        return "bg-gray-500 text-white";
-    }
-  };
-
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-6xl">
-      <h1 className="text-2xl sm:text-4xl font-bold mb-2 leading-tight">Reorder Recommendations</h1>
-      <p className="text-slate-400 mb-6">
-        Smart reorder suggestions based on usage velocity and supplier lead
-        times.
-      </p>
+    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl">
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
-        <GlassBubbleCard>
-          <div className="text-center">
-            <p className="text-gray-600 text-sm">Urgent</p>
-            <p className="text-2xl sm:text-3xl font-bold text-red-600">{stats.urgent}</p>
-          </div>
-        </GlassBubbleCard>
-        <GlassBubbleCard>
-          <div className="text-center">
-            <p className="text-gray-600 text-sm">High Priority</p>
-            <p className="text-2xl sm:text-3xl font-bold text-amber-600">{stats.high}</p>
-          </div>
-        </GlassBubbleCard>
-        <GlassBubbleCard>
-          <div className="text-center">
-            <p className="text-gray-600 text-sm">Total Items</p>
-            <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.total}</p>
-          </div>
-        </GlassBubbleCard>
+      {/* ─── Header ─── */}
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <h1
+            className="font-bold text-white leading-none"
+            style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
+          >
+            Reorder
+          </h1>
+          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
+            Smart stock suggestions
+          </p>
+        </div>
+        {/* Stat pills */}
+        <div className="flex items-center gap-2">
+          {stats.urgent > 0 && (
+            <span
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+              style={{
+                background: "rgba(239,68,68,0.13)",
+                border: "1px solid rgba(239,68,68,0.22)",
+                color: "#fca5a5",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+              {stats.urgent} Critical
+            </span>
+          )}
+          {stats.high > 0 && (
+            <span
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+              style={{
+                background: "rgba(245,158,11,0.12)",
+                border: "1px solid rgba(245,158,11,0.20)",
+                color: "#fcd34d",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+              {stats.high} Low
+            </span>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-8">
-          <p>Loading recommendations...</p>
+        <div className="text-center py-12">
+          <p className="text-slate-500 animate-pulse">Loading recommendations…</p>
         </div>
       ) : recommendations.length === 0 ? (
-        <GlassBubbleCard className="text-center py-8 text-gray-500">
-          <p>No reorder recommendations at this time. All stock levels are adequate!</p>
-        </GlassBubbleCard>
+        <div
+          className="rounded-2xl py-14 flex flex-col items-center text-center"
+          style={{
+            background: "rgba(12,17,36,0.85)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <p className="text-3xl mb-4">✓</p>
+          <p className="font-semibold text-slate-300 mb-1">All stock levels adequate</p>
+          <p className="text-sm text-slate-500">No reorder recommendations at this time</p>
+        </div>
       ) : (
-        <div className="space-y-4">
-          {recommendations.map((rec) => (
-            <div
-              key={rec.itemId}
-              className={`p-4 rounded-lg ${priorityColor(rec.priority)}`}
-            >
-              <div className="flex flex-col sm:flex-row justify-between sm:items-start mb-3 gap-2">
-                <div>
-                  <h3 className="text-lg font-bold">{rec.name}</h3>
-                  {rec.barcode && (
-                    <p className="text-xs text-gray-600 font-mono">
-                      {rec.barcode}
-                    </p>
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {recommendations.map((rec, idx) => {
+            const isUrgent = rec.priority === "urgent";
+            const isHigh = rec.priority === "high";
+            const isLast = idx === recommendations.length - 1;
+            return (
+              <div
+                key={rec.itemId}
+                className="px-5 py-4"
+                style={{
+                  background: isUrgent
+                    ? "rgba(239,68,68,0.05)"
+                    : isHigh
+                    ? "rgba(245,158,11,0.04)"
+                    : "rgba(12,17,36,0.85)",
+                  borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
+                  borderLeft: isUrgent
+                    ? "3px solid #ef4444"
+                    : isHigh
+                    ? "3px solid #f59e0b"
+                    : "3px solid transparent",
+                }}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-semibold text-slate-100">{rec.name}</h3>
+                      <span
+                        className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
+                        style={{
+                          background: isUrgent ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.13)",
+                          color: isUrgent ? "#fca5a5" : "#fcd34d",
+                          border: isUrgent ? "1px solid rgba(239,68,68,0.22)" : "1px solid rgba(245,158,11,0.20)",
+                        }}
+                      >
+                        {isUrgent ? "Critical" : "Low"}
+                      </span>
+                    </div>
+                    {rec.barcode && (
+                      <p className="text-xs text-slate-600 font-mono mt-0.5">{rec.barcode}</p>
+                    )}
+                  </div>
+                  <Link
+                    href={`/items?item=${rec.itemId}`}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors"
+                    style={{ border: "1px solid rgba(255,255,255,0.09)" }}
+                  >
+                    View Item
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
+                  {[
+                    { label: "On Hand", value: String(rec.currentQuantity) },
+                    { label: "Min", value: rec.minQuantity.toFixed(0) },
+                    { label: "Max", value: rec.maxQuantity.toFixed(0) },
+                    { label: "Usage/Day", value: String(rec.usagePerDay) },
+                    { label: "Lead Time", value: `${rec.leadTimeDays}d` },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
+                      <p className="text-sm font-semibold text-slate-200 mt-0.5">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.09)",
+                      color: "#e2e8f0",
+                    }}
+                  >
+                    Order: {rec.suggestedOrderQuantity.toFixed(0)} units
+                  </span>
+                  {rec.preferredSupplier && (
+                    <span className="text-xs text-slate-500">
+                      via <span className="text-slate-300">{rec.preferredSupplier.name}</span>
+                      {" · "}arrives {new Date(rec.estimatedArrivalDate).toLocaleDateString()}
+                    </span>
                   )}
                 </div>
-                <span
-                  className={`px-3 py-1 rounded text-xs font-bold ${priorityBadge(
-                    rec.priority
-                  )}`}
-                >
-                  {rec.priority.toUpperCase()}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-3 text-sm">
-                <div>
-                  <p className="text-xs text-slate-400">Current</p>
-                  <p className="font-bold">{rec.currentQuantity}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Min</p>
-                  <p className="font-bold">{rec.minQuantity.toFixed(0)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Max</p>
-                  <p className="font-bold">{rec.maxQuantity.toFixed(0)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Usage/Day</p>
-                  <p className="font-bold">{rec.usagePerDay}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Lead Time</p>
-                  <p className="font-bold">{rec.leadTimeDays}d</p>
-                </div>
-              </div>
-
-              <p className="text-sm text-slate-300 mb-3">{rec.reason}</p>
-
-              <div className="flex flex-wrap gap-2 items-center">
-                <div className="bg-white/50 px-3 py-1 rounded text-sm font-semibold">
-                  Order: {rec.suggestedOrderQuantity.toFixed(0)} units
-                </div>
-                {rec.preferredSupplier && (
-                  <div className="text-xs text-slate-300">
-                    Via <strong>{rec.preferredSupplier.name}</strong> (Arrives{" "}
-                    {new Date(rec.estimatedArrivalDate).toLocaleDateString()})
-                  </div>
+                {rec.reason && (
+                  <p className="text-xs text-slate-500 mt-2">{rec.reason}</p>
                 )}
-                <Link
-                  href={`/items?item=${rec.itemId}`}
-                  className="w-full sm:w-auto text-center sm:ml-auto px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                >
-                  View Item
-                </Link>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <GlassBubbleCard className="mt-8 p-6 bg-blue-950/30">
-        <h3 className="font-bold text-lg mb-2">📋 How It Works</h3>
-        <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-          <li>
-            <strong>Minimum Stock:</strong> Based on supplier lead time ×
-            daily usage
-          </li>
-          <li>
-            <strong>Maximum Stock:</strong> 2× the minimum (provides buffer)
-          </li>
-          <li>
-            <strong>Priority:</strong> Determined by how far below minimum or
-            if out of stock
-          </li>
-          <li>
-            <strong>Arrival Date:</strong> Current date + supplier lead time
-          </li>
+      {/* How it works */}
+      <div
+        className="mt-8 rounded-2xl px-5 py-4"
+        style={{
+          background: "rgba(12,17,36,0.85)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">How it works</p>
+        <ul className="text-xs text-slate-500 space-y-1.5">
+          <li><span className="text-slate-400">Min Stock</span> — supplier lead time × daily usage</li>
+          <li><span className="text-slate-400">Max Stock</span> — 2× minimum for safety buffer</li>
+          <li><span className="text-slate-400">Priority</span> — how far below minimum the item is</li>
+          <li><span className="text-slate-400">Arrival Date</span> — today + supplier lead time</li>
         </ul>
-      </GlassBubbleCard>
+      </div>
+
     </main>
   );
 }

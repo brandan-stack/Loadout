@@ -1,95 +1,106 @@
 "use client";
 
 import Link from "next/link";
-import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+
+const REPORTS = [
+  {
+    slug: "jobs",
+    title: "Parts by Job",
+    description: "Material costs per job for billing and review",
+    icon: "🔧",
+  },
+  {
+    slug: "low-stock",
+    title: "Low Stock",
+    description: "Items below low or critical thresholds",
+    icon: "⚠️",
+  },
+  {
+    slug: "usage",
+    title: "Usage",
+    description: "Items used during a selected time period",
+    icon: "📊",
+  },
+  {
+    slug: "dead-stock",
+    title: "Dead Stock",
+    description: "Items not used for 90 or more days",
+    icon: "🗃️",
+  },
+  {
+    slug: "fast-movers",
+    title: "Fast Movers",
+    description: "Highest-volume items by daily usage rate",
+    icon: "⚡",
+  },
+];
 
 export default function ReportsPage() {
-  const reportTypes = [
-    {
-      slug: "jobs",
-      title: "Parts by Job",
-      description: "Material costs per job for billing and review",
-      icon: "🔧",
-      color: "teal",
-    },
-    {
-      slug: "low-stock",
-      title: "Low Stock Report",
-      description: "Items below amber or red thresholds",
-      icon: "🚨",
-      color: "red",
-    },
-    {
-      slug: "usage",
-      title: "Usage Report",
-      description: "Items used during a specific period",
-      icon: "📊",
-      color: "blue",
-    },
-    {
-      slug: "dead-stock",
-      title: "Dead Stock Report",
-      description: "Items not used for 90+ days",
-      icon: "💀",
-      color: "gray",
-    },
-    {
-      slug: "fast-movers",
-      title: "Fast Movers Report",
-      description: "High-volume items by usage per day",
-      icon: "⚡",
-      color: "amber",
-    },
-  ];
-
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-2">Reports</h1>
-      <p className="text-gray-600 mb-8">
-        Generate and export inventory reports to track usage patterns and
-        optimize stock levels.
-      </p>
+    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl">
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {reportTypes.map((report) => (
-          <Link key={report.slug} href={`/reports/${report.slug}`}>
-            <GlassBubbleCard className="h-full cursor-pointer hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3 gap-3">
-                <h3 className="text-lg sm:text-xl font-bold leading-tight">{report.title}</h3>
-                <span className="text-2xl sm:text-3xl">{report.icon}</span>
-              </div>
-              <p className="text-gray-600 text-sm mb-4">
-                {report.description}
+      {/* ─── Header ─── */}
+      <div className="mb-8">
+        <h1
+          className="font-bold text-white leading-none"
+          style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
+        >
+          Reports
+        </h1>
+        <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
+          {REPORTS.length} report types
+        </p>
+      </div>
+
+      {/* ─── Report list ─── */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {REPORTS.map((report, idx) => (
+          <Link
+            key={report.slug}
+            href={`/reports/${report.slug}`}
+            prefetch={false}
+            className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03] group"
+            style={{
+              background: "rgba(12,17,36,0.85)",
+              borderBottom: idx < REPORTS.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+            }}
+          >
+            <div
+              className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
+              {report.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors">
+                {report.title}
               </p>
-              <div
-                className={`inline-block px-3 py-1 rounded text-xs font-semibold text-white ${
-                  report.color === "teal"
-                    ? "bg-teal-600"
-                    : report.color === "red"
-                      ? "bg-red-500"
-                      : report.color === "blue"
-                        ? "bg-blue-500"
-                        : report.color === "gray"
-                          ? "bg-gray-500"
-                          : "bg-amber-500"
-                }`}
-              >
-                View Report →
-              </div>
-            </GlassBubbleCard>
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{report.description}</p>
+            </div>
+            <svg
+              className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </Link>
         ))}
       </div>
 
-      <GlassBubbleCard className="mt-8 p-6 bg-blue-50">
-        <h3 className="font-bold text-lg mb-2">💡 Tips</h3>
-        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-          <li>Low Stock: Check regularly to maintain optimal inventory</li>
-          <li>Usage: Analyze trends to forecast future demand</li>
-          <li>Dead Stock: Consider removing or repurposing stale items</li>
-          <li>Fast Movers: Prioritize for frequent reordering</li>
-        </ul>
-      </GlassBubbleCard>
     </main>
   );
 }

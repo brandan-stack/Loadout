@@ -145,21 +145,40 @@ export default function SupplierManagement() {
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-6">Suppliers</h1>
+    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-3xl form-screen">
+
+      {/* ─── Header ─── */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1
+            className="font-bold text-white leading-none"
+            style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
+          >
+            Suppliers
+          </h1>
+          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
+            {suppliers.length} vendor{suppliers.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <button
+          onClick={() => { setShowForm(!showForm); setError(""); }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+          style={{
+            background: showForm
+              ? "rgba(71,85,105,0.7)"
+              : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+            boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.32)",
+          }}
+        >
+          {showForm ? "✕ Cancel" : "+ Add Supplier"}
+        </button>
+      </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-400/35 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="mb-5 rounded-xl border border-red-400/30 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
-
-      <button
-        onClick={() => { setShowForm(!showForm); setError(""); }}
-        className="mb-6 px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-semibold text-sm"
-      >
-        {showForm ? "Cancel" : "+ Add Supplier"}
-      </button>
 
       {showForm && (
         <GlassBubbleCard className="mb-6">
@@ -279,10 +298,34 @@ export default function SupplierManagement() {
       </div>
 
       {suppliers.length === 0 && !showForm && (
-        <div className="text-center py-16 text-slate-500">
-          <p className="text-4xl mb-3">🏭</p>
-          <p className="font-semibold">No suppliers yet</p>
-          <p className="text-sm mt-1">Add a supplier to link items and track lead times</p>
+        <div
+          className="rounded-2xl py-16 flex flex-col items-center text-center"
+          style={{
+            background: "rgba(12,17,36,0.85)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            🏭
+          </div>
+          <p className="font-semibold text-slate-200 mb-1.5">No suppliers yet</p>
+          <p className="text-sm text-slate-500 mb-6">Add a vendor to link items and track lead times</p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+            style={{
+              background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+              boxShadow: "0 3px 16px rgba(91,94,244,0.30)",
+            }}
+          >
+            + Add Supplier
+          </button>
         </div>
       )}
     </main>

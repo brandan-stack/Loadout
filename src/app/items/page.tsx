@@ -703,95 +703,89 @@ export default function ItemCatalog() {
         </GlassBubbleCard>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {filteredItems.map((item) => {
+      {/* ─── Item list (row layout) ─── */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {filteredItems.map((item, idx) => {
           const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
           const isLow = !isCritical && item.quantityOnHand <= item.lowStockAmberThreshold;
+          const isLast = idx === filteredItems.length - 1;
           return (
             <div
               key={item.id}
-              className="rounded-2xl transition-all"
+              className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.025]"
               style={{
-                background: "linear-gradient(145deg, rgba(15,20,40,0.96) 0%, rgba(10,14,28,0.97) 100%)",
-                border: isCritical
-                  ? "1px solid rgba(239,68,68,0.30)"
+                background: isCritical
+                  ? "rgba(239,68,68,0.04)"
                   : isLow
-                  ? "1px solid rgba(245,158,11,0.25)"
-                  : "1px solid rgba(255,255,255,0.06)",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+                  ? "rgba(245,158,11,0.03)"
+                  : "rgba(12,17,36,0.85)",
+                borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              <div className="p-4 flex gap-3.5">
-                {/* Photo / icon */}
-                <div className="shrink-0">
-                  {item.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.photoUrl}
-                      alt={item.name}
-                      className="w-13 h-13 object-cover rounded-xl border border-slate-700/60 cursor-pointer hover:opacity-85 transition-opacity"
-                      style={{ width: "52px", height: "52px" }}
-                      onClick={() => setEnlargedPhoto(item.photoUrl!)}
-                      title="Click to enlarge"
-                    />
-                  ) : (
-                    <div
-                      className="flex items-center justify-center text-xl rounded-xl"
-                      style={{
-                        width: "52px",
-                        height: "52px",
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        color: "#475569",
-                      }}
-                    >
-                      📦
-                    </div>
-                  )}
-                </div>
+              {/* Thumb */}
+              <div className="shrink-0">
+                {item.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.photoUrl}
+                    alt={item.name}
+                    className="object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{ width: "40px", height: "40px" }}
+                    onClick={() => setEnlargedPhoto(item.photoUrl!)}
+                    title="Click to enlarge"
+                  />
+                ) : (
+                  <div
+                    className="flex items-center justify-center rounded-lg text-base"
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    📦
+                  </div>
+                )}
+              </div>
 
-                {/* Content */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-100 leading-snug">{item.name}</h3>
-                    {(isCritical || isLow) && (
-                      <span
-                        className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md"
-                        style={{
-                          background: isCritical ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.14)",
-                          color: isCritical ? "#fca5a5" : "#fcd34d",
-                          border: isCritical ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(245,158,11,0.22)",
-                        }}
-                      >
-                        {isCritical ? "Critical" : "Low"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
-                    {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
-                      .filter(Boolean)
-                      .join(" · ") || "No details"}
+              {/* Name + meta */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-100 truncate leading-tight">{item.name}</p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">
+                  {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
+                    .filter(Boolean)
+                    .join(" · ") || <span className="italic">No details</span>}
+                </p>
+              </div>
+
+              {/* Qty + status */}
+              <div className="shrink-0 flex items-center gap-2.5 text-right">
+                {(isCritical || isLow) && (
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md hidden sm:inline-block"
+                    style={{
+                      background: isCritical ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.13)",
+                      color: isCritical ? "#fca5a5" : "#fcd34d",
+                      border: isCritical ? "1px solid rgba(239,68,68,0.22)" : "1px solid rgba(245,158,11,0.20)",
+                    }}
+                  >
+                    {isCritical ? "Critical" : "Low"}
+                  </span>
+                )}
+                <div>
+                  <p
+                    className="text-sm font-bold tabular-nums"
+                    style={{
+                      color: isCritical ? "#f87171" : isLow ? "#fbbf24" : "#cbd5e1",
+                    }}
+                  >
+                    {item.quantityOnHand}
                   </p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span
-                      className="text-sm font-bold"
-                      style={{
-                        color: isCritical
-                          ? "#f87171"
-                          : isLow
-                          ? "#fbbf24"
-                          : "#a5b4fc",
-                      }}
-                    >
-                      {item.quantityOnHand}{" "}
-                      <span className="text-xs font-normal text-slate-500">{item.unitOfMeasure}</span>
-                    </span>
-                    {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
-                      <span className="text-xs text-emerald-400/80">
-                        ${item.lastUnitCost.toFixed(2)}/unit
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-[10px] text-slate-600 text-right">{item.unitOfMeasure}</p>
                 </div>
               </div>
             </div>
@@ -800,17 +794,41 @@ export default function ItemCatalog() {
       </div>
 
       {filteredItems.length === 0 && (
-        <div className="text-center py-16 text-slate-500">
-          <p className="text-4xl mb-3">📦</p>
-          {search ? (
+        <div
+          className="rounded-2xl py-16 flex flex-col items-center text-center"
+          style={{
+            background: "rgba(12,17,36,0.85)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
+            style={{
+              background: "rgba(99,102,241,0.10)",
+              border: "1px solid rgba(129,140,248,0.14)",
+            }}
+          >
+            📦
+          </div>
+          {search || stockFilter !== "all" ? (
             <>
-              <p className="font-semibold">No items match &ldquo;{search}&rdquo;</p>
-              <p className="text-sm mt-1">Try a different search term</p>
+              <p className="font-semibold text-slate-300 mb-1">No matching items</p>
+              <p className="text-sm text-slate-500">Try a different search or filter</p>
             </>
           ) : (
             <>
-              <p className="font-semibold">No items yet</p>
-              <p className="text-sm mt-1">Add your first inventory item to get started</p>
+              <p className="font-semibold text-slate-200 mb-1.5">No inventory yet</p>
+              <p className="text-sm text-slate-500 mb-6">Add your first part to get started</p>
+              <button
+                onClick={() => { setShowForm(true); setError(""); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                  boxShadow: "0 3px 16px rgba(91,94,244,0.30)",
+                }}
+              >
+                + Add Item
+              </button>
             </>
           )}
         </div>

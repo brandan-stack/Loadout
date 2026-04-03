@@ -15,12 +15,6 @@ interface Job {
   _count: { parts: number };
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  OPEN: "bg-amber-900/60 text-amber-300",
-  COMPLETED: "bg-teal-900/60 text-teal-300",
-  INVOICED: "bg-slate-700 text-slate-300",
-};
-
 export default function JobsPage() {
   const { user, loading: userLoading } = useCurrentUser();
   const router = useRouter();
@@ -78,27 +72,43 @@ export default function JobsPage() {
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
-      <div className="flex items-center justify-between mb-4">
+    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl form-screen">
+
+      {/* ─── Header ─── */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Jobs</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1
+            className="font-bold text-white leading-none"
+            style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
+          >
+            Jobs
+          </h1>
+          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
             {user?.role === "TECH" ? "Your work orders" : "All work orders"}
           </p>
         </div>
         {user?.role !== "OFFICE" && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="rounded-xl bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 text-sm font-semibold"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+            style={{
+              background: showForm
+                ? "rgba(71,85,105,0.7)"
+                : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+              boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.32)",
+            }}
           >
-            + New Job
+            {showForm ? "✕ Cancel" : "+ New Job"}
           </button>
         )}
       </div>
 
       {showForm && (
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-5 space-y-4">
-          <h2 className="font-bold text-slate-200">New Job</h2>
+        <div
+          className="rounded-2xl p-5 mb-6 space-y-4"
+          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <h2 className="font-semibold text-sm text-slate-200">New Job</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Job Number *</label>
@@ -142,13 +152,18 @@ export default function JobsPage() {
             <button
               onClick={handleCreate}
               disabled={saving}
-              className="rounded-xl bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 text-sm font-semibold disabled:opacity-50"
+              className="rounded-xl text-white px-5 py-2 text-sm font-semibold disabled:opacity-50 transition-all"
+              style={{
+                background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
+              }}
             >
               {saving ? "Creating…" : "Create & Open Job"}
             </button>
             <button
               onClick={() => { setShowForm(false); setFormError(""); }}
-              className="rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 text-sm"
+              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
             >
               Cancel
             </button>
@@ -157,42 +172,82 @@ export default function JobsPage() {
       )}
 
       <input
-        className="w-full rounded-xl bg-slate-800 border border-slate-700 text-slate-100 px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+        className="w-full rounded-xl text-slate-100 px-4 py-2 text-sm mb-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+        style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
         placeholder="Search job #, customer, or technician…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-500">
-          <p className="text-4xl mb-3">🔧</p>
-          <p className="font-semibold">No jobs yet</p>
-          <p className="text-sm mt-1">Create your first job to start logging parts</p>
+        <div
+          className="rounded-2xl py-16 flex flex-col items-center text-center"
+          style={{
+            background: "rgba(12,17,36,0.85)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            🔧
+          </div>
+          {search ? (
+            <>
+              <p className="font-semibold text-slate-300 mb-1">No jobs match &ldquo;{search}&rdquo;</p>
+              <p className="text-sm text-slate-500">Try a different search</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-slate-200 mb-1.5">No jobs yet</p>
+              <p className="text-sm text-slate-500">Create your first job to start logging parts</p>
+            </>
+          )}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((job) => (
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {filtered.map((job, idx) => (
             <Link
               key={job.id}
               href={`/jobs/${job.id}`}
-              className="flex items-center justify-between bg-slate-900 border border-slate-700 hover:border-teal-600 rounded-2xl px-4 py-4 transition-colors group"
+              className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03] group"
+              style={{
+                background: "rgba(12,17,36,0.85)",
+                borderBottom: idx < filtered.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+              }}
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-slate-100 group-hover:text-teal-300 text-sm">{job.jobNumber}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLOR[job.status] ?? "bg-slate-700 text-slate-300"}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors">{job.jobNumber}</span>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                      job.status === "OPEN"
+                        ? "bg-amber-500/12 text-amber-400 border border-amber-500/20"
+                        : job.status === "COMPLETED"
+                        ? "bg-slate-700/60 text-slate-400 border border-slate-600/30"
+                        : "bg-slate-700/60 text-slate-400 border border-slate-600/30"
+                    }`}
+                  >
                     {job.status}
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 truncate">{job.customer}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-sm text-slate-400 truncate">{job.customer}</p>
+                <p className="text-xs text-slate-600 mt-0.5">
                   {job.technician.name} · {new Date(job.date).toLocaleDateString()}
                 </p>
               </div>
-              <div className="text-right ml-4 shrink-0">
-                <p className="text-sm font-semibold text-slate-300">{job._count.parts} parts</p>
-                <p className="text-xs text-slate-500 mt-0.5">→</p>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold text-slate-300">{job._count.parts}</p>
+                <p className="text-[10px] text-slate-600">parts</p>
               </div>
+              <svg className="shrink-0 text-slate-700 group-hover:text-slate-500 transition-colors" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
             </Link>
           ))}
         </div>
