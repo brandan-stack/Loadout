@@ -2,7 +2,7 @@ export function LoadoutLogo({ className = "" }) {
   return (
     <div className={`flex items-center gap-4 ${className}`}>
       <img
-        src="/loadout-logo.svg?v=3"
+        src="/loadout-logo.svg?v=4"
         alt="Loadout logo"
         className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_0_12px_rgba(34,211,238,0.45)]"
       />
