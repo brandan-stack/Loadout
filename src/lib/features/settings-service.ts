@@ -33,7 +33,7 @@ export async function getSettings(): Promise<AppSettings> {
   if (!settings) {
     // Return defaults if no settings row exists
     return {
-      premiumEnabled: true,
+      premiumEnabled: false,
       simpleMode: true,
       enableMultiLocation: false,
       enableVariants: false,

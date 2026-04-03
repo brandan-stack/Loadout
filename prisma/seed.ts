@@ -53,6 +53,10 @@ async function main() {
   });
 
   console.log("📝 Creating seed items...");
+
+  // Fetch the created supplier IDs so we can assign them to items
+  const supplierRecords = await prisma.supplier.findMany({ select: { id: true } });
+
   const items = [];
 
   // Create 100 seed items
@@ -65,7 +69,10 @@ async function main() {
       quantityUsedTotal: Math.floor(Math.random() * 50),
       lowStockAmberThreshold: 10,
       lowStockRedThreshold: 3,
-      preferredSupplierId: suppliers.count > 0 ? undefined : undefined,
+      preferredSupplierId:
+        supplierRecords.length > 0
+          ? supplierRecords[i % supplierRecords.length].id
+          : undefined,
       lastUnitCost: Math.random() * 1000,
       unitOfMeasure: ["each", "box", "pack"][Math.floor(Math.random() * 3)],
       enableLotTracking: false,
