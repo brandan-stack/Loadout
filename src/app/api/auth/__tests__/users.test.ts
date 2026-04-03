@@ -17,8 +17,8 @@ describe("GET /api/auth/users", () => {
 
   it("returns users array when database is available", async () => {
     const mockUsers = [
-      { id: "1", name: "Admin", role: "SUPER_ADMIN" },
-      { id: "2", name: "Tech", role: "TECH" },
+      { id: "1", name: "Admin", email: "admin@example.com", role: "SUPER_ADMIN" },
+      { id: "2", name: "Tech", email: "tech@example.com", role: "TECH" },
     ];
     const { prisma } = await import("@/lib/db");
     (prisma as any).appUser = {
