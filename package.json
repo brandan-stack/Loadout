@@ -13,6 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "prisma:reset": "prisma migrate reset --force",
+    "db:push": "prisma db push",
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
