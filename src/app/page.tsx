@@ -53,74 +53,72 @@ export default function Home() {
   return (
     <main className="px-4 sm:px-6 pt-4 sm:pt-7 max-w-xl sm:max-w-2xl mx-auto">
 
-      {/* ─── Premium Header ─── */}
-      <header className="flex items-center justify-between mb-4 sm:mb-6">
-        <div className="flex items-center gap-3">
-          {/* Logo with teal glow ring */}
+      {/* ─── Premium Glass Header ─── */}
+      <header
+        className="flex items-center justify-between px-4 py-3 rounded-3xl mb-5 sm:mb-7"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.09)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          boxShadow:
+            "0 4px 32px rgba(34,211,238,0.07), 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 40px rgba(2,6,23,0.45)",
+        }}
+      >
+        {/* Logo — swap icon-192.png for /loadout-logo.png once uploaded */}
+        <div className="flex items-center gap-3 min-w-0">
           <div className="relative flex-shrink-0">
             <div
-              className="absolute -inset-2 rounded-2xl blur-lg pointer-events-none"
-              style={{ background: "radial-gradient(circle, rgba(45,212,191,0.26) 0%, transparent 70%)" }}
+              className="absolute -inset-1.5 rounded-2xl blur-md pointer-events-none"
+              style={{ background: "radial-gradient(circle, rgba(34,211,238,0.22) 0%, transparent 70%)" }}
               aria-hidden
             />
-            <div
-              className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl overflow-hidden"
-              style={{ boxShadow: "0 0 0 1px rgba(45,212,191,0.38), 0 4px 20px rgba(45,212,191,0.16)" }}
-            >
-              <Image
-                src="/icon-192.png"
-                alt="Loadout"
-                width={48}
-                height={48}
-                className="w-full h-full object-cover"
-                priority
-              />
-            </div>
+            <Image
+              src="/loadout-logo.png"
+              alt="Loadout"
+              width={36}
+              height={36}
+              className="relative rounded-xl"
+              style={{ boxShadow: "0 0 0 1px rgba(34,211,238,0.35), 0 2px 14px rgba(34,211,238,0.18)" }}
+              priority
+            />
           </div>
-
-          {/* Wordmark */}
-          <div className="leading-none select-none">
-            <div
-              className="text-[20px] sm:text-[23px] font-extrabold text-white tracking-tighter"
+          <div className="leading-none select-none min-w-0">
+            <p
+              className="font-extrabold text-[17px] sm:text-[19px] text-white tracking-tighter leading-none"
               style={{
                 fontFamily: "var(--font-heading), var(--font-body), sans-serif",
-                textShadow: "0 0 28px rgba(45,212,191,0.16)",
+                letterSpacing: "-0.04em",
               }}
             >
               LOADOUT
-            </div>
-            <div
-              className="text-[9px] sm:text-[9.5px] font-bold tracking-[0.15em] uppercase mt-0.5"
-              style={{ color: "rgba(45,212,191,0.65)" }}
+            </p>
+            <p
+              className="text-[9px] sm:text-[9.5px] font-semibold tracking-[0.16em] uppercase mt-[4px] leading-none"
+              style={{ color: "rgba(125,211,252,0.6)" }}
             >
               Field Parts Tracking
-            </div>
+            </p>
           </div>
         </div>
 
-        {/* Glowing teal CTA */}
+        {/* New Job CTA */}
         <Link
           href="/jobs"
           prefetch={false}
-          className="flex items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2.5 text-[12.5px] sm:text-[13px] font-bold text-slate-950 active:scale-95 transition-transform select-none"
+          className="flex-shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-[12px] sm:text-[13px] font-bold text-slate-950 active:scale-95 transition-transform select-none ml-3"
           style={{
             background: "linear-gradient(135deg, #2dd4bf 0%, #22d3ee 100%)",
-            boxShadow: "0 0 20px rgba(45,212,191,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
+            boxShadow:
+              "0 0 20px rgba(45,212,191,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
           }}
         >
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden>
+          <svg width="10" height="10" viewBox="0 0 11 11" fill="none" aria-hidden>
             <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           New Job
         </Link>
       </header>
-
-      {/* ─── Accent rule ─── */}
-      <div
-        className="h-px mb-5 sm:mb-7"
-        style={{ background: "linear-gradient(90deg, rgba(45,212,191,0.55) 0%, rgba(56,189,248,0.22) 55%, transparent 100%)" }}
-        aria-hidden
-      />
 
       {/* ─── Core Actions ─── */}
       <p className="text-[10px] font-bold tracking-[0.13em] uppercase mb-3 px-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>
