@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { clearUserCache } from "@/hooks/useCurrentUser";
 
 interface AppSettings {
   simpleMode: boolean;
@@ -18,6 +20,7 @@ interface AppSettings {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -144,6 +147,15 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSignOut() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch { /* ignore */ }
+    clearUserCache();
+    router.push("/login");
+    router.refresh();
+  }
+
   const toggle = (key: keyof AppSettings) => {
     if (!settings) return;
     setSettings({ ...settings, [key]: !settings[key as keyof AppSettings] });
@@ -232,7 +244,7 @@ export default function SettingsPage() {
         >
           <div>
             <h2 className="font-semibold text-sm text-slate-100">Manage Users</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Add technicians, office staff, and admins. Set PINs and roles.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Add technicians, office staff, and admins. Set passwords and roles.</p>
           </div>
           <svg className="text-slate-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
         </div>
@@ -477,6 +489,21 @@ export default function SettingsPage() {
             Clears local storage, cached files, and offline data on this device only.
           </p>
         </div>
+      </div>
+
+      {/* Sign Out */}
+      <div className="mt-5 mb-2">
+        <button
+          onClick={() => void handleSignOut()}
+          className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
+          style={{
+            background: "rgba(239,68,68,0.10)",
+            border: "1px solid rgba(239,68,68,0.22)",
+            color: "#fca5a5",
+          }}
+        >
+          Sign Out
+        </button>
       </div>
     </main>
   );

@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "1";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -193,6 +197,11 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
           <p className="text-slate-400 text-sm mt-1">Enter your email and password to continue</p>
         </div>
+        {resetSuccess && (
+          <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
+            Password updated successfully. Sign in with your new password.
+          </div>
+        )}
         <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
@@ -207,7 +216,12 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-400">Password</label>
+              <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
+                Forgot password?
+              </Link>
+            </div>
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
@@ -226,8 +240,26 @@ export default function LoginPage() {
           >
             {submitting ? "Signing in…" : "Sign In"}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
+              Sign Up
+            </Link>
+          </p>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <div className="text-slate-400 animate-pulse">Loading…</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

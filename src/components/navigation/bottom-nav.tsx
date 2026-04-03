@@ -31,8 +31,13 @@ export function BottomNav() {
   const pathname = usePathname();
   const { user } = useCurrentUser();
 
-  // Don't render nav on login page
-  if (pathname === "/login") return null;
+  // Don't render nav on auth pages
+  if (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password"
+  ) return null;
 
   let items = OFFICE_NAV;
   if (user?.role === "TECH") items = TECH_NAV;

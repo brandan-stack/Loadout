@@ -30,7 +30,12 @@ export function AppHeader() {
       .catch(() => {});
   }, []);
 
-  if (pathname === "/login") return null;
+  if (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password"
+  ) return null;
 
   const hasAlerts = counts && (counts.urgent > 0 || counts.high > 0);
 

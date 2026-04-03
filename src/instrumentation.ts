@@ -183,6 +183,8 @@ export async function register() {
         "email" TEXT NOT NULL UNIQUE,
         "role" TEXT NOT NULL DEFAULT 'TECH',
         "passwordHash" TEXT NOT NULL,
+        "resetToken" TEXT,
+        "resetTokenExpiry" DATETIME,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -253,6 +255,9 @@ export async function register() {
       // Migrate AppUser from pinHash/name-unique to email/passwordHash
       `ALTER TABLE "AppUser" ADD COLUMN "email" TEXT NOT NULL DEFAULT ''`,
       `ALTER TABLE "AppUser" ADD COLUMN "passwordHash" TEXT NOT NULL DEFAULT ''`,
+      // Add password reset fields
+      `ALTER TABLE "AppUser" ADD COLUMN "resetToken" TEXT`,
+      `ALTER TABLE "AppUser" ADD COLUMN "resetTokenExpiry" DATETIME`,
     ];
 
     for (const sql of statements) {
