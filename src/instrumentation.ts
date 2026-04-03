@@ -243,8 +243,8 @@ export async function register() {
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
       // Migrations: add new columns to existing tables (safe to re-run, errors ignored)
-      `ALTER TABLE "Tool" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'SHOP'`,
-      `ALTER TABLE "Tool" ADD COLUMN "ownerId" TEXT`,
+      // These ALTER TABLE statements ensure older SQLite databases (created before
+      // these columns were added) are upgraded to the current schema automatically.
       `ALTER TABLE "Supplier" ADD COLUMN "website" TEXT`,
       `ALTER TABLE "Item" ADD COLUMN "photoUrl" TEXT`,
       `ALTER TABLE "Location" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false`,
