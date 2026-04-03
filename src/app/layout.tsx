@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { Manrope, Space_Grotesk } from "next/font/google";
@@ -12,6 +12,13 @@ const headingFont = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-heading",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b1220",
+};
 
 export const metadata: Metadata = {
   title: "Loadout - Inventory Management",
@@ -31,11 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-        <meta name="theme-color" content="#0b1220" />
-      </head>
-      <body className={`${bodyFont.variable} ${headingFont.variable} pb-24 sm:pb-16`}>
+      <body className={`${bodyFont.variable} ${headingFont.variable}`}>
         {children}
         <BottomNav />
       </body>

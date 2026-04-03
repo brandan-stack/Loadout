@@ -51,10 +51,10 @@ const SECONDARY_CARDS = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen px-3 pt-5 pb-28 sm:pb-10 max-w-xl mx-auto">
+    <main className="px-4 sm:px-6 pt-4 sm:pt-7 max-w-xl sm:max-w-2xl mx-auto">
 
       {/* ─── Premium Header ─── */}
-      <header className="flex items-center justify-between mb-5 px-0.5">
+      <header className="flex items-center justify-between mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
           {/* Logo with teal glow ring */}
           <div className="relative flex-shrink-0">
@@ -64,14 +64,14 @@ export default function Home() {
               aria-hidden
             />
             <div
-              className="relative w-11 h-11 rounded-2xl overflow-hidden"
+              className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl overflow-hidden"
               style={{ boxShadow: "0 0 0 1px rgba(45,212,191,0.38), 0 4px 20px rgba(45,212,191,0.16)" }}
             >
               <Image
                 src="/icon-192.png"
                 alt="Loadout"
-                width={44}
-                height={44}
+                width={48}
+                height={48}
                 className="w-full h-full object-cover"
                 priority
               />
@@ -81,7 +81,7 @@ export default function Home() {
           {/* Wordmark */}
           <div className="leading-none select-none">
             <div
-              className="text-[22px] font-extrabold text-white tracking-tighter"
+              className="text-[20px] sm:text-[23px] font-extrabold text-white tracking-tighter"
               style={{
                 fontFamily: "var(--font-heading), var(--font-body), sans-serif",
                 textShadow: "0 0 28px rgba(45,212,191,0.16)",
@@ -90,7 +90,7 @@ export default function Home() {
               LOADOUT
             </div>
             <div
-              className="text-[9px] font-bold tracking-[0.15em] uppercase mt-0.5"
+              className="text-[9px] sm:text-[9.5px] font-bold tracking-[0.15em] uppercase mt-0.5"
               style={{ color: "rgba(45,212,191,0.65)" }}
             >
               Field Parts Tracking
@@ -102,7 +102,7 @@ export default function Home() {
         <Link
           href="/jobs"
           prefetch={false}
-          className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-[13px] font-bold text-slate-950 active:scale-95 transition-transform select-none"
+          className="flex items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2.5 text-[12.5px] sm:text-[13px] font-bold text-slate-950 active:scale-95 transition-transform select-none"
           style={{
             background: "linear-gradient(135deg, #2dd4bf 0%, #22d3ee 100%)",
             boxShadow: "0 0 20px rgba(45,212,191,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
@@ -117,7 +117,7 @@ export default function Home() {
 
       {/* ─── Accent rule ─── */}
       <div
-        className="h-px mb-6"
+        className="h-px mb-5 sm:mb-7"
         style={{ background: "linear-gradient(90deg, rgba(45,212,191,0.55) 0%, rgba(56,189,248,0.22) 55%, transparent 100%)" }}
         aria-hidden
       />
@@ -127,7 +127,7 @@ export default function Home() {
         Core Actions
       </p>
 
-      <div className="grid grid-cols-2 gap-2.5 mb-7">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
         {PRIMARY_CARDS.map(({ href, label, description, icon, gradient, accentColor, accentGlow }) => (
           <Link
             key={href}
@@ -147,10 +147,10 @@ export default function Home() {
               aria-hidden
             />
 
-            <div className="p-4 pt-5">
+            <div className="p-4 pt-5 sm:p-5 sm:pt-6">
               {/* Icon badge */}
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3.5"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xl sm:text-2xl mb-3.5"
                 style={{
                   background: accentGlow,
                   border: `1px solid ${accentColor}25`,
@@ -160,12 +160,12 @@ export default function Home() {
                 {icon}
               </div>
               <div
-                className="font-extrabold text-[15px] leading-tight text-white mb-1"
+                className="font-extrabold text-[14px] sm:text-[15px] leading-tight text-white mb-1"
                 style={{ fontFamily: "var(--font-heading), sans-serif", letterSpacing: "-0.025em" }}
               >
                 {label}
               </div>
-              <p className="text-[11px] leading-snug" style={{ color: "rgba(148,163,184,0.78)" }}>
+              <p className="text-[11px] sm:text-xs leading-snug" style={{ color: "rgba(148,163,184,0.78)" }}>
                 {description}
               </p>
             </div>
@@ -178,13 +178,13 @@ export default function Home() {
         More Tools
       </p>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
         {SECONDARY_CARDS.map(({ href, label, icon }) => (
           <Link
             key={href}
             href={href}
             prefetch={false}
-            className="card-lift rounded-xl flex flex-col items-center justify-center py-3.5 px-2 text-center active:scale-[0.96]"
+            className="card-lift rounded-xl flex flex-col items-center justify-center py-3.5 sm:py-4 px-2 text-center active:scale-[0.96]"
             style={{
               background: "rgba(15,23,42,0.68)",
               border: "1px solid rgba(148,163,184,0.11)",

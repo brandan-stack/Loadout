@@ -41,6 +41,15 @@ h4 {
 main {
   position: relative;
   z-index: 1;
+  /* Default bottom clearance so content never hides under the fixed bottom nav.
+     Page-specific classes (form-screen, pb-28, etc.) override this via higher specificity. */
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  main {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 .page-frame {
@@ -157,13 +166,8 @@ textarea::placeholder {
   color: #94a3b8;
 }
 
-/* Responsive touch targets */
-@media (max-width: 640px) {
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
+/* Responsive touch targets — scoped to bottom nav and explicit button classes only.
+   Forcing 44px on all <a> / <button> breaks small inline elements and header layouts. */
 
 @media (max-width: 768px) {
   input,
