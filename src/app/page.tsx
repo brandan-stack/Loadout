@@ -64,7 +64,7 @@ export default function Home() {
             "0 4px 32px rgba(34,211,238,0.10), 0 8px 40px rgba(2,6,23,0.45)",
         }}
       >
-        {/* Logo — swap icon-192.png for /loadout-logo.png once uploaded */}
+        {/* Logo */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative flex-shrink-0">
             <div
