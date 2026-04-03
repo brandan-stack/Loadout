@@ -37,10 +37,10 @@ export default function ReorderPage() {
   }
 
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8">
 
       {/* ─── Header ─── */}
-      <div className="flex items-end justify-between mb-8">
+      <div className="mb-5">
         <div>
           <h1
             className="font-bold text-white leading-none"
@@ -52,35 +52,42 @@ export default function ReorderPage() {
             Smart stock suggestions
           </p>
         </div>
-        {/* Stat pills */}
-        <div className="flex items-center gap-2">
-          {stats.urgent > 0 && (
-            <span
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
-              style={{
-                background: "rgba(239,68,68,0.13)",
-                border: "1px solid rgba(239,68,68,0.22)",
-                color: "#fca5a5",
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-              {stats.urgent} Critical
-            </span>
-          )}
-          {stats.high > 0 && (
-            <span
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
-              style={{
-                background: "rgba(245,158,11,0.12)",
-                border: "1px solid rgba(245,158,11,0.20)",
-                color: "#fcd34d",
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-              {stats.high} Low
-            </span>
-          )}
-        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-8">
+        <span
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+          style={{
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "#cbd5e1",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+          {stats.total} Total
+        </span>
+        <span
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+          style={{
+            background: "rgba(239,68,68,0.13)",
+            border: "1px solid rgba(239,68,68,0.22)",
+            color: "#fca5a5",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+          {stats.urgent} Critical
+        </span>
+        <span
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+          style={{
+            background: "rgba(245,158,11,0.12)",
+            border: "1px solid rgba(245,158,11,0.20)",
+            color: "#fcd34d",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+          {stats.high} Low
+        </span>
       </div>
 
       {loading ? (
@@ -95,9 +102,17 @@ export default function ReorderPage() {
             border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
-          <p className="text-3xl mb-4">✓</p>
-          <p className="font-semibold text-slate-300 mb-1">All stock levels adequate</p>
-          <p className="text-sm text-slate-500">No reorder recommendations at this time</p>
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            📋
+          </div>
+          <p className="font-semibold text-slate-200 mb-1">No reorder actions right now</p>
+          <p className="text-sm text-slate-500">Current stock levels do not need restocking</p>
         </div>
       ) : (
         <div

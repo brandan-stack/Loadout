@@ -151,9 +151,9 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p>Loading settings...</p>
-      </div>
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading settings...</p>
+      </main>
     );
   }
 
@@ -206,7 +206,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-2xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
 
       {/* ─── Header ─── */}
       <div className="mb-8">
@@ -411,10 +411,10 @@ export default function SettingsPage() {
           className="w-full py-3 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
           style={{
             background: saved
-              ? "rgba(34,197,94,0.25)"
+              ? "rgba(99,102,241,0.18)"
               : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-            border: saved ? "1px solid rgba(34,197,94,0.35)" : "none",
-            color: saved ? "#86efac" : "white",
+            border: saved ? "1px solid rgba(129,140,248,0.28)" : "none",
+            color: saved ? "#c7d2fe" : "white",
             boxShadow: saved ? "none" : "0 3px 14px rgba(91,94,244,0.32)",
           }}
         >
@@ -461,12 +461,12 @@ export default function SettingsPage() {
               className="px-4 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
               style={{
                 background: cleared
-                  ? "rgba(34,197,94,0.18)"
+                  ? "rgba(71,85,105,0.3)"
                   : "rgba(239,68,68,0.15)",
                 border: cleared
-                  ? "1px solid rgba(34,197,94,0.28)"
+                  ? "1px solid rgba(148,163,184,0.18)"
                   : "1px solid rgba(239,68,68,0.25)",
-                color: cleared ? "#86efac" : "#fca5a5",
+                color: cleared ? "#cbd5e1" : "#fca5a5",
               }}
             >
               {clearing ? "Clearing…" : cleared ? "Cleared" : "Clear Device Cache"}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface AiResult {
@@ -321,14 +320,14 @@ export default function ItemCatalog() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-slate-400 animate-pulse">Loading items...</p>
-      </div>
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading inventory...</p>
+      </main>
     );
   }
 
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
 
       {/* ─── Page Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
@@ -415,7 +414,10 @@ export default function ItemCatalog() {
       </div>
 
       {showForm && (
-        <GlassBubbleCard className="mb-6">
+        <div
+          className="mb-6 rounded-2xl p-5"
+          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
           {/* AI Scan panel */}
           <div className="mb-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
             <p className="text-sm font-semibold text-slate-200 mb-1">📷 AI Item Recognition</p>
@@ -423,7 +425,10 @@ export default function ItemCatalog() {
               Take or upload a photo — AI will try to identify the item and pre-fill the form.
             </p>
             <div className="flex flex-wrap gap-2">
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-sm font-semibold cursor-pointer select-none">
+              <label
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-semibold cursor-pointer select-none"
+                style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
+              >
                 📷 Use Camera
                 <input
                   type="file"
@@ -454,12 +459,18 @@ export default function ItemCatalog() {
               </label>
             </div>
             {aiScanning && (
-              <p className="mt-2 text-xs text-cyan-400 animate-pulse">Analyzing image with AI…</p>
+              <p className="mt-2 text-xs text-indigo-300 animate-pulse">Analyzing image with AI…</p>
             )}
             {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
             {aiResult && (
-              <div className="mt-3 rounded-lg border border-cyan-700/50 bg-cyan-950/40 p-3 text-sm">
-                <p className="font-semibold text-cyan-200 mb-2">AI Detected:</p>
+              <div
+                className="mt-3 rounded-lg p-3 text-sm"
+                style={{
+                  border: "1px solid rgba(129,140,248,0.24)",
+                  background: "rgba(79,70,229,0.10)",
+                }}
+              >
+                <p className="font-semibold text-indigo-200 mb-2">AI Detected:</p>
                 {aiResult.name && (
                   <p className="text-slate-300">
                     <span className="text-slate-400">Name:</span> {aiResult.name}
@@ -497,7 +508,8 @@ export default function ItemCatalog() {
                   <button
                     type="button"
                     onClick={applyAiResult}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold"
+                    className="px-3 py-1.5 rounded-lg text-white text-sm font-semibold"
+                    style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
                   >
                     Apply to Form
                   </button>
@@ -567,7 +579,8 @@ export default function ItemCatalog() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
@@ -575,28 +588,32 @@ export default function ItemCatalog() {
                   placeholder="Manufacturer (optional)"
                   value={formData.manufacturer}
                   onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
                 <input
                   type="text"
                   placeholder="Part Number (optional)"
                   value={formData.partNumber}
                   onChange={(e) => setFormData({ ...formData, partNumber: e.target.value })}
-                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
                 <input
                   type="text"
                   placeholder="Model Number (optional)"
                   value={formData.modelNumber}
                   onChange={(e) => setFormData({ ...formData, modelNumber: e.target.value })}
-                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
                 <input
                   type="text"
                   placeholder="Serial Number (optional)"
                   value={formData.serialNumber}
                   onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               </div>
               <textarea
@@ -604,14 +621,16 @@ export default function ItemCatalog() {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={2}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               />
               <input
                 type="text"
                 placeholder="Barcode (optional)"
                 value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               />
               <input
                 type="number"
@@ -620,7 +639,8 @@ export default function ItemCatalog() {
                 onChange={(e) => setFormData({ ...formData, quantityOnHand: e.target.value })}
                 min={0}
                 step={1}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
@@ -655,7 +675,8 @@ export default function ItemCatalog() {
               <select
                 value={formData.preferredSupplierId}
                 onChange={(e) => setFormData({ ...formData, preferredSupplierId: e.target.value })}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               >
                 <option value="">Select Supplier (optional)</option>
                 {suppliers.map((supplier) => (
@@ -667,7 +688,8 @@ export default function ItemCatalog() {
               <select
                 value={formData.locationId}
                 onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               >
                 <option value="">Assign to Location (optional)</option>
                 {locations.map((loc) => (
@@ -689,26 +711,32 @@ export default function ItemCatalog() {
                   }
                   min={0}
                   step="0.01"
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               )}
               <button
                 type="submit"
-                className="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold py-2.5 text-sm"
+                className="w-full rounded-xl text-white font-semibold py-2.5 text-sm transition-all hover:brightness-110 active:scale-[0.98]"
+                style={{
+                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                  boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
+                }}
               >
                 Save Item
               </button>
             </div>
           </form>
-        </GlassBubbleCard>
+        </div>
       )}
 
       {/* ─── Item list (row layout) ─── */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        {filteredItems.map((item, idx) => {
+      {filteredItems.length > 0 && (
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {filteredItems.map((item, idx) => {
           const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
           const isLow = !isCritical && item.quantityOnHand <= item.lowStockAmberThreshold;
           const isLast = idx === filteredItems.length - 1;
@@ -790,8 +818,9 @@ export default function ItemCatalog() {
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
 
       {filteredItems.length === 0 && (
         <div

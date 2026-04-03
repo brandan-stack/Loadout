@@ -39,21 +39,21 @@ export function AppHeader() {
       className="sticky top-0 z-40 w-full"
       style={{
         background: "rgba(7, 11, 20, 0.92)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.50)",
+        boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 18px rgba(0,0,0,0.42)",
       }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
 
         {/* ─── Left: Logo + Wordmark ─── */}
         <Link href="/" prefetch={false} className="flex items-center gap-3 select-none shrink-0">
           <div
             className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
             style={{
-              background: "linear-gradient(135deg, #22d3ee 0%, #34d399 100%)",
-              boxShadow: "0 0 12px rgba(34,211,238,0.28)",
+              background: "linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)",
+              boxShadow: "0 0 10px rgba(99,102,241,0.22)",
             }}
           >
             <div className="w-3.5 h-3.5 border-[1.5px] border-white/85 rotate-45 rounded-[2px]" />

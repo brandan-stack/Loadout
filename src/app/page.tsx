@@ -3,10 +3,10 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main
-      className="flex flex-col items-center px-4 pt-14 pb-8"
+      className="flex flex-col items-center px-4 pt-10 pb-8"
       style={{ minHeight: "calc(100vh - 3.5rem)" }}
     >
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-xl">
 
         {/* ─── Greeting ─── */}
         <p
@@ -21,8 +21,8 @@ export default function Home() {
           className="relative rounded-2xl overflow-hidden"
           style={{
             background: "linear-gradient(160deg, rgba(18,22,52,0.99) 0%, rgba(10,12,30,1) 100%)",
-            border: "1px solid rgba(99,102,241,0.18)",
-            boxShadow: "0 12px 48px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.05) inset",
+            border: "1px solid rgba(99,102,241,0.14)",
+            boxShadow: "0 10px 28px rgba(0,0,0,0.46), 0 1px 0 rgba(255,255,255,0.05) inset",
           }}
         >
           {/* Top accent */}

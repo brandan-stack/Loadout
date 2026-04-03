@@ -37,7 +37,7 @@ const REPORTS = [
 
 export default function ReportsPage() {
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8">
 
       {/* ─── Header ─── */}
       <div className="mb-8">

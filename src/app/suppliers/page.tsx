@@ -137,17 +137,17 @@ export default function SupplierManagement() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-slate-400 animate-pulse">Loading suppliers...</p>
-      </div>
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading suppliers...</p>
+      </main>
     );
   }
 
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-3xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
 
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1
             className="font-bold text-white leading-none"

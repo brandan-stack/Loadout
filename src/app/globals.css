@@ -10,8 +10,8 @@
   --surface-strong: rgba(15, 23, 42, 0.84);
   --surface-soft: rgba(15, 23, 42, 0.72);
   --stroke-soft: rgba(148, 163, 184, 0.24);
-  --accent: #2dd4bf;
-  --accent-strong: #5eead4;
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
 }
 
 html {
@@ -25,8 +25,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   color: var(--ink-900);
   background:
-    radial-gradient(circle at 12% 10%, rgba(45, 212, 191, 0.2) 0, rgba(45, 212, 191, 0) 34%),
-    radial-gradient(circle at 85% 18%, rgba(56, 189, 248, 0.2) 0, rgba(56, 189, 248, 0) 30%),
+    radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.14) 0, rgba(99, 102, 241, 0) 34%),
+    radial-gradient(circle at 85% 18%, rgba(71, 85, 105, 0.16) 0, rgba(71, 85, 105, 0) 30%),
     linear-gradient(180deg, #070d18 0%, var(--app-bg) 58%, #040914 100%);
 }
 
@@ -67,9 +67,9 @@ main {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #a7f3d0;
-  background: rgba(45, 212, 191, 0.16);
-  border: 1px solid rgba(94, 234, 212, 0.28);
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(129, 140, 248, 0.24);
   border-radius: 999px;
   padding: 0.3rem 0.6rem;
 }
@@ -80,7 +80,7 @@ main {
 
 .card-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.65), 0 0 0 1px rgba(45, 212, 191, 0.2);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(129, 140, 248, 0.14);
 }
 
 .soft-button {

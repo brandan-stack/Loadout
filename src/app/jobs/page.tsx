@@ -68,11 +68,15 @@ export default function JobsPage() {
   );
 
   if (loading || userLoading) {
-    return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+    return (
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading jobs...</p>
+      </main>
+    );
   }
 
   return (
-    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
 
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between mb-8">
