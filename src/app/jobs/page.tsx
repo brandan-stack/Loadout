@@ -85,7 +85,7 @@ export default function JobsPage() {
             {user?.role === "TECH" ? "Your work orders" : "All work orders"}
           </p>
         </div>
-        {(user?.role === "TECH" || user?.role === "SUPER_ADMIN") && (
+        {user?.role !== "OFFICE" && (
           <button
             onClick={() => setShowForm(!showForm)}
             className="rounded-xl bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 text-sm font-semibold"

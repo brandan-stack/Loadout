@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface AppSettings {
   simpleMode: boolean;
@@ -197,12 +199,29 @@ export default function SettingsPage() {
     </div>
   );
 
+  const { user } = useCurrentUser();
+
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
       <h1 className="text-3xl sm:text-4xl font-bold mb-2">Settings</h1>
       <p className="text-gray-600 mb-8">
         Configure your inventory app preferences and enable premium features.
       </p>
+
+      {/* User management — SUPER_ADMIN only */}
+      {user?.role === "SUPER_ADMIN" && (
+        <Link href="/admin/users">
+          <GlassBubbleCard className="mb-6 border border-teal-700/50 hover:border-teal-500 transition-colors cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-lg">👥 Manage Users</h2>
+                <p className="text-sm text-slate-400 mt-1">Add technicians, office staff, and admins. Set PINs and roles.</p>
+              </div>
+              <span className="text-teal-400 text-xl">→</span>
+            </div>
+          </GlassBubbleCard>
+        </Link>
+      )}
 
       {/* Core settings */}
       <GlassBubbleCard className="mb-6">
