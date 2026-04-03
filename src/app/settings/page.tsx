@@ -9,9 +9,7 @@ interface AppSettings {
   enableMultiLocation: boolean;
   enableVariants: boolean;
   enableImportWizard: boolean;
-  enableLotExpiry: boolean;
   enableBackupZip: boolean;
-  enableReportScheduler: boolean;
   enableAITagging: boolean;
   preferredEmailClient: string;
   composeSubjectTemplate: string;
@@ -244,21 +242,9 @@ export default function SettingsPage() {
           badge="Advanced"
         />
         <ToggleRow
-          label="Lot & Expiry Tracking"
-          description="Track lot numbers and expiry dates for items"
-          settingKey="enableLotExpiry"
-          badge="Advanced"
-        />
-        <ToggleRow
           label="Backup & Restore"
           description="Create and restore inventory backups as ZIP files"
           settingKey="enableBackupZip"
-          badge="Advanced"
-        />
-        <ToggleRow
-          label="Report Scheduler"
-          description="Schedule regular reports delivered to the app inbox"
-          settingKey="enableReportScheduler"
           badge="Advanced"
         />
         <ToggleRow

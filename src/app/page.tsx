@@ -36,8 +36,6 @@ const SECONDARY_CARDS = [
   { href: "/tools", label: "Tools", icon: "🧰" },
   { href: "/locations", label: "Locations", icon: "📍" },
   { href: "/import", label: "Import CSV", icon: "⬆" },
-  { href: "/reports/expiry", label: "Expiry Alerts", icon: "⏰" },
-  { href: "/scheduler", label: "Scheduler", icon: "📅" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -48,7 +46,7 @@ export default function Home() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <span className="eyebrow">Loadout</span>
-            <h1 className="text-3xl sm:text-5xl font-bold mt-3 leading-tight">Inventory Command Center</h1>
+            <h1 className="text-3xl sm:text-5xl font-bold mt-3 leading-tight">Parts Inventory</h1>
             <p className="text-slate-600 mt-2 max-w-xl text-sm sm:text-base">
               Fast actions and focused tools for daily stock updates, audit checks, and reorder planning.
             </p>

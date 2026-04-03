@@ -33,13 +33,6 @@ export default function ReportsPage() {
       icon: "⚡",
       color: "amber",
     },
-    {
-      slug: "expiry",
-      title: "Expiry Alerts",
-      description: "Inventory nearing expiry windows",
-      icon: "⏰",
-      color: "blue",
-    },
   ];
 
   return (
