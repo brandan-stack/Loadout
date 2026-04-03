@@ -12,6 +12,6 @@ export async function GET() {
     });
     return NextResponse.json(users);
   } catch {
-    return NextResponse.json([]);
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
   }
 }

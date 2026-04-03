@@ -11,7 +11,7 @@ export async function GET() {
     const count = await dbAny.appUser.count();
     return NextResponse.json({ required: count === 0 });
   } catch {
-    return NextResponse.json({ required: true });
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
   }
 }
 

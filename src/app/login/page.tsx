@@ -28,24 +28,40 @@ export default function LoginPage() {
   const [setupConfirm, setSetupConfirm] = useState("");
   const [setupError, setSetupError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/setup")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.required) {
-          setSetupMode(true);
+      .then((r) => {
+        if (!r.ok) {
+          setDbError(true);
           setLoading(false);
-        } else {
-          return fetch("/api/auth/users")
-            .then((r) => r.json())
-            .then((u) => {
-              setUsers(u);
-              setLoading(false);
-            });
+          return;
         }
+        return r.json().then((d) => {
+          if (d.required) {
+            setSetupMode(true);
+            setLoading(false);
+          } else {
+            return fetch("/api/auth/users")
+              .then((ur) => {
+                if (!ur.ok) {
+                  setDbError(true);
+                  setLoading(false);
+                  return;
+                }
+                return ur.json().then((u) => {
+                  setUsers(u);
+                  setLoading(false);
+                });
+              });
+          }
+        });
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setDbError(true);
+        setLoading(false);
+      });
   }, []);
 
   const pressDigit = (d: string) => {
@@ -109,6 +125,25 @@ export default function LoginPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-950">
         <div className="text-slate-400 animate-pulse">Loading…</div>
+      </div>
+    );
+  }
+
+  if (dbError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
+        <div className="w-full max-w-sm text-center">
+          <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
+          <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
+          <p className="text-slate-400 text-sm mt-2">The database is unavailable. Please check your connection and try again.</p>
+          <button
+            onClick={() => { setDbError(false); setLoading(true); window.location.reload(); }}
+            className="mt-6 rounded-xl text-white font-semibold px-6 py-3 text-sm transition-colors"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
