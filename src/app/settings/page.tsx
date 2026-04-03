@@ -32,6 +32,7 @@ export default function SettingsPage() {
     quotaMB: number;
     percent: number;
   } | null>(null);
+  const { user } = useCurrentUser();
 
   useEffect(() => {
     fetchSettings();
@@ -198,8 +199,6 @@ export default function SettingsPage() {
       </button>
     </div>
   );
-
-  const { user } = useCurrentUser();
 
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">

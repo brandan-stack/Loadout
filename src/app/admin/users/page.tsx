@@ -32,6 +32,7 @@ export default function UsersPage() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (meLoading) return;
@@ -68,6 +69,19 @@ export default function UsersPage() {
       }
     } catch { setFormError("Failed to create user"); }
     setSaving(false);
+  }
+
+  async function handleRoleChange(id: string, newRole: string) {
+    setChangingRoleId(id);
+    try {
+      await fetch(`/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role: newRole } : u)));
+    } catch { /* ignore */ }
+    setChangingRoleId(null);
   }
 
   async function handleDelete(id: string) {
@@ -185,15 +199,27 @@ export default function UsersPage() {
                 </span>
               </div>
             </div>
-            {u.id !== me?.userId && (
-              <button
-                onClick={() => handleDelete(u.id)}
-                disabled={deletingId === u.id}
-                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+            <div className="flex items-center gap-3">
+              <select
+                value={u.role}
+                onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                disabled={u.id === me?.userId || changingRoleId === u.id}
+                className="rounded-lg bg-slate-800 border border-slate-600 text-slate-100 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
               >
-                {deletingId === u.id ? "Removing…" : "Remove"}
-              </button>
-            )}
+                <option value="TECH">Technician</option>
+                <option value="OFFICE">Office</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+              </select>
+              {u.id !== me?.userId && (
+                <button
+                  onClick={() => handleDelete(u.id)}
+                  disabled={deletingId === u.id}
+                  className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                >
+                  {deletingId === u.id ? "Removing…" : "Remove"}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
