@@ -49,7 +49,10 @@ model Item {
   
   // Multi-location stock
   locationStock         LocationStock[]
-  
+
+  // Job parts
+  jobParts              JobPart[]
+
   // Dates
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -104,21 +107,86 @@ model Supplier {
   updatedAt DateTime @updatedAt
 }
 
+model AppUser {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  role      String   @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
+  pinHash   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs      Job[]          @relation("TechJobs")
+  tools     Tool[]         @relation("PersonalTools")
+  checkouts ToolCheckout[]
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  jobNumber    String    @unique
+  customer     String
+  technicianId String
+  technician   AppUser   @relation("TechJobs", fields: [technicianId], references: [id])
+  date         DateTime  @default(now())
+  status       String    @default("OPEN") // "OPEN" | "COMPLETED" | "INVOICED"
+  notes        String?
+  parts        JobPart[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([technicianId])
+  @@index([status])
+  @@index([jobNumber])
+}
+
+model JobPart {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id])
+  quantity  Int
+  unitCost  Float    @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+  @@index([itemId])
+}
+
 model Tool {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   name         String
   manufacturer String?
   partNumber   String?
   modelNumber  String?
   supplier     String?
-  cost         Float    @default(0)
+  cost         Float          @default(0)
   notes        String?
   photoUrl     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  type         String         @default("SHOP") // "SHOP" | "PERSONAL"
+  ownerId      String?
+  owner        AppUser?       @relation("PersonalTools", fields: [ownerId], references: [id])
+  checkouts    ToolCheckout[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@index([name])
   @@index([supplier])
+  @@index([ownerId])
+}
+
+model ToolCheckout {
+  id           String    @id @default(cuid())
+  toolId       String
+  tool         Tool      @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  userId       String
+  user         AppUser   @relation(fields: [userId], references: [id])
+  checkedOutAt DateTime  @default(now())
+  returnedAt   DateTime?
+  notes        String?
+
+  @@index([toolId])
+  @@index([userId])
 }
 
 model ReportView {

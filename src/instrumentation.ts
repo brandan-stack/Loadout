@@ -19,15 +19,9 @@ export async function register() {
 
     const { prisma } = await import("@/lib/db");
 
-    // Quick check — if Supplier table is accessible, schema is already ready.
-    try {
-      await prisma.$queryRaw`SELECT 1 FROM "Supplier" LIMIT 1`;
-      return;
-    } catch {
-      // Table doesn't exist yet — run DDL below.
-    }
-
-    // Apply all schema DDL idempotently. Safe to run on every cold start.
+    // Run all DDL idempotently on every cold start.
+    // CREATE TABLE IF NOT EXISTS is safe to repeat and ensures new tables
+    // are created when the schema changes between deployments.
     const statements = [
       `CREATE TABLE IF NOT EXISTS "Supplier" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -144,6 +138,57 @@ export async function register() {
       )`,
       `CREATE INDEX IF NOT EXISTS "Tool_name_idx" ON "Tool"("name")`,
       `CREATE INDEX IF NOT EXISTS "Tool_supplier_idx" ON "Tool"("supplier")`,
+      `ALTER TABLE "Tool" ADD COLUMN IF NOT EXISTS "type" TEXT NOT NULL DEFAULT 'SHOP'`,
+      `ALTER TABLE "Tool" ADD COLUMN IF NOT EXISTS "ownerId" TEXT`,
+      `CREATE TABLE IF NOT EXISTS "AppUser" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL UNIQUE,
+        "role" TEXT NOT NULL DEFAULT 'TECH',
+        "pinHash" TEXT NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS "AppUser_name_idx" ON "AppUser"("name")`,
+      `CREATE TABLE IF NOT EXISTS "Job" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "jobNumber" TEXT NOT NULL UNIQUE,
+        "customer" TEXT NOT NULL,
+        "technicianId" TEXT NOT NULL,
+        "date" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "status" TEXT NOT NULL DEFAULT 'OPEN',
+        "notes" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY ("technicianId") REFERENCES "AppUser"("id")
+      )`,
+      `CREATE INDEX IF NOT EXISTS "Job_technicianId_idx" ON "Job"("technicianId")`,
+      `CREATE INDEX IF NOT EXISTS "Job_status_idx" ON "Job"("status")`,
+      `CREATE INDEX IF NOT EXISTS "Job_jobNumber_idx" ON "Job"("jobNumber")`,
+      `CREATE TABLE IF NOT EXISTS "JobPart" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "jobId" TEXT NOT NULL,
+        "itemId" TEXT NOT NULL,
+        "quantity" INTEGER NOT NULL,
+        "unitCost" REAL NOT NULL DEFAULT 0,
+        "notes" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY ("jobId") REFERENCES "Job"("id") ON DELETE CASCADE,
+        FOREIGN KEY ("itemId") REFERENCES "Item"("id")
+      )`,
+      `CREATE INDEX IF NOT EXISTS "JobPart_jobId_idx" ON "JobPart"("jobId")`,
+      `CREATE INDEX IF NOT EXISTS "JobPart_itemId_idx" ON "JobPart"("itemId")`,
+      `CREATE TABLE IF NOT EXISTS "ToolCheckout" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "toolId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "checkedOutAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "returnedAt" DATETIME,
+        "notes" TEXT,
+        FOREIGN KEY ("toolId") REFERENCES "Tool"("id") ON DELETE CASCADE,
+        FOREIGN KEY ("userId") REFERENCES "AppUser"("id")
+      )`,
+      `CREATE INDEX IF NOT EXISTS "ToolCheckout_toolId_idx" ON "ToolCheckout"("toolId")`,
+      `CREATE INDEX IF NOT EXISTS "ToolCheckout_userId_idx" ON "ToolCheckout"("userId")`,
       `CREATE TABLE IF NOT EXISTS "Settings" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "simpleMode" BOOLEAN NOT NULL DEFAULT false,

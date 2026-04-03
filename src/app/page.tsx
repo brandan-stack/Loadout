@@ -2,6 +2,13 @@ import Link from "next/link";
 
 const PRIMARY_CARDS = [
   {
+    href: "/jobs",
+    label: "Jobs",
+    description: "Log parts and materials used on crane jobs",
+    icon: "🔧",
+    color: "from-teal-950/90 to-cyan-900/80",
+  },
+  {
     href: "/scan",
     label: "Scan",
     description: "Capture barcode and update stock in seconds",
@@ -10,28 +17,22 @@ const PRIMARY_CARDS = [
   },
   {
     href: "/items",
-    label: "Items",
-    description: "Search catalog, adjust thresholds, and add new items",
+    label: "Parts",
+    description: "Search catalog, adjust thresholds, and add new parts",
     icon: "📦",
     color: "from-indigo-950/90 to-blue-900/80",
   },
   {
     href: "/reports",
     label: "Reports",
-    description: "Spot trends, low stock, and dead inventory quickly",
+    description: "Spot trends, low stock, and job material costs",
     icon: "📊",
     color: "from-emerald-950/90 to-teal-900/80",
-  },
-  {
-    href: "/reorder",
-    label: "Reorder",
-    description: "Use recommendations to plan your next purchase",
-    icon: "🔄",
-    color: "from-amber-950/90 to-orange-900/80",
   },
 ];
 
 const SECONDARY_CARDS = [
+  { href: "/reorder", label: "Reorder", icon: "🔄" },
   { href: "/suppliers", label: "Suppliers", icon: "🏭" },
   { href: "/tools", label: "Tools", icon: "🧰" },
   { href: "/locations", label: "Locations", icon: "📍" },
@@ -48,15 +49,15 @@ export default function Home() {
             <span className="eyebrow">Loadout</span>
             <h1 className="text-3xl sm:text-5xl font-bold mt-3 leading-tight">Parts Inventory</h1>
             <p className="text-slate-600 mt-2 max-w-xl text-sm sm:text-base">
-              Fast actions and focused tools for daily stock updates, audit checks, and reorder planning.
+              Track parts used on overhead crane jobs, manage stock, and generate billing reports.
             </p>
           </div>
           <Link
-            href="/scan"
+            href="/jobs"
             prefetch={false}
             className="rounded-xl bg-teal-700 text-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-teal-800 transition-colors"
           >
-            Start Scan
+            Open Jobs
           </Link>
         </div>
 
@@ -122,4 +123,3 @@ export default function Home() {
     </main>
   );
 }
-

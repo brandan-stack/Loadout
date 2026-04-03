@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+
+interface CheckoutUser { id: string; name: string; }
+interface ActiveCheckout { id: string; user: CheckoutUser; checkedOutAt: string; }
+interface ToolOwner { id: string; name: string; }
 
 interface Tool {
   id: string;
@@ -13,6 +18,9 @@ interface Tool {
   cost: number;
   photoUrl?: string | null;
   notes?: string | null;
+  type: "SHOP" | "PERSONAL";
+  owner?: ToolOwner | null;
+  checkouts: ActiveCheckout[];
   createdAt: string;
 }
 
@@ -24,6 +32,7 @@ interface ToolFormState {
   supplier: string;
   cost: number;
   notes: string;
+  type: "SHOP" | "PERSONAL";
 }
 
 const initialForm: ToolFormState = {
@@ -34,6 +43,7 @@ const initialForm: ToolFormState = {
   supplier: "",
   cost: 0,
   notes: "",
+  type: "PERSONAL",
 };
 
 async function compressImage(file: File): Promise<string> {
@@ -67,6 +77,7 @@ async function compressImage(file: File): Promise<string> {
 }
 
 export default function ToolsPage() {
+  const { user } = useCurrentUser();
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,15 +86,13 @@ export default function ToolsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [returning, setReturning] = useState<string | null>(null);
+  const [tab, setTab] = useState<"SHOP" | "PERSONAL">("SHOP");
 
-  const totalCost = useMemo(
-    () => tools.reduce((sum, tool) => sum + (Number.isFinite(tool.cost) ? tool.cost : 0), 0),
-    [tools]
-  );
+  const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
 
-  useEffect(() => {
-    loadTools();
-  }, []);
+  useEffect(() => { loadTools(); }, []);
 
   async function loadTools() {
     setLoading(true);
@@ -101,37 +110,19 @@ export default function ToolsPage() {
     }
   }
 
-  function validateForm() {
-    if (!form.name.trim()) return "Tool name is required.";
-    if (!Number.isFinite(form.cost) || form.cost < 0) return "Cost must be 0 or greater.";
-    return "";
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-    setError("");
+    if (!form.name.trim()) { setError("Tool name is required."); return; }
+    setSaving(true); setError("");
 
     let photoUrl: string | undefined | null;
     if (photoFile) {
-      try {
-        photoUrl = await compressImage(photoFile);
-      } catch {
-        // ignore compression errors, proceed without photo
-      }
+      try { photoUrl = await compressImage(photoFile); } catch { /* ignore */ }
     } else if (editingId) {
-      const existing = tools.find((t) => t.id === editingId);
-      photoUrl = existing?.photoUrl ?? null;
+      photoUrl = tools.find((t) => t.id === editingId)?.photoUrl ?? null;
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: form.name.trim(),
       manufacturer: form.manufacturer.trim() || undefined,
       partNumber: form.partNumber.trim() || undefined,
@@ -140,6 +131,7 @@ export default function ToolsPage() {
       cost: Number(form.cost),
       notes: form.notes.trim() || undefined,
       photoUrl: photoUrl ?? null,
+      type: form.type,
     };
 
     try {
@@ -154,13 +146,12 @@ export default function ToolsPage() {
         throw new Error(body?.error || "Failed to save tool");
       }
 
-      setForm(initialForm);
+      setForm({ ...initialForm, type: form.type });
       setEditingId(null);
       setPhotoFile(null);
       setPhotoPreview("");
       await loadTools();
     } catch (err) {
-      console.error(err);
       setError(err instanceof Error ? err.message : "Failed to save tool.");
     } finally {
       setSaving(false);
@@ -176,11 +167,13 @@ export default function ToolsPage() {
       supplier: tool.supplier || "",
       cost: tool.cost,
       notes: tool.notes || "",
+      type: tool.type,
     });
     setEditingId(tool.id);
     setPhotoFile(null);
     setPhotoPreview(tool.photoUrl || "");
     setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
@@ -192,37 +185,80 @@ export default function ToolsPage() {
   }
 
   async function deleteTool(id: string) {
+    if (!confirm("Delete this tool?")) return;
     try {
       const res = await fetch(`/api/tools/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete tool");
       if (editingId === id) cancelEdit();
       await loadTools();
     } catch (err) {
-      console.error(err);
       setError("Failed to delete tool.");
     }
   }
+
+  async function handleCheckout(toolId: string) {
+    setCheckingOut(toolId);
+    try {
+      const res = await fetch(`/api/tools/${toolId}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setError(d?.error || "Could not sign out tool");
+      } else {
+        await loadTools();
+      }
+    } catch { setError("Could not sign out tool"); }
+    setCheckingOut(null);
+  }
+
+  async function handleReturn(toolId: string) {
+    setReturning(toolId);
+    try {
+      const res = await fetch(`/api/tools/${toolId}/return`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setError(d?.error || "Could not return tool");
+      } else {
+        await loadTools();
+      }
+    } catch { setError("Could not return tool"); }
+    setReturning(null);
+  }
+
+  const shopTools = tools.filter((t) => t.type === "SHOP");
+  const personalTools = tools.filter((t) => t.type === "PERSONAL");
+  const displaying = tab === "SHOP" ? shopTools : personalTools;
+  const shopValue = useMemo(() => shopTools.reduce((s, t) => s + (t.cost || 0), 0), [shopTools]);
 
   return (
     <main className="container mx-auto px-3 py-4 sm:p-4 max-w-5xl form-screen">
       <section className="page-frame p-4 sm:p-6 mb-5">
         <h1 className="text-3xl sm:text-4xl font-bold">Tool Tracking</h1>
-        <p className="text-slate-400 mt-2 text-sm sm:text-base">
-          Keep track of tools, suppliers, and cost. Add tools and edit them anytime.
+        <p className="text-slate-400 mt-1 text-sm sm:text-base">
+          Shop tools everyone can sign out. Personal tools stay with their owner.
         </p>
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
           <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3">
-            <p className="text-xs text-slate-400">Tools</p>
-            <p className="text-xl font-bold">{tools.length}</p>
+            <p className="text-xs text-slate-400">Shop Tools</p>
+            <p className="text-xl font-bold">{shopTools.length}</p>
           </div>
           <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3">
-            <p className="text-xs text-slate-400">Total Cost</p>
-            <p className="text-xl font-bold">${totalCost.toFixed(2)}</p>
+            <p className="text-xs text-slate-400">Personal Tools</p>
+            <p className="text-xl font-bold">{personalTools.length}</p>
           </div>
-          <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3 col-span-2 sm:col-span-1">
-            <p className="text-xs text-slate-400">Mode</p>
-            <p className="text-xl font-bold">{editingId ? "Editing" : "Adding"}</p>
-          </div>
+          {isAdmin && (
+            <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3">
+              <p className="text-xs text-slate-400">Shop Value</p>
+              <p className="text-xl font-bold">${shopValue.toFixed(2)}</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -232,6 +268,7 @@ export default function ToolsPage() {
         </GlassBubbleCard>
       )}
 
+      {/* Add / Edit form */}
       <GlassBubbleCard className="mb-6">
         <h2 className="text-xl font-semibold mb-3">{editingId ? "Edit Tool" : "Add Tool"}</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -244,6 +281,17 @@ export default function ToolsPage() {
               className="w-full px-3 py-2 border rounded-lg"
               required
             />
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Type</label>
+              <select
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value as "SHOP" | "PERSONAL" })}
+                className="w-full px-3 py-2 border rounded-lg bg-slate-800 text-slate-100"
+              >
+                <option value="PERSONAL">Personal (my tools)</option>
+                {isAdmin && <option value="SHOP">Shop (shared)</option>}
+              </select>
+            </div>
             <input
               type="text"
               placeholder="Manufacturer (optional)"
@@ -258,36 +306,19 @@ export default function ToolsPage() {
               onChange={(e) => setForm({ ...form, partNumber: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
-            <input
-              type="text"
-              placeholder="Model Number (optional)"
-              value={form.modelNumber}
-              onChange={(e) => setForm({ ...form, modelNumber: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Supplier (optional)"
-              value={form.supplier}
-              onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="Cost (optional; defaults to 0)"
-              value={form.cost}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  cost: Number.isNaN(e.currentTarget.valueAsNumber)
-                    ? 0
-                    : e.currentTarget.valueAsNumber,
-                })
-              }
-              className="w-full px-3 py-2 border rounded-lg"
-            />
+            {isAdmin && (
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="Cost (optional)"
+                value={form.cost}
+                onChange={(e) =>
+                  setForm({ ...form, cost: isNaN(e.currentTarget.valueAsNumber) ? 0 : e.currentTarget.valueAsNumber })
+                }
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            )}
           </div>
 
           {/* Photo upload */}
@@ -303,10 +334,7 @@ export default function ToolsPage() {
                   className="sr-only"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      setPhotoFile(file);
-                      setPhotoPreview(URL.createObjectURL(file));
-                    }
+                    if (file) { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)); }
                     e.target.value = "";
                   }}
                 />
@@ -319,22 +347,14 @@ export default function ToolsPage() {
                   className="sr-only"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      setPhotoFile(file);
-                      setPhotoPreview(URL.createObjectURL(file));
-                    }
+                    if (file) { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)); }
                     e.target.value = "";
                   }}
                 />
               </label>
               {photoPreview && (
-                <button
-                  type="button"
-                  onClick={() => { setPhotoFile(null); setPhotoPreview(""); }}
-                  className="px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm"
-                >
-                  Remove
-                </button>
+                <button type="button" onClick={() => { setPhotoFile(null); setPhotoPreview(""); }}
+                  className="px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm">Remove</button>
               )}
             </div>
             {photoPreview && (
@@ -348,83 +368,116 @@ export default function ToolsPage() {
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
             className="w-full px-3 py-2 border rounded-lg"
-            rows={3}
+            rows={2}
           />
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:bg-slate-600"
-            >
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:bg-slate-600">
               {saving ? "Saving..." : editingId ? "Save Changes" : "Add Tool"}
             </button>
             {editingId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="px-4 py-2 rounded-lg soft-button"
-              >
-                Cancel Edit
-              </button>
+              <button type="button" onClick={cancelEdit}
+                className="px-4 py-2 rounded-lg soft-button">Cancel Edit</button>
             )}
           </div>
         </form>
       </GlassBubbleCard>
 
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {(["SHOP", "PERSONAL"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${tab === t ? "bg-teal-700 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+            {t === "SHOP" ? `🏭 Shop (${shopTools.length})` : `👤 Personal (${personalTools.length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Tool list */}
       {loading ? (
+        <GlassBubbleCard><p className="text-slate-400">Loading tools...</p></GlassBubbleCard>
+      ) : displaying.length === 0 ? (
         <GlassBubbleCard>
-          <p className="text-slate-400">Loading tools...</p>
-        </GlassBubbleCard>
-      ) : tools.length === 0 ? (
-        <GlassBubbleCard>
-          <p className="text-slate-400">No tools yet. Add your first tool above.</p>
+          <p className="text-slate-400">
+            No {tab === "SHOP" ? "shop" : "personal"} tools yet. Add one above.
+          </p>
         </GlassBubbleCard>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {tools.map((tool) => (
-            <GlassBubbleCard key={tool.id} className="border border-slate-700/70 bg-slate-900/60">
-              {tool.photoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={tool.photoUrl}
-                  alt={tool.name}
-                  className="w-full h-36 object-cover rounded-lg mb-3"
-                />
-              )}
-              <div className="flex justify-between items-start gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-100">{tool.name}</h3>
-                  {tool.manufacturer && <p className="text-xs text-slate-400 mt-1">{tool.manufacturer}</p>}
+          {displaying.map((tool) => {
+            const activeCheckout = tool.checkouts?.[0];
+            const isCheckedOutByMe = activeCheckout?.user.id === user?.userId;
+            const canEdit = isAdmin || (tool.type === "PERSONAL" && tool.owner?.id === user?.userId);
+
+            return (
+              <GlassBubbleCard key={tool.id} className="border border-slate-700/70 bg-slate-900/60">
+                {tool.photoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={tool.photoUrl} alt={tool.name}
+                    className="w-full h-36 object-cover rounded-lg mb-3" />
+                )}
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-slate-100">{tool.name}</h3>
+                    {tool.manufacturer && <p className="text-xs text-slate-400 mt-0.5">{tool.manufacturer}</p>}
+                    {tool.owner && <p className="text-xs text-indigo-300 mt-0.5">👤 {tool.owner.name}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {isAdmin && tool.cost > 0 && (
+                      <span className="text-sm font-bold text-emerald-300">${tool.cost.toFixed(2)}</span>
+                    )}
+                    {/* Status badge for shop tools */}
+                    {tool.type === "SHOP" && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${activeCheckout ? "bg-amber-900/60 text-amber-300" : "bg-teal-900/60 text-teal-300"}`}>
+                        {activeCheckout ? `With ${activeCheckout.user.name}` : "Available"}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-base font-bold text-emerald-300">${tool.cost.toFixed(2)}</span>
-              </div>
 
-              <div className="mt-3 text-sm space-y-1 text-slate-300">
-                {tool.partNumber && <p>Part: {tool.partNumber}</p>}
-                {tool.modelNumber && <p>Model: {tool.modelNumber}</p>}
-                {tool.supplier && <p>Supplier: {tool.supplier}</p>}
-                {tool.notes ? <p className="text-slate-400">Notes: {tool.notes}</p> : null}
-              </div>
+                <div className="mt-2 text-sm space-y-0.5 text-slate-300">
+                  {tool.partNumber && <p>Part: {tool.partNumber}</p>}
+                  {tool.modelNumber && <p>Model: {tool.modelNumber}</p>}
+                  {tool.supplier && <p>Supplier: {tool.supplier}</p>}
+                  {tool.notes && <p className="text-slate-400 italic">{tool.notes}</p>}
+                </div>
 
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => startEdit(tool)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => deleteTool(tool.id)}
-                  className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold"
-                >
-                  Delete
-                </button>
-              </div>
-            </GlassBubbleCard>
-          ))}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {/* Sign-out for shop tools */}
+                  {tool.type === "SHOP" && !activeCheckout && (
+                    <button onClick={() => handleCheckout(tool.id)} disabled={checkingOut === tool.id}
+                      className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold">
+                      {checkingOut === tool.id ? "..." : "Sign Out"}
+                    </button>
+                  )}
+                  {/* Return for shop tools */}
+                  {tool.type === "SHOP" && activeCheckout && (isCheckedOutByMe || isAdmin) && (
+                    <button onClick={() => handleReturn(tool.id)} disabled={returning === tool.id}
+                      className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold">
+                      {returning === tool.id ? "..." : "Return"}
+                    </button>
+                  )}
+                  {/* Edit/Delete */}
+                  {canEdit && (
+                    <>
+                      <button onClick={() => startEdit(tool)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">
+                        Edit
+                      </button>
+                      <button onClick={() => deleteTool(tool.id)}
+                        className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold">
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </GlassBubbleCard>
+            );
+          })}
         </div>
       )}
     </main>
   );
 }
+

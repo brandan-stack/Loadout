@@ -6,6 +6,13 @@ import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 export default function ReportsPage() {
   const reportTypes = [
     {
+      slug: "jobs",
+      title: "Parts by Job",
+      description: "Material costs per job for billing and review",
+      icon: "🔧",
+      color: "teal",
+    },
+    {
       slug: "low-stock",
       title: "Low Stock Report",
       description: "Items below amber or red thresholds",
@@ -56,13 +63,15 @@ export default function ReportsPage() {
               </p>
               <div
                 className={`inline-block px-3 py-1 rounded text-xs font-semibold text-white ${
-                  report.color === "red"
-                    ? "bg-red-500"
-                    : report.color === "blue"
-                      ? "bg-blue-500"
-                      : report.color === "gray"
-                        ? "bg-gray-500"
-                        : "bg-amber-500"
+                  report.color === "teal"
+                    ? "bg-teal-600"
+                    : report.color === "red"
+                      ? "bg-red-500"
+                      : report.color === "blue"
+                        ? "bg-blue-500"
+                        : report.color === "gray"
+                          ? "bg-gray-500"
+                          : "bg-amber-500"
                 }`}
               >
                 View Report →

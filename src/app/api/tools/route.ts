@@ -10,15 +10,35 @@ const toolSchema = z.object({
   partNumber: z.string().optional(),
   modelNumber: z.string().optional(),
   supplier: z.string().optional(),
-  cost: z.number().min(0, "Cost must be 0 or greater").default(0),
+  cost: z.number().min(0).default(0),
   notes: z.string().optional(),
   photoUrl: z.string().optional(),
+  type: z.enum(["SHOP", "PERSONAL"]).default("SHOP"),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const role = request.headers.get("x-user-role");
+    const userId = request.headers.get("x-user-id");
+
+    // Techs see: all SHOP tools + their own PERSONAL tools
+    // Admins/Office see: everything
+    const where =
+      role === "TECH"
+        ? { OR: [{ type: "SHOP" }, { type: "PERSONAL", ownerId: userId }] }
+        : {};
+
     const tools = await dbAny.tool.findMany({
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+      include: {
+        owner: { select: { id: true, name: true } },
+        checkouts: {
+          where: { returnedAt: null },
+          include: { user: { select: { id: true, name: true } } },
+          take: 1,
+        },
+      },
     });
     return NextResponse.json(tools);
   } catch (error) {
@@ -29,11 +49,28 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = request.headers.get("x-user-id");
+    const role = request.headers.get("x-user-role");
     const body = await request.json();
     const data = toolSchema.parse(body);
 
+    // Personal tools: set owner to requesting user (unless admin overrides)
+    const ownerId = data.type === "PERSONAL" ? (body.ownerId ?? userId) : null;
+
+    // Only admins/office can create SHOP tools
+    if (data.type === "SHOP" && role === "TECH") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Cost visible only to admins/office — strip from tech
+    const cost = role === "TECH" ? 0 : data.cost;
+
     const tool = await dbAny.tool.create({
-      data,
+      data: { ...data, cost, ownerId },
+      include: {
+        owner: { select: { id: true, name: true } },
+        checkouts: { where: { returnedAt: null }, take: 1 },
+      },
     });
 
     return NextResponse.json(tool, { status: 201 });
@@ -45,3 +82,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to create tool" }, { status: 500 });
   }
 }
+

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface AiResult {
   name?: string;
@@ -43,6 +44,8 @@ function normalizeOptionalText(value: string): string | undefined {
 }
 
 export default function ItemCatalog() {
+  const { user } = useCurrentUser();
+  const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
   const [items, setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -491,6 +494,22 @@ export default function ItemCatalog() {
                   </option>
                 ))}
               </select>
+              {isAdmin && (
+                <input
+                  type="number"
+                  placeholder="Unit Cost $ (optional)"
+                  value={formData.lastUnitCost || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      lastUnitCost: isNaN(e.currentTarget.valueAsNumber) ? 0 : e.currentTarget.valueAsNumber,
+                    })
+                  }
+                  min={0}
+                  step="0.01"
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
               <button
                 type="submit"
                 className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
@@ -529,6 +548,11 @@ export default function ItemCatalog() {
                 <p className="text-sm text-gray-600">
                   Total Used: {item.quantityUsedTotal}
                 </p>
+                {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
+                  <p className="text-sm text-emerald-400 font-medium">
+                    Unit Cost: ${item.lastUnitCost.toFixed(2)}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500">
                   Alerts: Low {item.lowStockAmberThreshold} / Critical{" "}
                   {item.lowStockRedThreshold}
