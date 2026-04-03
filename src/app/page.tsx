@@ -58,11 +58,10 @@ export default function Home() {
         className="flex items-center justify-between px-4 py-3 rounded-3xl mb-5 sm:mb-7"
         style={{
           background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.09)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           boxShadow:
-            "0 4px 32px rgba(34,211,238,0.07), 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 40px rgba(2,6,23,0.45)",
+            "0 4px 32px rgba(34,211,238,0.10), 0 8px 40px rgba(2,6,23,0.45)",
         }}
       >
         {/* Logo — swap icon-192.png for /loadout-logo.png once uploaded */}
@@ -76,10 +75,12 @@ export default function Home() {
             <Image
               src="/loadout-logo.png"
               alt="Loadout"
-              width={36}
-              height={36}
-              className="relative rounded-xl"
-              style={{ boxShadow: "0 0 0 1px rgba(34,211,238,0.35), 0 2px 14px rgba(34,211,238,0.18)" }}
+              width={40}
+              height={40}
+              className="relative rounded-xl w-8 h-8 sm:w-9 sm:h-9 object-contain"
+              style={{
+                filter: "drop-shadow(0 0 8px rgba(34,211,238,0.65)) drop-shadow(0 0 3px rgba(34,211,238,0.85)) drop-shadow(0 0 1px rgba(255,255,255,0.3))",
+              }}
               priority
             />
           </div>
