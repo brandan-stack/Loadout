@@ -9,21 +9,21 @@ type NavItem = { href: string; label: string; icon: string };
 const TECH_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
-  { href: "/items", label: "Parts", icon: "📦" },
+  { href: "/items", label: "Inventory", icon: "📦" },
   { href: "/scan", label: "Scan", icon: "⬡" },
 ];
 
 const OFFICE_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
-  { href: "/items", label: "Parts", icon: "📦" },
+  { href: "/items", label: "Inventory", icon: "📦" },
   { href: "/reports", label: "Reports", icon: "📊" },
 ];
 
 const ADMIN_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
-  { href: "/items", label: "Parts", icon: "📦" },
+  { href: "/items", label: "Inventory", icon: "📦" },
   { href: "/admin/users", label: "Users", icon: "👥" },
 ];
 

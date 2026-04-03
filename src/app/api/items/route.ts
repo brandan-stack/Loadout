@@ -30,6 +30,7 @@ const itemSchema = z.object({
   unitOfMeasure: z.string().default("units"),
   enableLotTracking: z.boolean().default(false),
   enableExpiryTracking: z.boolean().default(false),
+  locationId: z.string().optional(),
 }).refine(
   (data) => data.lowStockRedThreshold <= data.lowStockAmberThreshold,
   { message: "Critical stock alert must be ≤ low stock alert", path: ["lowStockRedThreshold"] }
@@ -70,11 +71,12 @@ export async function POST(request: NextRequest) {
       unitOfMeasure: normalizeOptionalText(body?.unitOfMeasure),
     };
     const data = itemSchema.parse(sanitizedBody);
+    const { locationId, ...itemData } = data;
 
     // Check barcode uniqueness if provided
-    if (data.barcode) {
+    if (itemData.barcode) {
       const existing = await prisma.item.findUnique({
-        where: { barcode: data.barcode },
+        where: { barcode: itemData.barcode },
       });
       if (existing) {
         return NextResponse.json(
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     const item = await dbAny.item.create({
       data: {
-        ...data,
+        ...itemData,
         quantityUsedTotal: 0,
       },
       include: {
@@ -94,6 +96,16 @@ export async function POST(request: NextRequest) {
         preferredSupplier: true,
       },
     });
+
+    if (locationId) {
+      await dbAny.locationStock.create({
+        data: {
+          locationId,
+          itemId: item.id,
+          quantityOnHand: itemData.quantityOnHand ?? 0,
+        },
+      });
+    }
 
     return NextResponse.json(item, { status: 201 });
   } catch (error) {

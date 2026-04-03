@@ -21,7 +21,7 @@ const ALL_TILES = [
   },
   {
     href: "/items",
-    label: "Parts",
+    label: "Inventory",
     description: "Catalog & stock levels",
     icon: "📦",
     accent: "#818cf8",
@@ -54,15 +54,6 @@ const ALL_TILES = [
     accent: "#e879f9",
     glow: "rgba(232,121,249,0.12)",
     gradient: "linear-gradient(140deg, rgba(26,10,30,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/locations",
-    label: "Locations",
-    description: "Stock by site & bin",
-    icon: "📍",
-    accent: "#fb923c",
-    glow: "rgba(251,146,60,0.12)",
-    gradient: "linear-gradient(140deg, rgba(28,14,8,0.97) 0%, rgba(9,15,26,0.99) 100%)",
   },
   {
     href: "/settings",

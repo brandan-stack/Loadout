@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -18,6 +19,12 @@ interface Supplier {
   id: string;
   name: string;
   leadTimeD: number;
+}
+
+interface Location {
+  id: string;
+  name: string;
+  description?: string;
 }
 
 interface Item {
@@ -81,6 +88,7 @@ export default function ItemCatalog() {
   const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
   const [items, setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string>("");
@@ -105,6 +113,7 @@ export default function ItemCatalog() {
     preferredSupplierId: "",
     lastUnitCost: 0,
     unitOfMeasure: "units",
+    locationId: "",
   });
 
   useEffect(() => {
@@ -113,17 +122,20 @@ export default function ItemCatalog() {
 
   async function fetchData() {
     try {
-      const [itemsRes, supplierRes] = await Promise.all([
+      const [itemsRes, supplierRes, locationsRes] = await Promise.all([
         fetch("/api/items"),
         fetch("/api/suppliers"),
+        fetch("/api/locations"),
       ]);
       if (!itemsRes.ok || !supplierRes.ok) {
         throw new Error("Failed to load inventory data");
       }
       const itemsData = await itemsRes.json();
       const suppliersData = await supplierRes.json();
+      const locationsData = locationsRes.ok ? await locationsRes.json() : [];
       setItems(Array.isArray(itemsData) ? itemsData : []);
       setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+      setLocations(Array.isArray(locationsData) ? locationsData : []);
       setError("");
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -242,6 +254,7 @@ export default function ItemCatalog() {
       preferredSupplierId: normalizeOptionalText(formData.preferredSupplierId),
       lastUnitCost: Number.isFinite(formData.lastUnitCost) ? formData.lastUnitCost : undefined,
       unitOfMeasure: normalizeOptionalText(formData.unitOfMeasure) || "units",
+      locationId: normalizeOptionalText(formData.locationId),
     };
 
     try {
@@ -266,6 +279,7 @@ export default function ItemCatalog() {
           preferredSupplierId: "",
           lastUnitCost: 0,
           unitOfMeasure: "units",
+          locationId: "",
         });
         setPhotoPreview("");
         setShowForm(false);
@@ -334,6 +348,13 @@ export default function ItemCatalog() {
         >
           {showForm ? "Cancel" : "+ Add Item"}
         </button>
+        <Link
+          href="/scan"
+          prefetch={false}
+          className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm flex items-center gap-2 justify-center"
+        >
+          ⬡ Scan Barcode
+        </Link>
         <input
           className="flex-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
           placeholder="Search by name, manufacturer, part #, model, description…"
@@ -589,6 +610,18 @@ export default function ItemCatalog() {
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={formData.locationId}
+                onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="">Assign to Location (optional)</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}{loc.description ? ` — ${loc.description}` : ""}
                   </option>
                 ))}
               </select>
