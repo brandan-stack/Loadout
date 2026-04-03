@@ -701,7 +701,6 @@ export default function ItemCatalog() {
               src={enlargedPhoto}
               alt="Item photo"
               className="w-full rounded-2xl border border-slate-700 shadow-2xl"
-              style={{ imageRendering: "pixelated" }}
             />
             <button
               onClick={() => setEnlargedPhoto(null)}

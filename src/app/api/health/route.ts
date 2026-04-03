@@ -7,11 +7,9 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const dbUrl = process.env.DATABASE_URL ?? "";
 
-  // Warn if using ephemeral storage (SQLite in /tmp or no URL set)
   const isEphemeral =
     !dbUrl ||
-    dbUrl.startsWith("file:/tmp/") ||
-    dbUrl === "file:/tmp/dev.db";
+    dbUrl.startsWith("file:/tmp/");
 
   return NextResponse.json({
     ok: true,

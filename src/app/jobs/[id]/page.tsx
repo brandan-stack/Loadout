@@ -59,6 +59,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     fetchJob();
     fetchItems();
+  // fetchJob and fetchItems are recreated each render but depend only on `id`.
+  // Adding them to deps would cause an infinite loop; `id` alone is the correct trigger.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
