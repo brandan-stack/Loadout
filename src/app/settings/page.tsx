@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 
 interface AppSettings {
   simpleMode: boolean;

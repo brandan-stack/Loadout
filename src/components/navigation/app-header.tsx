@@ -93,7 +93,7 @@ export function AppHeader() {
                 {active && (
                   <span
                     className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full"
-                    style={{ background: "linear-gradient(90deg, #22d3ee, #34d399)" }}
+                    style={{ background: "linear-gradient(90deg, #6366f1, #818cf8)" }}
                   />
                 )}
                 <span>{label}</span>

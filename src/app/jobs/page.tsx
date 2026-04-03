@@ -113,7 +113,8 @@ export default function JobsPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Job Number *</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 placeholder="e.g. JOB-2026-001"
                 value={form.jobNumber}
                 onChange={(e) => setForm({ ...form, jobNumber: e.target.value })}
@@ -122,7 +123,8 @@ export default function JobsPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Customer *</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 placeholder="Customer name"
                 value={form.customer}
                 onChange={(e) => setForm({ ...form, customer: e.target.value })}
@@ -132,7 +134,8 @@ export default function JobsPage() {
               <label className="block text-xs font-semibold text-slate-400 mb-1">Date</label>
               <input
                 type="date"
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
@@ -140,7 +143,8 @@ export default function JobsPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Notes</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 placeholder="Optional notes"
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}

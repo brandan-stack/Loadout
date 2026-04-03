@@ -51,7 +51,7 @@ export function BottomNav() {
                 prefetch={false}
                 className={`flex-1 flex flex-col items-center py-2.5 px-1.5 sm:px-3 min-w-[44px] min-h-[44px] justify-center rounded-xl transition-colors ${
                   active
-                    ? "text-teal-300 bg-teal-500/15"
+                    ? "text-indigo-300 bg-indigo-500/15"
                     : "text-slate-400 hover:text-slate-100"
                 }`}
               >

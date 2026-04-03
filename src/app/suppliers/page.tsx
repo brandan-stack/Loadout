@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 
 interface Supplier {
   id: string;
@@ -181,7 +180,10 @@ export default function SupplierManagement() {
       )}
 
       {showForm && (
-        <GlassBubbleCard className="mb-6">
+        <div
+          className="rounded-2xl p-5 mb-6"
+          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
           <form onSubmit={handleAddSupplier}>
             <div className="space-y-4">
               <div>
@@ -192,7 +194,8 @@ export default function SupplierManagement() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               </div>
               <div>
@@ -202,7 +205,8 @@ export default function SupplierManagement() {
                   placeholder="orders@supplier.com"
                   value={formData.contact}
                   onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               </div>
               <div>
@@ -215,7 +219,8 @@ export default function SupplierManagement() {
                   placeholder="https://www.supplier.com/catalog"
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               </div>
               <div>
@@ -236,7 +241,8 @@ export default function SupplierManagement() {
                   }
                   min={0}
                   step={1}
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 />
               </div>
               <div>
@@ -245,57 +251,73 @@ export default function SupplierManagement() {
                   placeholder="Additional notes about this supplier…"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                   rows={3}
                 />
               </div>
               <button
                 type="submit"
-                className="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold py-2.5 text-sm"
+                className="w-full rounded-xl text-white font-semibold py-2.5 text-sm transition-all hover:brightness-110 active:scale-[0.98]"
+                style={{
+                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                  boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
+                }}
               >
                 Save Supplier
               </button>
             </div>
           </form>
-        </GlassBubbleCard>
+        </div>
       )}
 
-      <div className="space-y-4">
-        {suppliers.map((supplier) => (
-          <GlassBubbleCard key={supplier.id}>
-            <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+      {suppliers.length > 0 && (
+        <div
+          className="rounded-2xl overflow-hidden mb-4"
+          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {suppliers.map((supplier, idx) => (
+            <div
+              key={supplier.id}
+              className="flex items-start gap-4 px-5 py-4"
+              style={{
+                background: "rgba(12,17,36,0.85)",
+                borderBottom: idx < suppliers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+              }}
+            >
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold text-slate-100">{supplier.name}</h3>
+                <p className="text-sm font-semibold text-slate-100">{supplier.name}</p>
                 {supplier.contact && (
-                  <p className="text-sm text-slate-400 mt-0.5">{supplier.contact}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{supplier.contact}</p>
                 )}
                 {supplier.website && (
                   <a
                     href={supplier.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-teal-400 hover:text-teal-300 underline truncate block mt-0.5"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 underline truncate block mt-0.5"
                   >
                     {supplier.website}
                   </a>
                 )}
-                <p className="text-sm text-slate-400 mt-1">
-                  Lead time: <span className="text-slate-200 font-medium">{supplier.leadTimeD} day{supplier.leadTimeD !== 1 ? "s" : ""}</span>
+                <p className="text-xs text-slate-500 mt-1">
+                  Lead time: <span className="text-slate-300 font-medium">{supplier.leadTimeD} day{supplier.leadTimeD !== 1 ? "s" : ""}</span>
                 </p>
                 {supplier.notes && (
-                  <p className="text-sm text-slate-400 mt-1">{supplier.notes}</p>
+                  <p className="text-xs text-slate-500 mt-1">{supplier.notes}</p>
                 )}
               </div>
               <button
                 onClick={() => handleArchiveSupplier(supplier.id)}
-                className="shrink-0 px-3 py-1.5 text-sm rounded-xl bg-slate-700 hover:bg-red-900/60 text-slate-300 hover:text-red-300 border border-slate-600 hover:border-red-700 transition-colors"
+                className="shrink-0 px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:text-red-400 transition-colors"
+                style={{ border: "1px solid rgba(255,255,255,0.07)" }}
               >
                 Archive
               </button>
             </div>
-          </GlassBubbleCard>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {suppliers.length === 0 && !showForm && (
         <div
