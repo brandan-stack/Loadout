@@ -137,7 +137,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
           <p className="text-slate-400 text-sm mt-2">The database is unavailable. Please check your connection and try again.</p>
           <button
-            onClick={() => { setDbError(false); setLoading(true); window.location.reload(); }}
+            onClick={() => window.location.reload()}
             className="mt-6 rounded-xl text-white font-semibold px-6 py-3 text-sm transition-colors"
             style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
