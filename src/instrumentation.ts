@@ -179,9 +179,10 @@ export async function register() {
       `CREATE INDEX IF NOT EXISTS "Tool_ownerId_idx" ON "Tool"("ownerId")`,
       `CREATE TABLE IF NOT EXISTS "AppUser" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "name" TEXT NOT NULL UNIQUE,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL UNIQUE,
         "role" TEXT NOT NULL DEFAULT 'TECH',
-        "pinHash" TEXT NOT NULL,
+        "passwordHash" TEXT NOT NULL,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -249,6 +250,9 @@ export async function register() {
       `ALTER TABLE "Item" ADD COLUMN "photoUrl" TEXT`,
       `ALTER TABLE "Location" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE "Location" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      // Migrate AppUser from pinHash/name-unique to email/passwordHash
+      `ALTER TABLE "AppUser" ADD COLUMN "email" TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE "AppUser" ADD COLUMN "passwordHash" TEXT NOT NULL DEFAULT ''`,
     ];
 
     for (const sql of statements) {
