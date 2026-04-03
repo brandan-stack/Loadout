@@ -43,19 +43,17 @@ const PRIMARY_CARDS = [
 const SECONDARY_CARDS = [
   { href: "/reorder", label: "Reorder", icon: "🔄" },
   { href: "/suppliers", label: "Suppliers", icon: "🏭" },
-  { href: "/tools", label: "Tools", icon: "🧰" },
   { href: "/locations", label: "Locations", icon: "📍" },
-  { href: "/import", label: "Import", icon: "⬆" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default function Home() {
   return (
-    <main className="px-4 sm:px-6 pt-4 sm:pt-7 max-w-xl sm:max-w-2xl mx-auto">
+    <main className="px-4 sm:px-6 pt-5 sm:pt-8 max-w-2xl sm:max-w-3xl mx-auto pb-28">
 
       {/* ─── Premium Glass Header ─── */}
       <header
-        className="flex items-center justify-between px-4 py-3 rounded-3xl mb-5 sm:mb-7"
+        className="flex items-center justify-between px-5 py-4 rounded-3xl mb-6 sm:mb-8"
         style={{
           background: "rgba(255,255,255,0.04)",
           backdropFilter: "blur(20px)",
@@ -70,7 +68,7 @@ export default function Home() {
         <Link
           href="/jobs"
           prefetch={false}
-          className="flex-shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-[12px] sm:text-[13px] font-bold text-slate-950 active:scale-95 transition-transform select-none ml-3"
+          className="flex-shrink-0 flex items-center gap-2 rounded-xl px-4 sm:px-5 py-2.5 text-sm font-bold text-slate-950 active:scale-95 transition-transform select-none ml-4"
           style={{
             background: "linear-gradient(135deg, #2dd4bf 0%, #22d3ee 100%)",
             boxShadow:
@@ -85,11 +83,11 @@ export default function Home() {
       </header>
 
       {/* ─── Core Actions ─── */}
-      <p className="text-[10px] font-bold tracking-[0.13em] uppercase mb-3 px-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>
+      <p className="text-xs font-bold tracking-[0.13em] uppercase mb-3 px-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
         Core Actions
       </p>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-8 sm:mb-10">
         {PRIMARY_CARDS.map(({ href, label, description, icon, gradient, accentColor, accentGlow }) => (
           <Link
             key={href}
@@ -109,10 +107,10 @@ export default function Home() {
               aria-hidden
             />
 
-            <div className="p-4 pt-5 sm:p-5 sm:pt-6">
+            <div className="p-5 pt-6 sm:p-6 sm:pt-7">
               {/* Icon badge */}
               <div
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xl sm:text-2xl mb-3.5"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-2xl sm:text-3xl mb-4"
                 style={{
                   background: accentGlow,
                   border: `1px solid ${accentColor}25`,
@@ -122,12 +120,12 @@ export default function Home() {
                 {icon}
               </div>
               <div
-                className="font-extrabold text-[14px] sm:text-[15px] leading-tight text-white mb-1"
-                style={{ fontFamily: "var(--font-heading), sans-serif", letterSpacing: "-0.025em" }}
+                className="font-bold text-base sm:text-lg leading-tight text-white mb-1.5"
+                style={{ letterSpacing: "-0.01em" }}
               >
                 {label}
               </div>
-              <p className="text-[11px] sm:text-xs leading-snug" style={{ color: "rgba(148,163,184,0.78)" }}>
+              <p className="text-xs sm:text-sm leading-snug" style={{ color: "rgba(148,163,184,0.72)" }}>
                 {description}
               </p>
             </div>
@@ -136,25 +134,25 @@ export default function Home() {
       </div>
 
       {/* ─── More Tools ─── */}
-      <p className="text-[10px] font-bold tracking-[0.13em] uppercase mb-3 px-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>
+      <p className="text-xs font-bold tracking-[0.13em] uppercase mb-3 px-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
         More Tools
       </p>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+      <div className="grid grid-cols-4 gap-3">
         {SECONDARY_CARDS.map(({ href, label, icon }) => (
           <Link
             key={href}
             href={href}
             prefetch={false}
-            className="card-lift rounded-xl flex flex-col items-center justify-center py-3.5 sm:py-4 px-2 text-center active:scale-[0.96]"
+            className="card-lift rounded-xl flex flex-col items-center justify-center py-4 px-2 text-center active:scale-[0.96]"
             style={{
-              background: "rgba(15,23,42,0.68)",
-              border: "1px solid rgba(148,163,184,0.11)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035), 0 2px 10px rgba(2,6,23,0.4)",
+              background: "rgba(15,23,42,0.72)",
+              border: "1px solid rgba(148,163,184,0.12)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 12px rgba(2,6,23,0.45)",
             }}
           >
-            <span className="text-[22px] mb-1.5 leading-none" aria-hidden>{icon}</span>
-            <span className="text-[11px] font-semibold leading-tight" style={{ color: "rgba(203,213,225,0.8)" }}>
+            <span className="text-2xl mb-2 leading-none" aria-hidden>{icon}</span>
+            <span className="text-xs font-semibold leading-tight" style={{ color: "rgba(203,213,225,0.85)" }}>
               {label}
             </span>
           </Link>

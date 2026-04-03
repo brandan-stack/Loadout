@@ -11,7 +11,6 @@ const TECH_NAV: NavItem[] = [
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/items", label: "Parts", icon: "📦" },
   { href: "/scan", label: "Scan", icon: "⬡" },
-  { href: "/tools", label: "Tools", icon: "🧰" },
 ];
 
 const OFFICE_NAV: NavItem[] = [
@@ -19,14 +18,12 @@ const OFFICE_NAV: NavItem[] = [
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/items", label: "Parts", icon: "📦" },
   { href: "/reports", label: "Reports", icon: "📊" },
-  { href: "/reorder", label: "Reorder", icon: "🔄" },
 ];
 
 const ADMIN_NAV: NavItem[] = [
   { href: "/", label: "Home", icon: "⊞" },
   { href: "/jobs", label: "Jobs", icon: "🔧" },
   { href: "/items", label: "Parts", icon: "📦" },
-  { href: "/admin/users", label: "Users", icon: "👥" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
