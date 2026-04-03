@@ -47,6 +47,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const { user } = useCurrentUser();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jobError, setJobError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [search, setSearch] = useState("");
   const [addForm, setAddForm] = useState({ itemId: "", quantity: 1, notes: "" });
@@ -58,15 +59,34 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     fetchJob();
     fetchItems();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function fetchJob() {
+    setJobError(null);
     try {
       const res = await fetch(`/api/jobs/${id}`);
-      if (!res.ok) { router.push("/jobs"); return; }
+      if (res.status === 404) {
+        setJobError("Job not found. It may have been deleted or the link is incorrect.");
+        setLoading(false);
+        return;
+      }
+      if (res.status === 403) {
+        setJobError("You don't have permission to view this job.");
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setJobError("Failed to load job. Please try again.");
+        setLoading(false);
+        return;
+      }
       setJob(await res.json());
-    } catch { router.push("/jobs"); }
-    finally { setLoading(false); }
+    } catch {
+      setJobError("Failed to load job. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function fetchItems() {
@@ -139,6 +159,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+  }
+
+  if (jobError) {
+    return (
+      <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+        <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-4 flex items-center gap-1">← Jobs</button>
+        <div className="rounded-2xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+          <p className="text-2xl mb-3">⚠️</p>
+          <p className="font-semibold text-red-300">{jobError}</p>
+          <button
+            onClick={() => { setLoading(true); fetchJob(); }}
+            className="mt-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 text-sm"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    );
   }
 
   if (!job) return null;

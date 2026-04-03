@@ -9,6 +9,7 @@ const PUBLIC = [
   "/api/auth/me",
   "/api/auth/setup",
   "/api/auth/users",
+  "/api/health",
 ];
 
 function getSecret() {
