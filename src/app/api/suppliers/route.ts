@@ -8,6 +8,7 @@ import { z } from "zod";
 const supplierSchema = z.object({
   name: z.string().min(1, "Name required"),
   contact: z.string().optional(),
+  website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   leadTimeD: z.number().min(0).default(7),
   notes: z.string().optional(),
 });

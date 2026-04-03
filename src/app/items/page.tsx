@@ -28,6 +28,8 @@ interface Item {
   modelNumber?: string;
   serialNumber?: string;
   barcode?: string;
+  description?: string;
+  photoUrl?: string;
   quantityOnHand: number;
   quantityUsedTotal: number;
   lowStockAmberThreshold: number;
@@ -43,6 +45,37 @@ function normalizeOptionalText(value: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Compress an image file to a low-res JPEG data URL (max ~150x150px, ~20KB). */
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 150;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas not available")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
 export default function ItemCatalog() {
   const { user } = useCurrentUser();
   const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
@@ -51,9 +84,13 @@ export default function ItemCatalog() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string>("");
+  const [search, setSearch] = useState("");
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState("");
+  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     manufacturer: "",
@@ -61,6 +98,7 @@ export default function ItemCatalog() {
     modelNumber: "",
     serialNumber: "",
     barcode: "",
+    description: "",
     quantityOnHand: "",
     lowStockAmberThreshold: "",
     lowStockRedThreshold: "",
@@ -116,6 +154,18 @@ export default function ItemCatalog() {
     }
   }
 
+  async function handlePhotoUpload(file: File) {
+    setPhotoUploading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      setPhotoPreview(dataUrl);
+    } catch {
+      setError("Failed to process photo. Please try a different image.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   function applyAiResult() {
     if (!aiResult) return;
     setFormData((prev) => ({
@@ -124,6 +174,7 @@ export default function ItemCatalog() {
       manufacturer: aiResult!.manufacturer || prev.manufacturer,
       partNumber: aiResult!.partNumber || prev.partNumber,
       modelNumber: aiResult!.modelNumber || prev.modelNumber,
+      description: aiResult!.description || prev.description,
     }));
     setAiResult(null);
   }
@@ -183,6 +234,8 @@ export default function ItemCatalog() {
       modelNumber: normalizeOptionalText(formData.modelNumber),
       serialNumber: normalizeOptionalText(formData.serialNumber),
       barcode: normalizeOptionalText(formData.barcode),
+      description: normalizeOptionalText(formData.description),
+      photoUrl: photoPreview || undefined,
       quantityOnHand,
       lowStockAmberThreshold: lowStockAlert,
       lowStockRedThreshold: criticalStockAlert,
@@ -206,6 +259,7 @@ export default function ItemCatalog() {
           modelNumber: "",
           serialNumber: "",
           barcode: "",
+          description: "",
           quantityOnHand: "",
           lowStockAmberThreshold: "",
           lowStockRedThreshold: "",
@@ -213,6 +267,7 @@ export default function ItemCatalog() {
           lastUnitCost: 0,
           unitOfMeasure: "units",
         });
+        setPhotoPreview("");
         setShowForm(false);
         fetchData();
       } else {
@@ -232,18 +287,32 @@ export default function ItemCatalog() {
 
   const getLowStockColor = (item: Item) => {
     if (item.quantityOnHand <= item.lowStockRedThreshold) {
-      return "border-red-500 bg-red-50";
+      return "border-red-500/60";
     }
     if (item.quantityOnHand <= item.lowStockAmberThreshold) {
-      return "border-amber-500 bg-amber-50";
+      return "border-amber-500/60";
     }
     return "";
   };
 
+  const filteredItems = items.filter((item) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      item.name.toLowerCase().includes(q) ||
+      (item.manufacturer ?? "").toLowerCase().includes(q) ||
+      (item.partNumber ?? "").toLowerCase().includes(q) ||
+      (item.modelNumber ?? "").toLowerCase().includes(q) ||
+      (item.description ?? "").toLowerCase().includes(q) ||
+      (item.serialNumber ?? "").toLowerCase().includes(q) ||
+      (item.barcode ?? "").toLowerCase().includes(q)
+    );
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <p>Loading items...</p>
+        <p className="text-slate-400 animate-pulse">Loading items...</p>
       </div>
     );
   }
@@ -258,12 +327,20 @@ export default function ItemCatalog() {
         </div>
       )}
 
-      <button
-        onClick={() => setShowForm(!showForm)}
-        className="mb-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-      >
-        {showForm ? "Cancel" : "Add Item"}
-      </button>
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <button
+          onClick={() => { setShowForm(!showForm); setError(""); }}
+          className="px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-semibold text-sm"
+        >
+          {showForm ? "Cancel" : "+ Add Item"}
+        </button>
+        <input
+          className="flex-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+          placeholder="Search by name, manufacturer, part #, model, description…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
       {showForm && (
         <GlassBubbleCard className="mb-6">
@@ -366,105 +443,131 @@ export default function ItemCatalog() {
 
           <form onSubmit={handleAddItem}>
             <div className="space-y-4">
+              {/* Item Photo Upload */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">
+                  Item Photo
+                  <span className="ml-1 text-slate-500 font-normal">(auto-compressed to thumbnail size)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  {photoPreview ? (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className="w-16 h-16 object-cover rounded-lg border border-slate-600 cursor-pointer"
+                        onClick={() => setEnlargedPhoto(photoPreview)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreview("")}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500 text-xs text-center">
+                      No photo
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium cursor-pointer select-none">
+                    {photoUploading ? "Processing…" : "📷 Upload Photo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      disabled={photoUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handlePhotoUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <input
                 type="text"
                 placeholder="Item Name *"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="text"
                   placeholder="Manufacturer (optional)"
                   value={formData.manufacturer}
-                  onChange={(e) =>
-                    setFormData({ ...formData, manufacturer: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <input
                   type="text"
                   placeholder="Part Number (optional)"
                   value={formData.partNumber}
-                  onChange={(e) =>
-                    setFormData({ ...formData, partNumber: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({ ...formData, partNumber: e.target.value })}
+                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <input
                   type="text"
                   placeholder="Model Number (optional)"
                   value={formData.modelNumber}
-                  onChange={(e) =>
-                    setFormData({ ...formData, modelNumber: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({ ...formData, modelNumber: e.target.value })}
+                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <input
                   type="text"
                   placeholder="Serial Number (optional)"
                   value={formData.serialNumber}
-                  onChange={(e) =>
-                    setFormData({ ...formData, serialNumber: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                  className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
+              <textarea
+                placeholder="Description (optional) — helps with searching"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={2}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+              />
               <input
                 type="text"
                 placeholder="Barcode (optional)"
                 value={formData.barcode}
-                onChange={(e) =>
-                  setFormData({ ...formData, barcode: e.target.value })
-                }
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
               <input
                 type="number"
                 placeholder="Quantity on Hand (optional; defaults to 0)"
                 value={formData.quantityOnHand}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    quantityOnHand: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, quantityOnHand: e.target.value })}
                 min={0}
                 step={1}
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="number"
-                  placeholder="Low Stock Alert (optional; defaults to 5)"
+                  placeholder="Low Stock Alert (defaults to 5)"
                   value={formData.lowStockAmberThreshold}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      lowStockAmberThreshold: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, lowStockAmberThreshold: e.target.value })}
                   min={1}
                   step={1}
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="rounded-xl bg-slate-800 border border-amber-700/50 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <input
                   type="number"
-                  placeholder="Critical Stock Alert (optional; defaults to 2)"
+                  placeholder="Critical Stock Alert (defaults to 2)"
                   value={formData.lowStockRedThreshold}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      lowStockRedThreshold: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, lowStockRedThreshold: e.target.value })}
                   min={0}
                   step={1}
-                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="rounded-xl bg-slate-800 border border-red-700/50 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
               <div className="rounded-lg border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-300">
@@ -479,13 +582,8 @@ export default function ItemCatalog() {
               </div>
               <select
                 value={formData.preferredSupplierId}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    preferredSupplierId: e.target.value,
-                  })
-                }
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({ ...formData, preferredSupplierId: e.target.value })}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 <option value="">Select Supplier (optional)</option>
                 {suppliers.map((supplier) => (
@@ -507,12 +605,12 @@ export default function ItemCatalog() {
                   }
                   min={0}
                   step="0.01"
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               )}
               <button
                 type="submit"
-                className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                className="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold py-2.5 text-sm"
               >
                 Save Item
               </button>
@@ -521,53 +619,99 @@ export default function ItemCatalog() {
         </GlassBubbleCard>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map((item) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredItems.map((item) => (
           <GlassBubbleCard
             key={item.id}
             className={`transition-all ${getLowStockColor(item)}`}
           >
-            <div>
-              <h3 className="text-lg font-semibold">{item.name}</h3>
-              <p className="text-xs text-gray-600">
-                {item.manufacturer || "Unknown Manufacturer"} · {item.partNumber || "No Part #"} · {item.modelNumber || "No Model #"}
-              </p>
-              <p className="text-xs text-gray-600">
-                Serial: {item.serialNumber || "No Serial #"}
-              </p>
-              {item.barcode && (
-                <p className="text-xs text-gray-600 font-mono">
-                  {item.barcode}
-                </p>
+            <div className="flex gap-3">
+              {/* Photo thumbnail */}
+              {item.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.photoUrl}
+                  alt={item.name}
+                  className="w-14 h-14 object-cover rounded-lg border border-slate-700 flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setEnlargedPhoto(item.photoUrl!)}
+                  title="Click to enlarge"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-lg border border-slate-700/50 bg-slate-800/50 flex items-center justify-center text-slate-600 text-xl flex-shrink-0">
+                  📦
+                </div>
               )}
-              <div className="mt-3 space-y-1">
-                <p className="text-sm">
-                  On Hand: <span className="font-bold">{item.quantityOnHand}</span>{" "}
-                  {item.unitOfMeasure}
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold text-slate-100 leading-tight">{item.name}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
+                    .filter(Boolean).join(" · ") || "No details"}
                 </p>
-                <p className="text-sm text-gray-600">
-                  Total Used: {item.quantityUsedTotal}
-                </p>
-                {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
-                  <p className="text-sm text-emerald-400 font-medium">
-                    Unit Cost: ${item.lastUnitCost.toFixed(2)}
-                  </p>
+                {item.description && (
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.description}</p>
                 )}
-                <p className="text-xs text-gray-500">
-                  Alerts: Low {item.lowStockAmberThreshold} / Critical{" "}
-                  {item.lowStockRedThreshold}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className={`text-sm font-bold ${
+                    item.quantityOnHand <= item.lowStockRedThreshold
+                      ? "text-red-400"
+                      : item.quantityOnHand <= item.lowStockAmberThreshold
+                      ? "text-amber-400"
+                      : "text-teal-300"
+                  }`}>
+                    {item.quantityOnHand} {item.unitOfMeasure}
+                  </span>
+                  {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
+                    <span className="text-xs text-emerald-400">
+                      ${item.lastUnitCost.toFixed(2)}/unit
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </GlassBubbleCard>
         ))}
       </div>
 
-      {items.length === 0 && (
-        <div className="text-center text-gray-500">
-          <p>No items yet. Add one to get started!</p>
+      {filteredItems.length === 0 && (
+        <div className="text-center py-16 text-slate-500">
+          <p className="text-4xl mb-3">📦</p>
+          {search ? (
+            <>
+              <p className="font-semibold">No items match &ldquo;{search}&rdquo;</p>
+              <p className="text-sm mt-1">Try a different search term</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">No items yet</p>
+              <p className="text-sm mt-1">Add your first inventory item to get started</p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Photo enlarge modal */}
+      {enlargedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setEnlargedPhoto(null)}
+        >
+          <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={enlargedPhoto}
+              alt="Item photo"
+              className="w-full rounded-2xl border border-slate-700 shadow-2xl"
+            />
+            <button
+              onClick={() => setEnlargedPhoto(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 border border-slate-600 text-slate-200 text-lg flex items-center justify-center hover:bg-slate-700"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
     </main>
   );
 }
+

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface Job {
@@ -22,6 +23,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function JobsPage() {
   const { user, loading: userLoading } = useCurrentUser();
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,9 +56,8 @@ export default function JobsPage() {
         const job = await res.json();
         setShowForm(false);
         setForm({ jobNumber: "", customer: "", date: new Date().toISOString().slice(0, 10), notes: "" });
-        fetchJobs();
-        // Navigate to job detail
-        window.location.href = `/jobs/${job.id}`;
+        // Use router.push for client-side navigation (keeps session state)
+        router.push(`/jobs/${job.id}`);
       } else {
         const d = await res.json();
         setFormError(d.error || "Failed to create job");

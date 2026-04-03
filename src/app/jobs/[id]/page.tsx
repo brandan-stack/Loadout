@@ -7,7 +7,10 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 interface Item {
   id: string;
   name: string;
+  manufacturer?: string | null;
   partNumber?: string | null;
+  modelNumber?: string | null;
+  description?: string | null;
   quantityOnHand: number;
   lastUnitCost?: number | null;
   unitOfMeasure: string;
@@ -44,6 +47,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const { user } = useCurrentUser();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jobError, setJobError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [search, setSearch] = useState("");
   const [addForm, setAddForm] = useState({ itemId: "", quantity: 1, notes: "" });
@@ -55,15 +59,36 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     fetchJob();
     fetchItems();
+  // fetchJob and fetchItems are recreated each render but depend only on `id`.
+  // Adding them to deps would cause an infinite loop; `id` alone is the correct trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function fetchJob() {
+    setJobError(null);
     try {
       const res = await fetch(`/api/jobs/${id}`);
-      if (!res.ok) { router.push("/jobs"); return; }
+      if (res.status === 404) {
+        setJobError("Job not found. It may have been deleted or the link is incorrect.");
+        setLoading(false);
+        return;
+      }
+      if (res.status === 403) {
+        setJobError("You don't have permission to view this job.");
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setJobError("Failed to load job. Please try again.");
+        setLoading(false);
+        return;
+      }
       setJob(await res.json());
-    } catch { router.push("/jobs"); }
-    finally { setLoading(false); }
+    } catch {
+      setJobError("Failed to load job. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function fetchItems() {
@@ -124,7 +149,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const filteredItems = items.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      (item.partNumber ?? "").toLowerCase().includes(search.toLowerCase())
+      (item.partNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.manufacturer ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.modelNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.description ?? "").toLowerCase().includes(search.toLowerCase())
   ).slice(0, 20);
 
   const totalMaterialCost = job?.parts.reduce((sum, p) => sum + p.quantity * (p.unitCost ?? 0), 0) ?? 0;
@@ -133,6 +161,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+  }
+
+  if (jobError) {
+    return (
+      <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+        <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-4 flex items-center gap-1">← Jobs</button>
+        <div className="rounded-2xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+          <p className="text-2xl mb-3">⚠️</p>
+          <p className="font-semibold text-red-300">{jobError}</p>
+          <button
+            onClick={() => { setLoading(true); fetchJob(); }}
+            className="mt-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 text-sm"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    );
   }
 
   if (!job) return null;
@@ -244,7 +290,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div>
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="Search parts by name or part number…"
+                placeholder="Search by name, part #, manufacturer, model, or description…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setAddForm({ ...addForm, itemId: "" }); }}
               />
@@ -258,11 +304,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                       onClick={() => { setAddForm({ ...addForm, itemId: item.id }); setSearch(item.name + (item.partNumber ? ` (${item.partNumber})` : "")); }}
                       className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
                     >
-                      <span className="text-sm text-slate-100">{item.name}</span>
-                      {item.partNumber && <span className="text-xs text-slate-400 ml-2">{item.partNumber}</span>}
-                      <span className={`text-xs ml-2 ${item.quantityOnHand > 0 ? "text-teal-400" : "text-red-400"}`}>
-                        In stock: {item.quantityOnHand}
-                      </span>
+                      <span className="text-sm text-slate-100 font-medium">{item.name}</span>
+                      {item.manufacturer && <span className="text-xs text-slate-400 ml-2">{item.manufacturer}</span>}
+                      {item.partNumber && <span className="text-xs text-slate-500 ml-2">#{item.partNumber}</span>}
+                      {item.modelNumber && <span className="text-xs text-slate-500 ml-1">· {item.modelNumber}</span>}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs ${item.quantityOnHand > 0 ? "text-teal-400" : "text-red-400"}`}>
+                          In stock: {item.quantityOnHand} {item.unitOfMeasure}
+                        </span>
+                        {item.description && (
+                          <span className="text-xs text-slate-500 truncate">{item.description}</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>

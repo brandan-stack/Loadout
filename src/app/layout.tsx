@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/navigation/bottom-nav";
+import { PersistenceWarning } from "@/components/ui/persistence-warning";
 import { Manrope, Space_Grotesk } from "next/font/google";
 
 const bodyFont = Manrope({
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${bodyFont.variable} ${headingFont.variable}`}>
+        <PersistenceWarning />
         {children}
         <BottomNav />
       </body>
