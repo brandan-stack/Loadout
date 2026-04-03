@@ -18,8 +18,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 const ROLE_COLOR: Record<string, string> = {
   SUPER_ADMIN: "bg-purple-900/60 text-purple-300",
-  OFFICE: "bg-blue-900/60 text-blue-300",
-  TECH: "bg-teal-900/60 text-teal-300",
+  OFFICE: "bg-slate-700/60 text-slate-300",
+  TECH: "bg-slate-700/60 text-slate-300",
 };
 
 export default function UsersPage() {
@@ -95,11 +95,11 @@ export default function UsersPage() {
   }
 
   if (meLoading || loading) {
-    return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+    return <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen"><p className="text-slate-400 animate-pulse">Loading…</p></main>;
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
@@ -107,7 +107,8 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-xl bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 text-sm font-semibold"
+          className="rounded-xl text-white px-4 py-2 text-sm font-semibold"
+          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
         >
           + Add User
         </button>
@@ -120,7 +121,7 @@ export default function UsersPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Name</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Full name"
@@ -129,7 +130,7 @@ export default function UsersPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Role</label>
               <select
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
@@ -141,7 +142,7 @@ export default function UsersPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">4-Digit PIN</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
                 type="password"
                 inputMode="numeric"
                 maxLength={4}
@@ -153,7 +154,7 @@ export default function UsersPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm PIN</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
                 type="password"
                 inputMode="numeric"
                 maxLength={4}
@@ -168,7 +169,8 @@ export default function UsersPage() {
             <button
               onClick={handleCreate}
               disabled={saving}
-              className="rounded-xl bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 text-sm font-semibold disabled:opacity-50"
+              className="rounded-xl text-white px-5 py-2 text-sm font-semibold disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               {saving ? "Saving…" : "Create User"}
             </button>
@@ -204,7 +206,7 @@ export default function UsersPage() {
                 value={u.role}
                 onChange={(e) => handleRoleChange(u.id, e.target.value)}
                 disabled={u.id === me?.userId || changingRoleId === u.id}
-                className="rounded-lg bg-slate-800 border border-slate-600 text-slate-100 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
+                className="rounded-lg bg-slate-800 border border-slate-600 text-slate-100 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50"
               >
                 <option value="TECH">Technician</option>
                 <option value="OFFICE">Office</option>

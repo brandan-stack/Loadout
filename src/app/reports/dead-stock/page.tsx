@@ -48,7 +48,7 @@ export default function DeadStockReportPage() {
   };
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6">Dead Stock Report</h1>
 
       <GlassBubbleCard className="mb-6">
@@ -65,14 +65,15 @@ export default function DeadStockReportPage() {
           <button
             onClick={handleGenerateReport}
             disabled={loading}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:bg-slate-600"
+            className="px-4 py-2 rounded-lg text-white font-semibold disabled:bg-slate-600"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
             {loading ? "Generating..." : "Generate Report"}
           </button>
           <button
             onClick={handleDownloadCSV}
             disabled={typedData.length === 0}
-            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:bg-slate-600"
+            className="soft-button rounded-lg px-4 py-2 text-sm font-semibold text-center disabled:opacity-50"
           >
             Download CSV
           </button>

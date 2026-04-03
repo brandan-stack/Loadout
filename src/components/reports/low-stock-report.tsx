@@ -31,7 +31,7 @@ export function LowStockReportPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-3 py-4 sm:p-4">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6">Low Stock Report</h1>
 
       <GlassBubbleCard className="mb-6">
@@ -43,7 +43,8 @@ export function LowStockReportPage() {
               onChange={(e) =>
                 setFilters({ ...filters, sortBy: e.target.value as any })
               }
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
             >
               <option value="severity">Severity (Red First)</option>
               <option value="quantity">Quantity (Low First)</option>
@@ -53,14 +54,15 @@ export function LowStockReportPage() {
           <button
             onClick={handleGenerateReport}
             disabled={loading}
-            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+            className="w-full sm:w-auto rounded-lg px-4 sm:px-6 py-2 text-white font-semibold disabled:bg-gray-400"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
             {loading ? "Generating..." : "Generate Report"}
           </button>
           <button
             onClick={handleDownloadCSV}
             disabled={!data || data.length === 0}
-            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400"
+            className="w-full sm:w-auto soft-button rounded-lg px-4 sm:px-6 py-2 text-sm font-semibold disabled:opacity-50"
           >
             Download CSV
           </button>
@@ -68,16 +70,17 @@ export function LowStockReportPage() {
       </GlassBubbleCard>
 
       {error && (
-        <GlassBubbleCard className="mb-6 bg-red-50 border-red-500">
-          <p className="text-red-700">{error}</p>
+        <GlassBubbleCard className="mb-6 border border-red-400/35 bg-red-500/10">
+          <p className="text-red-200">{error}</p>
         </GlassBubbleCard>
       )}
 
       {data && data.length > 0 ? (
-        <div className="overflow-x-auto">
+        <GlassBubbleCard>
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-sm">
             <thead>
-              <tr className="border-b-2 border-gray-300">
+              <tr className="border-b border-slate-700">
                 <th className="text-left py-3 px-4">Item</th>
                 <th className="text-left py-3 px-4">Barcode</th>
                 <th className="text-right py-3 px-4">On Hand</th>
@@ -91,11 +94,10 @@ export function LowStockReportPage() {
               {data.map((item) => (
                 <tr
                   key={item.id}
-                  className={
-                    item.severity === "red"
-                      ? "bg-red-50 border-b border-red-200"
-                      : "bg-amber-50 border-b border-amber-200"
-                  }
+                  className="border-b border-slate-800/70"
+                  style={{
+                    background: item.severity === "red" ? "rgba(239,68,68,0.05)" : "rgba(245,158,11,0.04)",
+                  }}
                 >
                   <td className="py-3 px-4 font-medium">{item.name}</td>
                   <td className="py-3 px-4 font-mono text-xs">
@@ -128,12 +130,13 @@ export function LowStockReportPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </GlassBubbleCard>
       ) : (
-        <GlassBubbleCard className="text-center text-gray-500">
+        <GlassBubbleCard className="text-center text-slate-400">
           <p>No low-stock items. Click &quot;Generate Report&quot; to check inventory levels.</p>
         </GlassBubbleCard>
       )}
-    </div>
+    </main>
   );
 }

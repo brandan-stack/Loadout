@@ -118,7 +118,7 @@ export default function LoginPage() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <span className="text-teal-400 text-xs font-bold tracking-widest uppercase">Loadout</span>
+            <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
             <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
           </div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Admin Name</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 placeholder="e.g. John Smith"
                 value={setupName}
                 onChange={(e) => setSetupName(e.target.value)}
@@ -135,7 +135,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">4-Digit PIN</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
                 type="password"
                 inputMode="numeric"
                 maxLength={4}
@@ -147,7 +147,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm PIN</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
                 type="password"
                 inputMode="numeric"
                 maxLength={4}
@@ -160,7 +160,8 @@ export default function LoginPage() {
             <button
               onClick={handleSetup}
               disabled={submitting}
-              className="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
+              className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               {submitting ? "Creating…" : "Create Account & Sign In"}
             </button>
@@ -175,7 +176,7 @@ export default function LoginPage() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <span className="text-teal-400 text-xs font-bold tracking-widest uppercase">Loadout</span>
+            <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
             <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
             <p className="text-slate-400 text-sm mt-1">Select your name to continue</p>
           </div>
@@ -184,9 +185,9 @@ export default function LoginPage() {
               <button
                 key={u.id}
                 onClick={() => setSelectedUser(u)}
-                className="w-full flex items-center justify-between bg-slate-900 border border-slate-700 hover:border-teal-500 rounded-2xl px-4 py-4 transition-colors group"
+                className="w-full flex items-center justify-between bg-slate-900 border border-slate-700 hover:border-indigo-500 rounded-2xl px-4 py-4 transition-colors group"
               >
-                <span className="font-semibold text-slate-100 group-hover:text-teal-300">{u.name}</span>
+                <span className="font-semibold text-slate-100 group-hover:text-indigo-300">{u.name}</span>
                 <span className="text-xs text-slate-500 bg-slate-800 rounded-full px-2.5 py-1">
                   {ROLE_LABEL[u.role] ?? u.role}
                 </span>
@@ -214,7 +215,7 @@ export default function LoginPage() {
           ← Back
         </button>
         <div className="text-center mb-6">
-          <span className="text-teal-400 text-xs font-bold tracking-widest uppercase">Loadout</span>
+          <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
           <h1 className="text-2xl font-bold text-slate-50 mt-1">{selectedUser.name}</h1>
           <p className="text-slate-400 text-sm">{ROLE_LABEL[selectedUser.role] ?? selectedUser.role}</p>
         </div>
@@ -224,7 +225,7 @@ export default function LoginPage() {
           {dots.map((filled, i) => (
             <div
               key={i}
-              className={`w-4 h-4 rounded-full border-2 transition-colors ${filled ? "bg-teal-400 border-teal-400" : "border-slate-600"}`}
+              className={`w-4 h-4 rounded-full border-2 transition-colors ${filled ? "bg-indigo-400 border-indigo-400" : "border-slate-600"}`}
             />
           ))}
         </div>
@@ -260,7 +261,8 @@ export default function LoginPage() {
         <button
           onClick={handleLogin}
           disabled={pin.length !== 4 || submitting}
-          className="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold py-3.5 text-sm transition-colors disabled:opacity-40"
+          className="w-full rounded-xl text-white font-semibold py-3.5 text-sm transition-colors disabled:opacity-40"
+          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
         >
           {submitting ? "Signing in…" : "Sign In"}
         </button>

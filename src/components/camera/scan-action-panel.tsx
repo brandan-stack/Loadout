@@ -132,14 +132,15 @@ export function ScanActionPanel({
             <div className="flex gap-2">
               <button
                 onClick={handleQuickAdd}
-                className="flex-1 px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                className="flex-1 px-3 py-2 text-white text-sm rounded"
+                style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
               >
                 Add to Inventory
               </button>
               <button
                 onClick={handleQuickUse}
                 disabled={item.quantityOnHand < quantity}
-                className="flex-1 px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-400"
+                className="flex-1 px-3 py-2 bg-slate-700 text-white text-sm rounded hover:bg-slate-600 disabled:bg-gray-400"
               >
                 Use from Inventory
               </button>
@@ -166,7 +167,7 @@ export function ScanActionPanel({
               placeholder="Item name"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
             />
 
             <div className="flex items-center gap-2">
@@ -184,7 +185,8 @@ export function ScanActionPanel({
             <button
               onClick={handleCreateItem}
               disabled={!itemName.trim()}
-              className="w-full px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 disabled:bg-gray-400"
+              className="w-full px-3 py-2 text-white text-sm rounded disabled:bg-gray-400"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               Create Item
             </button>
@@ -209,7 +211,8 @@ export function ScanActionPanel({
                 setState("found");
                 setError("");
               }}
-              className="w-full px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="w-full px-3 py-2 text-sm text-white rounded"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               Try Again
             </button>

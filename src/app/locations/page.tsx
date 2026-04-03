@@ -80,13 +80,13 @@ export default function LocationsPage() {
 
   if (loading)
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
         <p>Loading locations…</p>
-      </div>
+      </main>
     );
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold">Locations</h1>
@@ -103,7 +103,8 @@ export default function LocationsPage() {
           </button>
           <button
             onClick={() => setAdding(!adding)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm hover:bg-blue-600"
+            className="px-4 py-2 text-white rounded-xl text-sm"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
             + Location
           </button>
@@ -119,13 +120,13 @@ export default function LocationsPage() {
               placeholder="Location name (e.g. Warehouse A)"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
             <input
               placeholder="Description (optional)"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
             <div className="flex flex-col sm:flex-row gap-3">
               <button
@@ -136,7 +137,8 @@ export default function LocationsPage() {
               </button>
               <button
                 onClick={handleAddLocation}
-                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                className="flex-1 py-2 text-white rounded-lg text-sm"
+                style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
               >
                 Add Location
               </button>
@@ -150,7 +152,7 @@ export default function LocationsPage() {
         <GlassBubbleCard className="mb-6">
           <h2 className="font-bold mb-3">Transfer Stock</h2>
           {transferMsg && (
-            <div className="mb-3 p-2 bg-blue-50 text-blue-700 text-sm rounded">
+            <div className="mb-3 p-2 bg-slate-900/70 text-slate-300 text-sm rounded border border-white/10">
               {transferMsg}
             </div>
           )}
@@ -158,7 +160,7 @@ export default function LocationsPage() {
             <select
               value={transferFrom}
               onChange={(e) => setTransferFrom(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
               <option value="">From location…</option>
               {locations.map((l) => (
@@ -168,7 +170,7 @@ export default function LocationsPage() {
             <select
               value={transferTo}
               onChange={(e) => setTransferTo(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
               <option value="">To location…</option>
               {locations.map((l) => (
@@ -178,7 +180,7 @@ export default function LocationsPage() {
             <select
               value={transferItem}
               onChange={(e) => setTransferItem(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
               <option value="">Select item…</option>
               {allItems.map((item) => (
@@ -190,7 +192,7 @@ export default function LocationsPage() {
               min={1}
               value={transferQty}
               onChange={(e) => setTransferQty(parseInt(e.target.value) || 1)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               placeholder="Quantity"
             />
             <div className="flex flex-col sm:flex-row gap-3">
@@ -203,7 +205,8 @@ export default function LocationsPage() {
               <button
                 onClick={handleTransfer}
                 disabled={!transferFrom || !transferTo || !transferItem || transferQty < 1}
-                className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 disabled:bg-gray-400"
+                className="flex-1 py-2 text-white rounded-lg text-sm disabled:bg-gray-400"
+                style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
               >
                 Confirm Transfer
               </button>

@@ -141,7 +141,8 @@ export function CameraQATest() {
         <button
           onClick={runQATests}
           disabled={testing}
-          className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+          className="w-full px-4 py-2 text-white rounded disabled:bg-gray-400"
+          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
         >
           {testing ? `Running: ${currentTest}...` : "Run QA Tests"}
         </button>
@@ -152,7 +153,7 @@ export function CameraQATest() {
               <span className="font-semibold">Test Results</span>
               <span
                 className={`text-lg font-bold ${
-                  passedCount === totalCount ? "text-green-600" : "text-amber-600"
+                  passedCount === totalCount ? "text-slate-100" : "text-amber-600"
                 }`}
               >
                 {passedCount}/{totalCount} passed
@@ -164,13 +165,13 @@ export function CameraQATest() {
                 key={result.name}
                 className={`p-3 rounded border-l-4 ${
                   result.passed
-                    ? "bg-green-50 border-green-500"
+                    ? "bg-slate-900/70 border-slate-400"
                     : "bg-red-50 border-red-500"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{result.name}</span>
-                  <span className={result.passed ? "text-green-600" : "text-red-600"}>
+                  <span className={result.passed ? "text-slate-100" : "text-red-600"}>
                     {result.passed ? "✓" : "✗"}
                   </span>
                 </div>

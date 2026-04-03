@@ -99,7 +99,7 @@ export function ShareReportPanel({
                 onClick={() => setSelectedClient(client.id)}
                 className={`p-3 rounded-lg border-2 transition-all ${
                   selectedClient === client.id
-                    ? "border-blue-500 bg-blue-50"
+                    ? "border-indigo-500 bg-indigo-500/10"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
@@ -115,14 +115,15 @@ export function ShareReportPanel({
           <button
             onClick={handleShareEmail}
             disabled={sharing}
-            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+            className="flex-1 px-4 py-2 text-white rounded-lg disabled:bg-gray-400"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
             {sharing ? "Sharing..." : "Share via Email"}
           </button>
           <button
             onClick={handleExportPDF}
             disabled={sharing}
-            className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400"
+            className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 disabled:bg-gray-400"
           >
             {sharing ? "Exporting..." : "Export as PDF"}
           </button>

@@ -238,7 +238,7 @@ export default function ToolsPage() {
   const shopValue = useMemo(() => shopTools.reduce((s, t) => s + (t.cost || 0), 0), [shopTools]);
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-5xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <section className="page-frame p-4 sm:p-6 mb-5">
         <h1 className="text-3xl sm:text-4xl font-bold">Tool Tracking</h1>
         <p className="text-slate-400 mt-1 text-sm sm:text-base">
@@ -325,7 +325,7 @@ export default function ToolsPage() {
           <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
             <p className="text-sm font-semibold text-slate-200 mb-2">📷 Tool Photo (optional)</p>
             <div className="flex flex-wrap gap-2">
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-sm font-semibold cursor-pointer select-none">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-semibold cursor-pointer select-none" style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}>
                 📷 Take Photo
                 <input
                   type="file"
@@ -373,7 +373,7 @@ export default function ToolsPage() {
 
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={saving}
-              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:bg-slate-600">
+              className="px-4 py-2 rounded-lg text-white font-semibold disabled:bg-slate-600" style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}>
               {saving ? "Saving..." : editingId ? "Save Changes" : "Add Tool"}
             </button>
             {editingId && (
@@ -388,7 +388,7 @@ export default function ToolsPage() {
       <div className="flex gap-2 mb-4 flex-wrap">
         {(["SHOP", "PERSONAL"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${tab === t ? "bg-teal-700 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${tab === t ? "bg-indigo-700 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
             {t === "SHOP" ? `🏭 Shop (${shopTools.length})` : `👤 Personal (${personalTools.length})`}
           </button>
         ))}
@@ -425,11 +425,11 @@ export default function ToolsPage() {
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {isAdmin && tool.cost > 0 && (
-                      <span className="text-sm font-bold text-emerald-300">${tool.cost.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-slate-100">${tool.cost.toFixed(2)}</span>
                     )}
                     {/* Status badge for shop tools */}
                     {tool.type === "SHOP" && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${activeCheckout ? "bg-amber-900/60 text-amber-300" : "bg-teal-900/60 text-teal-300"}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${activeCheckout ? "bg-amber-900/60 text-amber-300" : "bg-slate-700/60 text-slate-300"}`}>
                         {activeCheckout ? `With ${activeCheckout.user.name}` : "Available"}
                       </span>
                     )}
@@ -447,7 +447,7 @@ export default function ToolsPage() {
                   {/* Sign-out for shop tools */}
                   {tool.type === "SHOP" && !activeCheckout && (
                     <button onClick={() => handleCheckout(tool.id)} disabled={checkingOut === tool.id}
-                      className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold">
+                      className="px-3 py-1.5 rounded-lg text-white text-sm font-semibold" style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}>
                       {checkingOut === tool.id ? "..." : "Sign Out"}
                     </button>
                   )}
@@ -462,7 +462,7 @@ export default function ToolsPage() {
                   {canEdit && (
                     <>
                       <button onClick={() => startEdit(tool)}
-                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">
+                        className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold">
                         Edit
                       </button>
                       <button onClick={() => deleteTool(tool.id)}

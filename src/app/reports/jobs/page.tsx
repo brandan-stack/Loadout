@@ -26,7 +26,7 @@ interface Job {
 
 const STATUS_COLOR: Record<string, string> = {
   OPEN: "bg-amber-900/60 text-amber-300",
-  COMPLETED: "bg-teal-900/60 text-teal-300",
+  COMPLETED: "bg-slate-700/60 text-slate-300",
   INVOICED: "bg-slate-700 text-slate-300",
 };
 
@@ -86,13 +86,17 @@ export default function JobsReportPage() {
   );
 
   if (userLoading || loading) {
-    return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+    return (
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading report...</p>
+      </main>
+    );
   }
 
   // Only admin/office can see this report
   if (user?.role === "TECH") {
     return (
-      <main className="container mx-auto px-3 py-4 max-w-4xl">
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
         <GlassBubbleCard>
           <p className="text-slate-400">Access restricted.</p>
         </GlassBubbleCard>
@@ -101,7 +105,7 @@ export default function JobsReportPage() {
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <div className="flex items-center gap-3 mb-4">
         <Link href="/reports" className="text-slate-400 hover:text-slate-200 text-sm">← Reports</Link>
         <h1 className="text-2xl sm:text-3xl font-bold">Parts by Job</h1>
@@ -112,13 +116,15 @@ export default function JobsReportPage() {
       <GlassBubbleCard className="mb-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <input
-            className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
             placeholder="Search job #, customer, tech…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <select
-            className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
           >
@@ -129,14 +135,16 @@ export default function JobsReportPage() {
           </select>
           <input
             type="date"
-            className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
             value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
             placeholder="From date"
           />
           <input
             type="date"
-            className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
             placeholder="To date"
@@ -150,9 +158,9 @@ export default function JobsReportPage() {
           <p className="text-xs text-slate-400">Jobs Shown</p>
           <p className="text-xl font-bold">{filtered.length}</p>
         </div>
-        <div className="rounded-xl border border-teal-700/50 bg-teal-950/50 px-4 py-3">
-          <p className="text-xs text-teal-400">Total Material Cost</p>
-          <p className="text-xl font-bold text-teal-300">${grandTotal.toFixed(2)}</p>
+        <div className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3">
+          <p className="text-xs text-slate-400">Total Material Cost</p>
+          <p className="text-xl font-bold text-slate-100">${grandTotal.toFixed(2)}</p>
         </div>
       </div>
 
@@ -187,7 +195,7 @@ export default function JobsReportPage() {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-teal-300">${jobTotal.toFixed(2)}</p>
+                    <p className="font-bold text-slate-100">${jobTotal.toFixed(2)}</p>
                   </div>
                 </button>
 
@@ -215,19 +223,19 @@ export default function JobsReportPage() {
                               </td>
                               <td className="text-right text-slate-300">{p.quantity} {p.item.unitOfMeasure}</td>
                               <td className="text-right text-slate-300">${p.unitCost.toFixed(2)}</td>
-                              <td className="text-right font-medium text-teal-300">${(p.unitCost * p.quantity).toFixed(2)}</td>
+                              <td className="text-right font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</td>
                             </tr>
                           ))}
                           <tr>
                             <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-slate-400">Job Total</td>
-                            <td className="pt-3 text-right font-bold text-teal-200">${jobTotal.toFixed(2)}</td>
+                            <td className="pt-3 text-right font-bold text-slate-100">${jobTotal.toFixed(2)}</td>
                           </tr>
                         </tbody>
                       </table>
                     )}
                     <div className="mt-3">
                       <Link href={`/jobs/${job.id}`}
-                        className="text-xs text-teal-400 hover:text-teal-300 underline">
+                        className="text-xs text-indigo-300 hover:text-indigo-200 underline">
                         Open Job →
                       </Link>
                     </div>

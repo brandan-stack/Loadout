@@ -116,7 +116,7 @@ export default function ImportWizardPage() {
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-2xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <h1 className="text-2xl sm:text-4xl font-bold mb-2">Import Wizard</h1>
       <p className="text-gray-600 mb-8">Import items from a CSV file.</p>
 
@@ -127,7 +127,7 @@ export default function ImportWizardPage() {
           <p className="text-sm text-gray-500 mb-4">
             The CSV must have a header row. Required: <strong>name</strong>.
           </p>
-          <label className="block w-full cursor-pointer border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
+          <label className="block w-full cursor-pointer border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors">
             <input
               ref={fileRef}
               type="file"
@@ -156,7 +156,7 @@ export default function ImportWizardPage() {
                 <select
                   value={mapping[h] ?? "__skip"}
                   onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
-                  className="flex-1 px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="flex-1 px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   {ITEM_FIELDS.map((f) => (
                     <option key={f.value} value={f.value}>
@@ -173,7 +173,8 @@ export default function ImportWizardPage() {
             </button>
             <button
               onClick={runDryRun}
-              className="flex-1 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+              className="flex-1 py-2 text-white text-sm rounded"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               Preview Import
             </button>
@@ -192,9 +193,9 @@ export default function ImportWizardPage() {
         <GlassBubbleCard>
           <h2 className="font-bold text-lg mb-4">Step 3 — Preview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 text-center">
-            <div className="bg-green-50 rounded-xl p-3">
-              <p className="text-2xl font-bold text-green-600">{preview.ok}</p>
-              <p className="text-xs text-green-700">Ready to import</p>
+            <div className="rounded-xl p-3 bg-slate-900/70 border border-white/10">
+              <p className="text-2xl font-bold text-slate-100">{preview.ok}</p>
+              <p className="text-xs text-slate-400">Ready to import</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-3">
               <p className="text-2xl font-bold text-amber-600">{preview.duplicates}</p>
@@ -235,7 +236,8 @@ export default function ImportWizardPage() {
             <button
               onClick={runImport}
               disabled={preview.ok === 0}
-              className="flex-1 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 disabled:bg-gray-400"
+              className="flex-1 py-2 text-white text-sm rounded disabled:bg-gray-400"
+              style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               Import {preview.ok} items
             </button>
@@ -253,11 +255,11 @@ export default function ImportWizardPage() {
       {/* Done */}
       {step === "done" && summary && (
         <GlassBubbleCard>
-          <h2 className="font-bold text-lg mb-4 text-green-700">Import Complete!</h2>
+          <h2 className="font-bold text-lg mb-4 text-slate-100">Import Complete!</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 text-center">
-            <div className="bg-green-50 rounded-xl p-3">
-              <p className="text-2xl font-bold text-green-600">{summary.ok}</p>
-              <p className="text-xs text-green-700">Items imported</p>
+            <div className="rounded-xl p-3 bg-slate-900/70 border border-white/10">
+              <p className="text-2xl font-bold text-slate-100">{summary.ok}</p>
+              <p className="text-xs text-slate-400">Items imported</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-2xl font-bold text-gray-600">{summary.total - summary.ok}</p>
@@ -266,7 +268,8 @@ export default function ImportWizardPage() {
           </div>
           <button
             onClick={reset}
-            className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="w-full py-2 text-white rounded"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
             Import Another File
           </button>

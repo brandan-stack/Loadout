@@ -172,11 +172,12 @@ export function ScanView({ onScan, onCancel }: ScanViewProps) {
           value={manualInput}
           onChange={(e) => setManualInput(e.target.value)}
           placeholder="SKU-000001"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
         />
         <button
           type="submit"
-          className="w-full mt-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+          className="w-full mt-2 px-4 py-2 text-white rounded-lg"
+          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
         >
           Search
         </button>

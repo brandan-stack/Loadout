@@ -27,7 +27,7 @@ export default function ScanPage() {
   };
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <section className="page-frame p-4 sm:p-6 mb-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -48,9 +48,9 @@ export default function ScanPage() {
       </section>
 
       {lastResult && (
-        <section className="mb-4 rounded-xl border border-emerald-400/35 bg-emerald-500/15 p-3 sm:p-4">
-          <p className="text-sm font-semibold text-emerald-200">{actionLabel(lastResult.action)}</p>
-          <p className="text-xs text-emerald-100/90 mt-1 font-mono">{lastResult.barcode}</p>
+        <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/70 p-3 sm:p-4">
+          <p className="text-sm font-semibold text-slate-200">{actionLabel(lastResult.action)}</p>
+          <p className="text-xs text-slate-400 mt-1 font-mono">{lastResult.barcode}</p>
         </section>
       )}
 

@@ -37,7 +37,7 @@ interface Job {
 
 const STATUS_COLOR: Record<string, string> = {
   OPEN: "bg-amber-900/60 text-amber-300 border-amber-700",
-  COMPLETED: "bg-teal-900/60 text-teal-300 border-teal-700",
+  COMPLETED: "bg-slate-700/60 text-slate-300 border-slate-600",
   INVOICED: "bg-slate-700 text-slate-300 border-slate-600",
 };
 
@@ -160,12 +160,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const canChangeStatus = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
 
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen"><p className="text-slate-400 animate-pulse">Loading…</p></div>;
+    return (
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+        <p className="text-sm text-slate-400 animate-pulse">Loading job...</p>
+      </main>
+    );
   }
 
   if (jobError) {
     return (
-      <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
         <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-4 flex items-center gap-1">← Jobs</button>
         <div className="rounded-2xl border border-red-700/50 bg-red-900/20 p-6 text-center">
           <p className="text-2xl mb-3">⚠️</p>
@@ -184,7 +188,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   if (!job) return null;
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
+    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5">
         <div>
@@ -202,7 +206,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         {canChangeStatus && (
           <div className="shrink-0">
             <select
-              className="rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               value={job.status}
               disabled={statusUpdating}
               onChange={(e) => handleStatusChange(e.target.value)}
@@ -253,7 +258,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   <span className="text-slate-300 pr-4 text-right">${(part.unitCost ?? 0).toFixed(2)}</span>
                 )}
                 {user?.role !== "TECH" && (
-                  <span className="text-teal-300 font-semibold pr-4 text-right">
+                  <span className="text-slate-200 font-semibold pr-4 text-right">
                     ${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}
                   </span>
                 )}
@@ -276,7 +281,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="px-4 py-3 border-t border-slate-700 flex justify-end">
             <div className="text-right">
               <span className="text-xs text-slate-500 uppercase tracking-wide">Total Material Cost</span>
-              <p className="text-2xl font-bold text-teal-300 mt-0.5">${totalMaterialCost.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-slate-100 mt-0.5">${totalMaterialCost.toFixed(2)}</p>
             </div>
           </div>
         )}
@@ -289,7 +294,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="space-y-3">
             <div>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                 placeholder="Search by name, part #, manufacturer, model, or description…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setAddForm({ ...addForm, itemId: "" }); }}
@@ -309,7 +315,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                       {item.partNumber && <span className="text-xs text-slate-500 ml-2">#{item.partNumber}</span>}
                       {item.modelNumber && <span className="text-xs text-slate-500 ml-1">· {item.modelNumber}</span>}
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs ${item.quantityOnHand > 0 ? "text-teal-400" : "text-red-400"}`}>
+                        <span className={`text-xs ${item.quantityOnHand > 0 ? "text-slate-300" : "text-red-400"}`}>
                           In stock: {item.quantityOnHand} {item.unitOfMeasure}
                         </span>
                         {item.description && (
@@ -327,7 +333,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 <input
                   type="number"
                   min="1"
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                   value={addForm.quantity}
                   onChange={(e) => setAddForm({ ...addForm, quantity: parseInt(e.target.value) || 1 })}
                 />
@@ -335,7 +342,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <div className="flex-1">
                 <label className="block text-xs text-slate-400 mb-1">Notes (optional)</label>
                 <input
-                  className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
                   placeholder="e.g. replaced bearing"
                   value={addForm.notes}
                   onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
@@ -346,7 +354,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <button
               onClick={handleAddPart}
               disabled={adding || !addForm.itemId}
-              className="rounded-xl bg-teal-600 hover:bg-teal-500 text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-40"
+              className="rounded-xl text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-40 transition-all hover:brightness-110"
+              style={{
+                background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
+              }}
             >
               {adding ? "Adding…" : "Add Part to Job"}
             </button>
