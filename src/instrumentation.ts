@@ -27,6 +27,7 @@ export async function register() {
         "id" TEXT NOT NULL PRIMARY KEY,
         "name" TEXT NOT NULL UNIQUE,
         "contact" TEXT,
+        "website" TEXT,
         "leadTimeD" INTEGER NOT NULL DEFAULT 7,
         "notes" TEXT,
         "archived" BOOLEAN NOT NULL DEFAULT false,
@@ -42,6 +43,7 @@ export async function register() {
         "serialNumber" TEXT,
         "barcode" TEXT UNIQUE,
         "description" TEXT,
+        "photoUrl" TEXT,
         "quantityOnHand" INTEGER NOT NULL DEFAULT 0,
         "quantityUsedTotal" INTEGER NOT NULL DEFAULT 0,
         "lowStockAmberThreshold" INTEGER NOT NULL DEFAULT 5,
@@ -87,8 +89,7 @@ export async function register() {
         "id" TEXT NOT NULL PRIMARY KEY,
         "itemId" TEXT NOT NULL,
         "name" TEXT NOT NULL,
-        "sku" TEXT,
-        "barcode" TEXT,
+        "sku" TEXT UNIQUE,
         "quantityOnHand" INTEGER NOT NULL DEFAULT 0,
         "attributes" TEXT NOT NULL DEFAULT '{}',
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -100,28 +101,63 @@ export async function register() {
         "id" TEXT NOT NULL PRIMARY KEY,
         "name" TEXT NOT NULL UNIQUE,
         "description" TEXT,
-        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "archived" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS "LocationStock" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "itemId" TEXT NOT NULL,
         "locationId" TEXT NOT NULL,
-        "quantity" INTEGER NOT NULL DEFAULT 0,
+        "itemId" TEXT NOT NULL,
+        "quantityOnHand" INTEGER NOT NULL DEFAULT 0,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY ("itemId") REFERENCES "Item"("id") ON DELETE CASCADE,
         FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE CASCADE
       )`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS "LocationStock_itemId_locationId_key" ON "LocationStock"("itemId","locationId")`,
-      `CREATE TABLE IF NOT EXISTS "ReportSchedule" (
+      `CREATE UNIQUE INDEX IF NOT EXISTS "LocationStock_locationId_itemId_key" ON "LocationStock"("locationId","itemId")`,
+      `CREATE INDEX IF NOT EXISTS "LocationStock_locationId_idx" ON "LocationStock"("locationId")`,
+      `CREATE INDEX IF NOT EXISTS "LocationStock_itemId_idx" ON "LocationStock"("itemId")`,
+      `CREATE TABLE IF NOT EXISTS "LocationTransfer" (
         "id" TEXT NOT NULL PRIMARY KEY,
+        "fromLocationId" TEXT NOT NULL,
+        "toLocationId" TEXT NOT NULL,
+        "itemId" TEXT NOT NULL,
+        "quantity" INTEGER NOT NULL,
+        "notes" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS "LocationTransfer_itemId_idx" ON "LocationTransfer"("itemId")`,
+      `CREATE INDEX IF NOT EXISTS "LocationTransfer_fromLocationId_idx" ON "LocationTransfer"("fromLocationId")`,
+      `CREATE INDEX IF NOT EXISTS "LocationTransfer_toLocationId_idx" ON "LocationTransfer"("toLocationId")`,
+      `CREATE TABLE IF NOT EXISTS "ScheduledReport" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
         "reportType" TEXT NOT NULL,
-        "frequency" TEXT NOT NULL DEFAULT 'weekly',
-        "recipients" TEXT NOT NULL DEFAULT '[]',
-        "enabled" BOOLEAN NOT NULL DEFAULT true,
-        "lastRunAt" DATETIME,
-        "nextRunAt" DATETIME,
+        "frequency" TEXT NOT NULL,
+        "filters" TEXT NOT NULL DEFAULT '{}',
+        "lastRun" DATETIME,
+        "nextRun" DATETIME NOT NULL,
+        "archived" BOOLEAN NOT NULL DEFAULT false,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS "ReportView" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "filters" TEXT NOT NULL DEFAULT '{}',
+        "sortBy" TEXT NOT NULL DEFAULT 'name',
+        "archived" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS "ShareLog" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "type" TEXT NOT NULL,
+        "reportType" TEXT,
+        "emailClient" TEXT,
+        "filters" TEXT NOT NULL DEFAULT '{}',
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS "Tool" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -133,11 +169,14 @@ export async function register() {
         "cost" REAL NOT NULL DEFAULT 0,
         "notes" TEXT,
         "photoUrl" TEXT,
+        "type" TEXT NOT NULL DEFAULT 'SHOP',
+        "ownerId" TEXT,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE INDEX IF NOT EXISTS "Tool_name_idx" ON "Tool"("name")`,
       `CREATE INDEX IF NOT EXISTS "Tool_supplier_idx" ON "Tool"("supplier")`,
+      `CREATE INDEX IF NOT EXISTS "Tool_ownerId_idx" ON "Tool"("ownerId")`,
       `CREATE TABLE IF NOT EXISTS "AppUser" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "name" TEXT NOT NULL UNIQUE,
@@ -146,7 +185,6 @@ export async function register() {
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `CREATE INDEX IF NOT EXISTS "AppUser_name_idx" ON "AppUser"("name")`,
       `CREATE TABLE IF NOT EXISTS "Job" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "jobNumber" TEXT NOT NULL UNIQUE,
@@ -187,13 +225,10 @@ export async function register() {
       )`,
       `CREATE INDEX IF NOT EXISTS "ToolCheckout_toolId_idx" ON "ToolCheckout"("toolId")`,
       `CREATE INDEX IF NOT EXISTS "ToolCheckout_userId_idx" ON "ToolCheckout"("userId")`,
-      // Migrations: add new columns to existing tables (safe to re-run)
-      `ALTER TABLE "Tool" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'SHOP'`,
-      `ALTER TABLE "Tool" ADD COLUMN "ownerId" TEXT`,
       `CREATE TABLE IF NOT EXISTS "Settings" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "simpleMode" BOOLEAN NOT NULL DEFAULT false,
         "premiumEnabled" BOOLEAN NOT NULL DEFAULT false,
+        "simpleMode" BOOLEAN NOT NULL DEFAULT true,
         "enableMultiLocation" BOOLEAN NOT NULL DEFAULT false,
         "enableVariants" BOOLEAN NOT NULL DEFAULT false,
         "enableImportWizard" BOOLEAN NOT NULL DEFAULT false,
@@ -202,12 +237,18 @@ export async function register() {
         "enableReportScheduler" BOOLEAN NOT NULL DEFAULT false,
         "enableAITagging" BOOLEAN NOT NULL DEFAULT false,
         "preferredEmailClient" TEXT NOT NULL DEFAULT 'default',
-        "composeSubjectTemplate" TEXT NOT NULL DEFAULT 'Inventory Report: \${reportType} - \${date}',
+        "composeSubjectTemplate" TEXT NOT NULL DEFAULT 'Inventory Report - {date}',
         "defaultLowStockAmber" INTEGER NOT NULL DEFAULT 5,
         "defaultLowStockRed" INTEGER NOT NULL DEFAULT 2,
-        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
+      // Migrations: add new columns to existing tables (safe to re-run, errors ignored)
+      `ALTER TABLE "Tool" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'SHOP'`,
+      `ALTER TABLE "Tool" ADD COLUMN "ownerId" TEXT`,
+      `ALTER TABLE "Supplier" ADD COLUMN "website" TEXT`,
+      `ALTER TABLE "Item" ADD COLUMN "photoUrl" TEXT`,
+      `ALTER TABLE "Location" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "Location" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     ];
 
     for (const sql of statements) {

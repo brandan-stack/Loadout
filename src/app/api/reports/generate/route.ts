@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
       dateTo: dateTo ? new Date(dateTo) : undefined,
       supplierId,
-      sortBy: sortBy as any,
-      sortOrder: sortOrder as any,
+      sortBy,
+      sortOrder,
     };
 
     let data;
