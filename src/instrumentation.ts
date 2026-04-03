@@ -138,8 +138,6 @@ export async function register() {
       )`,
       `CREATE INDEX IF NOT EXISTS "Tool_name_idx" ON "Tool"("name")`,
       `CREATE INDEX IF NOT EXISTS "Tool_supplier_idx" ON "Tool"("supplier")`,
-      `ALTER TABLE "Tool" ADD COLUMN IF NOT EXISTS "type" TEXT NOT NULL DEFAULT 'SHOP'`,
-      `ALTER TABLE "Tool" ADD COLUMN IF NOT EXISTS "ownerId" TEXT`,
       `CREATE TABLE IF NOT EXISTS "AppUser" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "name" TEXT NOT NULL UNIQUE,
@@ -189,6 +187,9 @@ export async function register() {
       )`,
       `CREATE INDEX IF NOT EXISTS "ToolCheckout_toolId_idx" ON "ToolCheckout"("toolId")`,
       `CREATE INDEX IF NOT EXISTS "ToolCheckout_userId_idx" ON "ToolCheckout"("userId")`,
+      // Migrations: add new columns to existing tables (safe to re-run)
+      `ALTER TABLE "Tool" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'SHOP'`,
+      `ALTER TABLE "Tool" ADD COLUMN "ownerId" TEXT`,
       `CREATE TABLE IF NOT EXISTS "Settings" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "simpleMode" BOOLEAN NOT NULL DEFAULT false,
@@ -210,7 +211,18 @@ export async function register() {
     ];
 
     for (const sql of statements) {
-      await prisma.$executeRawUnsafe(sql);
+      // ALTER TABLE statements may fail if column already exists or if the
+      // SQLite version doesn't support IF NOT EXISTS in ALTER TABLE (< 3.37.0).
+      // Wrap them so a migration failure never blocks table creation.
+      if (sql.trimStart().toUpperCase().startsWith("ALTER TABLE")) {
+        try {
+          await prisma.$executeRawUnsafe(sql);
+        } catch {
+          // Column already exists or not supported — safe to ignore
+        }
+      } else {
+        await prisma.$executeRawUnsafe(sql);
+      }
     }
 
     console.log("[instrumentation] Database schema initialized successfully.");
