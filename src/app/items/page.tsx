@@ -93,6 +93,7 @@ export default function ItemCatalog() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "critical">("all");
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState("");
@@ -299,17 +300,9 @@ export default function ItemCatalog() {
     }
   }
 
-  const getLowStockColor = (item: Item) => {
-    if (item.quantityOnHand <= item.lowStockRedThreshold) {
-      return "border-red-500/60";
-    }
-    if (item.quantityOnHand <= item.lowStockAmberThreshold) {
-      return "border-amber-500/60";
-    }
-    return "";
-  };
-
   const filteredItems = items.filter((item) => {
+    if (stockFilter === "critical" && item.quantityOnHand > item.lowStockRedThreshold) return false;
+    if (stockFilter === "low" && item.quantityOnHand > item.lowStockAmberThreshold) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -323,6 +316,9 @@ export default function ItemCatalog() {
     );
   });
 
+  const lowCount = items.filter((i) => i.quantityOnHand <= i.lowStockAmberThreshold && i.quantityOnHand > i.lowStockRedThreshold).length;
+  const criticalCount = items.filter((i) => i.quantityOnHand <= i.lowStockRedThreshold).length;
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -332,32 +328,87 @@ export default function ItemCatalog() {
   }
 
   return (
-    <main className="container mx-auto px-3 py-4 sm:p-4 max-w-4xl form-screen">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-6">Inventory Catalog</h1>
+    <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl form-screen">
+
+      {/* ─── Page Header ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1
+            className="font-bold text-white leading-none"
+            style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
+          >
+            Inventory
+          </h1>
+          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
+            {items.length} item{items.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/scan"
+            prefetch={false}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:text-white hover:bg-white/[0.06]"
+            style={{ border: "1px solid rgba(148,163,184,0.15)" }}
+          >
+            <span style={{ fontSize: "13px" }}>⬡</span>
+            Scan
+          </Link>
+          <button
+            onClick={() => { setShowForm(!showForm); setError(""); }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+            style={{
+              background: showForm
+                ? "rgba(71,85,105,0.7)"
+                : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+              boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.35)",
+            }}
+          >
+            {showForm ? "✕ Cancel" : "+ Add Item"}
+          </button>
+        </div>
+      </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-400/35 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="mb-5 rounded-xl border border-red-400/30 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
 
+      {/* ─── Filter chips + Search ─── */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <button
-          onClick={() => { setShowForm(!showForm); setError(""); }}
-          className="px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-semibold text-sm"
-        >
-          {showForm ? "Cancel" : "+ Add Item"}
-        </button>
-        <Link
-          href="/scan"
-          prefetch={false}
-          className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm flex items-center gap-2 justify-center"
-        >
-          ⬡ Scan Barcode
-        </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {(["all", "low", "critical"] as const).map((f) => {
+            const labels = { all: "All Parts", low: `Low Stock${lowCount > 0 ? ` (${lowCount})` : ""}`, critical: `Critical${criticalCount > 0 ? ` (${criticalCount})` : ""}` };
+            const active = stockFilter === f;
+            return (
+              <button
+                key={f}
+                onClick={() => setStockFilter(f)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                style={{
+                  background: active
+                    ? f === "critical" ? "rgba(239,68,68,0.18)" : f === "low" ? "rgba(245,158,11,0.16)" : "rgba(255,255,255,0.08)"
+                    : "transparent",
+                  border: active
+                    ? f === "critical" ? "1px solid rgba(239,68,68,0.35)" : f === "low" ? "1px solid rgba(245,158,11,0.30)" : "1px solid rgba(255,255,255,0.12)"
+                    : "1px solid rgba(148,163,184,0.12)",
+                  color: active
+                    ? f === "critical" ? "#fca5a5" : f === "low" ? "#fcd34d" : "#e2e8f0"
+                    : "rgba(148,163,184,0.6)",
+                }}
+              >
+                {labels[f]}
+              </button>
+            );
+          })}
+        </div>
         <input
-          className="flex-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-          placeholder="Search by name, manufacturer, part #, model, description…"
+          className="flex-1 rounded-xl text-slate-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          style={{
+            background: "rgba(15,23,42,0.6)",
+            border: "1px solid rgba(148,163,184,0.12)",
+          }}
+          placeholder="Search name, manufacturer, part number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -652,57 +703,100 @@ export default function ItemCatalog() {
         </GlassBubbleCard>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredItems.map((item) => (
-          <GlassBubbleCard
-            key={item.id}
-            className={`transition-all ${getLowStockColor(item)}`}
-          >
-            <div className="flex gap-3">
-              {/* Photo thumbnail */}
-              {item.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.photoUrl}
-                  alt={item.name}
-                  className="w-14 h-14 object-cover rounded-lg border border-slate-700 flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setEnlargedPhoto(item.photoUrl!)}
-                  title="Click to enlarge"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-lg border border-slate-700/50 bg-slate-800/50 flex items-center justify-center text-slate-600 text-xl flex-shrink-0">
-                  📦
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-semibold text-slate-100 leading-tight">{item.name}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
-                    .filter(Boolean).join(" · ") || "No details"}
-                </p>
-                {item.description && (
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.description}</p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className={`text-sm font-bold ${
-                    item.quantityOnHand <= item.lowStockRedThreshold
-                      ? "text-red-400"
-                      : item.quantityOnHand <= item.lowStockAmberThreshold
-                      ? "text-amber-400"
-                      : "text-teal-300"
-                  }`}>
-                    {item.quantityOnHand} {item.unitOfMeasure}
-                  </span>
-                  {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
-                    <span className="text-xs text-emerald-400">
-                      ${item.lastUnitCost.toFixed(2)}/unit
-                    </span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {filteredItems.map((item) => {
+          const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
+          const isLow = !isCritical && item.quantityOnHand <= item.lowStockAmberThreshold;
+          return (
+            <div
+              key={item.id}
+              className="rounded-2xl transition-all"
+              style={{
+                background: "linear-gradient(145deg, rgba(15,20,40,0.96) 0%, rgba(10,14,28,0.97) 100%)",
+                border: isCritical
+                  ? "1px solid rgba(239,68,68,0.30)"
+                  : isLow
+                  ? "1px solid rgba(245,158,11,0.25)"
+                  : "1px solid rgba(255,255,255,0.06)",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+              }}
+            >
+              <div className="p-4 flex gap-3.5">
+                {/* Photo / icon */}
+                <div className="shrink-0">
+                  {item.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.photoUrl}
+                      alt={item.name}
+                      className="w-13 h-13 object-cover rounded-xl border border-slate-700/60 cursor-pointer hover:opacity-85 transition-opacity"
+                      style={{ width: "52px", height: "52px" }}
+                      onClick={() => setEnlargedPhoto(item.photoUrl!)}
+                      title="Click to enlarge"
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center justify-center text-xl rounded-xl"
+                      style={{
+                        width: "52px",
+                        height: "52px",
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        color: "#475569",
+                      }}
+                    >
+                      📦
+                    </div>
                   )}
+                </div>
+
+                {/* Content */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-100 leading-snug">{item.name}</h3>
+                    {(isCritical || isLow) && (
+                      <span
+                        className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md"
+                        style={{
+                          background: isCritical ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.14)",
+                          color: isCritical ? "#fca5a5" : "#fcd34d",
+                          border: isCritical ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(245,158,11,0.22)",
+                        }}
+                      >
+                        {isCritical ? "Critical" : "Low"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
+                      .filter(Boolean)
+                      .join(" · ") || "No details"}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span
+                      className="text-sm font-bold"
+                      style={{
+                        color: isCritical
+                          ? "#f87171"
+                          : isLow
+                          ? "#fbbf24"
+                          : "#a5b4fc",
+                      }}
+                    >
+                      {item.quantityOnHand}{" "}
+                      <span className="text-xs font-normal text-slate-500">{item.unitOfMeasure}</span>
+                    </span>
+                    {isAdmin && item.lastUnitCost != null && item.lastUnitCost > 0 && (
+                      <span className="text-xs text-emerald-400/80">
+                        ${item.lastUnitCost.toFixed(2)}/unit
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </GlassBubbleCard>
-        ))}
+          );
+        })}
       </div>
 
       {filteredItems.length === 0 && (

@@ -1,126 +1,88 @@
 import Link from "next/link";
 
-const ALL_TILES = [
-  {
-    href: "/jobs",
-    label: "Jobs",
-    description: "Log parts & materials",
-    icon: "🔧",
-    accent: "#2dd4bf",
-    glow: "rgba(45,212,191,0.13)",
-    gradient: "linear-gradient(140deg, rgba(14,36,34,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/items",
-    label: "Inventory",
-    description: "Catalog & stock levels",
-    icon: "📦",
-    accent: "#818cf8",
-    glow: "rgba(129,140,248,0.13)",
-    gradient: "linear-gradient(140deg, rgba(16,18,52,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/reports",
-    label: "Reports",
-    description: "Trends & cost analysis",
-    icon: "📊",
-    accent: "#34d399",
-    glow: "rgba(52,211,153,0.13)",
-    gradient: "linear-gradient(140deg, rgba(8,34,26,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/reorder",
-    label: "Reorder",
-    description: "Low-stock suggestions",
-    icon: "🔄",
-    accent: "#f59e0b",
-    glow: "rgba(245,158,11,0.12)",
-    gradient: "linear-gradient(140deg, rgba(28,20,8,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/suppliers",
-    label: "Suppliers",
-    description: "Vendor management",
-    icon: "🏭",
-    accent: "#e879f9",
-    glow: "rgba(232,121,249,0.12)",
-    gradient: "linear-gradient(140deg, rgba(26,10,30,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-  {
-    href: "/settings",
-    label: "Settings",
-    description: "App & feature config",
-    icon: "⚙️",
-    accent: "#94a3b8",
-    glow: "rgba(148,163,184,0.10)",
-    gradient: "linear-gradient(140deg, rgba(18,22,36,0.97) 0%, rgba(9,15,26,0.99) 100%)",
-  },
-];
-
 export default function Home() {
   return (
-    <main className="px-4 sm:px-6 pt-6 sm:pt-8 max-w-2xl sm:max-w-3xl mx-auto pb-28">
+    <main
+      className="flex flex-col items-center justify-center px-4 py-8"
+      style={{ minHeight: "calc(100vh - 3.5rem)" }}
+    >
+      <div className="w-full max-w-md text-center">
 
-      {/* ─── Greeting ─── */}
-      <p
-        className="text-[11px] font-bold uppercase tracking-[0.18em] mb-5 px-0.5"
-        style={{ color: "rgba(148,163,184,0.5)" }}
-      >
-        What are you working on?
-      </p>
+        {/* ─── Eyebrow ─── */}
+        <p
+          className="text-xs font-bold uppercase tracking-[0.22em] mb-12"
+          style={{ color: "rgba(148,163,184,0.35)" }}
+        >
+          Field Parts Tracking
+        </p>
 
-      {/* ─── Unified tile grid ─── */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {ALL_TILES.map(({ href, label, description, icon, accent, glow, gradient }) => (
-          <Link
-            key={href}
-            href={href}
-            prefetch={false}
-            className="relative card-lift rounded-2xl overflow-hidden block active:scale-[0.97]"
+        {/* ─── Inventory Hero Card ─── */}
+        <div
+          className="relative rounded-3xl overflow-hidden mb-5"
+          style={{
+            background: "linear-gradient(145deg, rgba(16,20,46,0.98) 0%, rgba(9,12,28,0.99) 100%)",
+            border: "1px solid rgba(129,140,248,0.14)",
+            boxShadow: "0 8px 48px rgba(1,2,12,0.75), inset 0 1px 0 rgba(255,255,255,0.04)",
+          }}
+        >
+          {/* Top accent stripe */}
+          <div
+            className="absolute top-0 left-0 right-0 h-[2px]"
             style={{
-              background: gradient,
-              border: `1px solid ${accent}22`,
-              boxShadow: `0 4px 24px rgba(2,6,23,0.55), inset 0 1px 0 rgba(255,255,255,0.04)`,
+              background: "linear-gradient(90deg, #818cf8 0%, #6366f1 55%, transparent 100%)",
             }}
-          >
-            {/* Accent stripe */}
-            <div
-              className="absolute top-0 left-0 right-0 h-[2px]"
-              style={{
-                background: `linear-gradient(90deg, ${accent} 0%, ${accent}50 70%, transparent 100%)`,
-              }}
-              aria-hidden
-            />
-            <div className="p-5 pt-6">
-              {/* Icon */}
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl mb-3.5"
-                style={{
-                  background: glow,
-                  border: `1px solid ${accent}28`,
-                  boxShadow: `0 0 16px ${accent}14`,
-                }}
-              >
-                {icon}
-              </div>
-              <div
-                className="font-bold text-[15px] sm:text-base leading-tight text-white mb-1"
-                style={{ letterSpacing: "-0.01em" }}
-              >
-                {label}
-              </div>
-              <p
-                className="text-xs leading-snug"
-                style={{ color: "rgba(148,163,184,0.68)" }}
-              >
-                {description}
-              </p>
-            </div>
-          </Link>
-        ))}
-      </div>
+            aria-hidden
+          />
 
+          <div className="px-10 py-12 flex flex-col items-center">
+            {/* Icon */}
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-7"
+              style={{
+                background: "rgba(99,102,241,0.12)",
+                border: "1px solid rgba(129,140,248,0.20)",
+              }}
+            >
+              📦
+            </div>
+
+            <h1
+              className="font-bold text-white mb-2.5"
+              style={{ fontSize: "30px", letterSpacing: "-0.025em" }}
+            >
+              Inventory
+            </h1>
+            <p
+              className="text-sm mb-9"
+              style={{ color: "rgba(148,163,184,0.6)" }}
+            >
+              Catalog &amp; track parts
+            </p>
+
+            <Link
+              href="/items"
+              prefetch={false}
+              className="inline-flex items-center gap-2 px-7 py-3 rounded-xl font-semibold text-sm text-white transition-all hover:brightness-110 active:scale-[0.97]"
+              style={{
+                background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
+                boxShadow: "0 4px 20px rgba(91,94,244,0.40)",
+                letterSpacing: "0.01em",
+              }}
+            >
+              + Add Item
+            </Link>
+          </div>
+        </div>
+
+        {/* ─── Supporting line ─── */}
+        <p
+          className="text-xs tracking-wide"
+          style={{ color: "rgba(100,116,139,0.5)" }}
+        >
+          Track, manage, and move parts
+        </p>
+
+      </div>
     </main>
   );
 }
-
