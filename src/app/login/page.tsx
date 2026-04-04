@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { checkPasswordStrength } from "@/lib/validation";
@@ -25,6 +26,12 @@ function LoginForm() {
   const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
+    // Pre-fill email from the last successful sign-in on this device
+    if (typeof window !== "undefined") {
+      const savedEmail = localStorage.getItem("loadout_remembered_email");
+      if (savedEmail) setEmail(savedEmail);
+    }
+
     fetch("/api/auth/setup")
       .then((r) => {
         if (!r.ok) {
@@ -55,7 +62,10 @@ function LoginForm() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
-        router.push("/");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("loadout_remembered_email", email.trim().toLowerCase());
+      }
+      router.push("/");
         router.refresh();
       } else {
         const d = await res.json();
@@ -109,7 +119,10 @@ function LoginForm() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm text-center">
-          <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <Image src="/loadout-logo.svg" alt="Loadout logo" width={40} height={40} />
+            <span className="text-white text-2xl font-bold tracking-tight">Loadout</span>
+          </div>
           <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
           <p className="text-slate-400 text-sm mt-2">The database is unavailable. Please check your connection and try again.</p>
           <button
@@ -129,7 +142,10 @@ function LoginForm() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <Image src="/loadout-logo.svg" alt="Loadout logo" width={40} height={40} />
+              <span className="text-white text-2xl font-bold tracking-tight">Loadout</span>
+            </div>
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
             <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
           </div>
@@ -197,7 +213,10 @@ function LoginForm() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <Image src="/loadout-logo.svg" alt="Loadout logo" width={40} height={40} />
+            <span className="text-white text-2xl font-bold tracking-tight">Loadout</span>
+          </div>
           <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
           <p className="text-slate-400 text-sm mt-1">Enter your email and password to continue</p>
         </div>

@@ -161,6 +161,9 @@ export default function SettingsPage() {
       return;
     }
     clearUserCache();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("loadout_remembered_email");
+    }
     router.push("/login");
     router.refresh();
   }
