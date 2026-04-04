@@ -2,13 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { checkPasswordStrength } from "@/lib/validation";
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get("reset") === "1";
 
@@ -78,11 +77,10 @@ function LoginForm() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("loadout_remembered_email", email.trim().toLowerCase());
-      }
-      router.push("/");
-        router.refresh();
+        if (typeof window !== "undefined") {
+          localStorage.setItem("loadout_remembered_email", email.trim().toLowerCase());
+        }
+        window.location.replace("/");
       } else {
         const d = await res.json();
         setError(d.error || "Invalid email or password");
@@ -110,8 +108,7 @@ function LoginForm() {
         body: JSON.stringify({ name: setupName.trim(), email: setupEmail.trim().toLowerCase(), password: setupPassword }),
       });
       if (res.ok) {
-        router.push("/");
-        router.refresh();
+        window.location.replace("/");
       } else {
         const d = await res.json();
         setSetupError(d.error || "Setup failed");
