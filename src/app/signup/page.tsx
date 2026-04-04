@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { checkPasswordStrength } from "@/lib/validation";
+import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
@@ -17,9 +17,7 @@ export default function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError("Name is required"); return; }
-    const atIdx = email.trim().indexOf("@");
-    const emailOk = atIdx > 0 && atIdx < email.trim().length - 1 && email.trim().slice(atIdx + 1).includes(".");
-    if (!emailOk) { setError("Valid email is required"); return; }
+    if (!isValidEmail(email.trim().toLowerCase())) { setError("Valid email is required"); return; }
 
     const pwCheck = checkPasswordStrength(password);
     if (!pwCheck.valid) { setError(pwCheck.message!); return; }
