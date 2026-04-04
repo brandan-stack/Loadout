@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { checkPasswordStrength } from "@/lib/validation";
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,8 +34,7 @@ export default function SignUpPage() {
         body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
-        router.push("/");
-        router.refresh();
+        window.location.replace("/");
       } else {
         const d = await res.json();
         setError(d.error || "Registration failed");
@@ -50,7 +47,7 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <AuthLogo />
