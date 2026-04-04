@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
     });
 
     const res = NextResponse.json({ ok: true });
-    // Clear the reset cookie
-    res.cookies.set("_loadout_reset", "", { maxAge: 0, path: "/reset-password" });
+    // Clear the reset cookie — use path "/" to ensure it's removed regardless of origin path
+    res.cookies.set("_loadout_reset", "", { maxAge: 0, path: "/" });
     return res;
   } catch (err) {
     console.error("Reset password error:", err);

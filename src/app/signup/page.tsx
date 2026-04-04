@@ -16,7 +16,9 @@ export default function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError("Name is required"); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Valid email is required"); return; }
+    const atIdx = email.trim().indexOf("@");
+    const emailOk = atIdx > 0 && atIdx < email.trim().length - 1 && email.trim().slice(atIdx + 1).includes(".");
+    if (!emailOk) { setError("Valid email is required"); return; }
     if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
     if (password !== confirm) { setError("Passwords do not match"); return; }
 

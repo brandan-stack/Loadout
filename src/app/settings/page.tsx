@@ -26,9 +26,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [signOutError, setSignOutError] = useState("");
-  const [cleared, setCleared] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [cleared, setCleared] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const [storageUsage, setStorageUsage] = useState<{
     usedMB: number;
     quotaMB: number;

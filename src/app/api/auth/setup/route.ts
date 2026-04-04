@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
+import { isValidEmail } from "@/lib/validation";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".") || trimmedEmail.startsWith("@") || trimmedEmail.endsWith("@") || trimmedEmail.endsWith(".")) {
+    if (!isValidEmail(trimmedEmail)) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
