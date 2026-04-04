@@ -18,6 +18,9 @@ const PUBLIC = [
   "/api/health",
 ];
 
+// Auth UI pages — already-authenticated users are redirected to home
+const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
+
 function getSecret() {
   return new TextEncoder().encode(
     process.env.JWT_SECRET ?? "loadout-dev-secret-change-in-production"
@@ -39,12 +42,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+
+  // Redirect already-authenticated users away from auth pages
+  if (token && AUTH_PAGES.includes(pathname)) {
+    try {
+      await jwtVerify(token, getSecret());
+      return NextResponse.redirect(new URL("/", request.url));
+    } catch {
+      // Invalid token — let the auth page handle cleanup
+    }
+  }
+
   // Allow public auth paths
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return NextResponse.next();
   }
-
-  const token = request.cookies.get(COOKIE_NAME)?.value;
 
   if (!token) {
     if (pathname.startsWith("/api/")) {

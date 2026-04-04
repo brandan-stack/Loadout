@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { checkPasswordStrength } from "@/lib/validation";
 import { PasswordRules } from "@/components/ui/PasswordRules";
+import { AuthLogo } from "@/components/ui/AuthLogo";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -52,7 +53,9 @@ export default function SignUpPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <AuthLogo />
+          </div>
           <h1 className="text-3xl font-bold text-slate-50 mt-2">Create Account</h1>
           <p className="text-slate-400 text-sm mt-1">Sign up to get started</p>
         </div>
