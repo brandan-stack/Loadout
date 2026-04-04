@@ -5,20 +5,20 @@ import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, pin } = await request.json();
-    if (!userId || !pin) {
-      return NextResponse.json({ error: "userId and pin are required" }, { status: 400 });
+    const { email, password } = await request.json();
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
     const dbAny = prisma as any;
-    const user = await dbAny.appUser.findUnique({ where: { id: userId } });
+    const user = await dbAny.appUser.findUnique({ where: { email: String(email).toLowerCase().trim() } });
     if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const valid = await bcrypt.compare(String(pin), user.pinHash);
+    const valid = await bcrypt.compare(String(password), user.passwordHash);
     if (!valid) {
-      return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
     const token = await signToken({ userId: user.id, name: user.name, role: user.role });

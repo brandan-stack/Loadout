@@ -1,30 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
-interface PublicUser {
-  id: string;
-  name: string;
-  role: string;
-}
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "Super Admin",
-  OFFICE: "Office",
-  TECH: "Technician",
-};
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [users, setUsers] = useState<PublicUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<PublicUser | null>(null);
-  const [pin, setPin] = useState("");
+  const searchParams = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "1";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [setupMode, setSetupMode] = useState(false);
   const [setupName, setSetupName] = useState("");
-  const [setupPin, setSetupPin] = useState("");
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
   const [setupConfirm, setSetupConfirm] = useState("");
   const [setupError, setSetupError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,23 +31,8 @@ export default function LoginPage() {
           return;
         }
         return r.json().then((d) => {
-          if (d.required) {
-            setSetupMode(true);
-            setLoading(false);
-          } else {
-            return fetch("/api/auth/users")
-              .then((ur) => {
-                if (!ur.ok) {
-                  setDbError(true);
-                  setLoading(false);
-                  return;
-                }
-                return ur.json().then((u) => {
-                  setUsers(u);
-                  setLoading(false);
-                });
-              });
-          }
+          setSetupMode(d.required === true);
+          setLoading(false);
         });
       })
       .catch(() => {
@@ -64,48 +41,44 @@ export default function LoginPage() {
       });
   }, []);
 
-  const pressDigit = (d: string) => {
-    if (pin.length < 4) setPin((p) => p + d);
-  };
-  const backspace = () => setPin((p) => p.slice(0, -1));
-
-  const handleLogin = async () => {
-    if (!selectedUser || pin.length !== 4 || submitting) return;
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password || submitting) return;
     setSubmitting(true);
     setError("");
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: selectedUser.id, pin }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
         router.push("/");
         router.refresh();
       } else {
         const d = await res.json();
-        setError(d.error || "Incorrect PIN");
-        setPin("");
+        setError(d.error || "Invalid email or password");
         setSubmitting(false);
       }
     } catch {
       setError("Login failed. Please try again.");
-      setPin("");
       setSubmitting(false);
     }
   };
 
-  const handleSetup = async () => {
+  const handleSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!setupName.trim()) { setSetupError("Name is required"); return; }
-    if (setupPin.length !== 4) { setSetupError("PIN must be exactly 4 digits"); return; }
-    if (setupPin !== setupConfirm) { setSetupError("PINs do not match"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(setupEmail.trim())) { setSetupError("Valid email is required"); return; }
+    if (setupPassword.length < 8) { setSetupError("Password must be at least 8 characters"); return; }
+    if (setupPassword !== setupConfirm) { setSetupError("Passwords do not match"); return; }
     setSubmitting(true);
     setSetupError("");
     try {
       const res = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: setupName.trim(), pin: setupPin }),
+        body: JSON.stringify({ name: setupName.trim(), email: setupEmail.trim().toLowerCase(), password: setupPassword }),
       });
       if (res.ok) {
         router.push("/");
@@ -157,151 +130,136 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
             <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
           </div>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleSetup} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Admin Name</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 placeholder="e.g. John Smith"
                 value={setupName}
                 onChange={(e) => setSetupName(e.target.value)}
+                autoComplete="name"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">4-Digit PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
-                value={setupPin}
-                onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                type="email"
+                placeholder="admin@example.com"
+                value={setupEmail}
+                onChange={(e) => setSetupEmail(e.target.value)}
+                autoComplete="email"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
+                placeholder="Min. 8 characters"
+                value={setupPassword}
+                onChange={(e) => setSetupPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                type="password"
+                placeholder="Re-enter password"
                 value={setupConfirm}
-                onChange={(e) => setSetupConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onChange={(e) => setSetupConfirm(e.target.value)}
+                autoComplete="new-password"
               />
             </div>
             {setupError && <p className="text-red-400 text-xs">{setupError}</p>}
             <button
-              onClick={handleSetup}
+              type="submit"
               disabled={submitting}
               className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               {submitting ? "Creating…" : "Create Account & Sign In"}
             </button>
-          </div>
+          </form>
         </div>
       </div>
     );
   }
-
-  if (!selectedUser) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
-            <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
-            <p className="text-slate-400 text-sm mt-1">Select your name to continue</p>
-          </div>
-          <div className="space-y-2">
-            {users.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => setSelectedUser(u)}
-                className="w-full flex items-center justify-between bg-slate-900 border border-slate-700 hover:border-indigo-500 rounded-2xl px-4 py-4 transition-colors group"
-              >
-                <span className="font-semibold text-slate-100 group-hover:text-indigo-300">{u.name}</span>
-                <span className="text-xs text-slate-500 bg-slate-800 rounded-full px-2.5 py-1">
-                  {ROLE_LABEL[u.role] ?? u.role}
-                </span>
-              </button>
-            ))}
-            {users.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-8">No users found.</p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // PIN pad
-  const dots = Array.from({ length: 4 }, (_, i) => i < pin.length);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
-      <div className="w-full max-w-xs">
-        <button
-          onClick={() => { setSelectedUser(null); setPin(""); setError(""); }}
-          className="mb-6 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
-        >
-          ← Back
-        </button>
-        <div className="text-center mb-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
           <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
-          <h1 className="text-2xl font-bold text-slate-50 mt-1">{selectedUser.name}</h1>
-          <p className="text-slate-400 text-sm">{ROLE_LABEL[selectedUser.role] ?? selectedUser.role}</p>
+          <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
+          <p className="text-slate-400 text-sm mt-1">Enter your email and password to continue</p>
         </div>
-
-        {/* PIN dots */}
-        <div className="flex justify-center gap-4 mb-6">
-          {dots.map((filled, i) => (
-            <div
-              key={i}
-              className={`w-4 h-4 rounded-full border-2 transition-colors ${filled ? "bg-indigo-400 border-indigo-400" : "border-slate-600"}`}
+        {resetSuccess && (
+          <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
+            Password updated successfully. Sign in with your new password.
+          </div>
+        )}
+        <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
+            <input
+              className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              autoFocus
             />
-          ))}
-        </div>
-
-        {error && <p className="text-red-400 text-xs text-center mb-4">{error}</p>}
-
-        {/* Keypad */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {["1","2","3","4","5","6","7","8","9"].map((d) => (
-            <button
-              key={d}
-              onClick={() => pressDigit(d)}
-              className="rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-bold text-xl py-4 transition-colors"
-            >
-              {d}
-            </button>
-          ))}
-          <div /> {/* empty cell */}
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-400">Password</label>
+              <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
+                Forgot password?
+              </Link>
+            </div>
+            <input
+              className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
           <button
-            onClick={() => pressDigit("0")}
-            className="rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-bold text-xl py-4 transition-colors"
+            type="submit"
+            disabled={!email.trim() || !password || submitting}
+            className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
-            0
+            {submitting ? "Signing in…" : "Sign In"}
           </button>
-          <button
-            onClick={backspace}
-            className="rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold text-xl py-4 transition-colors"
-          >
-            ⌫
-          </button>
-        </div>
-
-        <button
-          onClick={handleLogin}
-          disabled={pin.length !== 4 || submitting}
-          className="w-full rounded-xl text-white font-semibold py-3.5 text-sm transition-colors disabled:opacity-40"
-          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
-        >
-          {submitting ? "Signing in…" : "Sign In"}
-        </button>
+          <p className="text-center text-xs text-slate-500">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
+              Sign Up
+            </Link>
+          </p>
+        </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <div className="text-slate-400 animate-pulse">Loading…</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

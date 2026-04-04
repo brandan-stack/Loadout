@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
+import { isValidEmail } from "@/lib/validation";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
@@ -23,14 +24,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Setup already complete" }, { status: 403 });
     }
 
-    const { name, pin } = await request.json();
-    if (!name || !pin || String(pin).length !== 4) {
-      return NextResponse.json({ error: "Name and 4-digit PIN required" }, { status: 400 });
+    const { name, email, password } = await request.json();
+    const trimmedEmail = String(email ?? "").toLowerCase().trim();
+    const trimmedName = String(name ?? "").trim();
+    if (!trimmedName || !trimmedEmail || !password || String(password).length < 8) {
+      return NextResponse.json(
+        { error: "Name, valid email, and password (min 8 characters) required" },
+        { status: 400 }
+      );
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
-    const pinHash = await bcrypt.hash(String(pin), 10);
+    const passwordHash = await bcrypt.hash(String(password), 10);
     const user = await dbAny.appUser.create({
-      data: { name: String(name).trim(), role: "SUPER_ADMIN", pinHash },
+      data: { name: trimmedName, email: trimmedEmail, role: "SUPER_ADMIN", passwordHash },
     });
 
     const token = await signToken({ userId: user.id, name: user.name, role: user.role });

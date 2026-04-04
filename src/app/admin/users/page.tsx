@@ -7,6 +7,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 interface AppUser {
   id: string;
   name: string;
+  email: string;
   role: string;
 }
 
@@ -28,7 +29,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", role: "TECH", pin: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", email: "", role: "TECH", password: "", confirm: "" });
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -50,18 +51,19 @@ export default function UsersPage() {
 
   async function handleCreate() {
     if (!form.name.trim()) { setFormError("Name is required"); return; }
-    if (form.pin.length !== 4) { setFormError("PIN must be 4 digits"); return; }
-    if (form.pin !== form.confirm) { setFormError("PINs do not match"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setFormError("Valid email is required"); return; }
+    if (form.password.length < 8) { setFormError("Password must be at least 8 characters"); return; }
+    if (form.password !== form.confirm) { setFormError("Passwords do not match"); return; }
     setSaving(true); setFormError("");
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, role: form.role, pin: form.pin }),
+        body: JSON.stringify({ name: form.name, email: form.email.trim().toLowerCase(), role: form.role, password: form.password }),
       });
       if (res.ok) {
         setShowForm(false);
-        setForm({ name: "", role: "TECH", pin: "", confirm: "" });
+        setForm({ name: "", email: "", role: "TECH", password: "", confirm: "" });
         fetchUsers();
       } else {
         const d = await res.json();
@@ -103,7 +105,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage team members and PINs</p>
+          <p className="text-slate-500 text-sm mt-1">Manage team members and credentials</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -119,12 +121,24 @@ export default function UsersPage() {
           <h2 className="font-bold text-slate-200">New User</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Name</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Full name"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="user@example.com"
+                autoComplete="off"
               />
             </div>
             <div>
@@ -140,27 +154,25 @@ export default function UsersPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">4-Digit PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
-                value={form.pin}
-                onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                placeholder="Min. 8 characters"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                autoComplete="new-password"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
+                placeholder="Re-enter password"
                 value={form.confirm}
-                onChange={(e) => setForm({ ...form, confirm: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+                autoComplete="new-password"
               />
             </div>
           </div>
@@ -196,6 +208,7 @@ export default function UsersPage() {
               </div>
               <div>
                 <p className="font-semibold text-slate-100 text-sm">{u.name}</p>
+                <p className="text-xs text-slate-400">{u.email}</p>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLOR[u.role] ?? "bg-slate-700 text-slate-300"}`}>
                   {ROLE_LABEL[u.role] ?? u.role}
                 </span>

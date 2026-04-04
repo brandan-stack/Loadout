@@ -7,8 +7,9 @@ const dbAny = prisma as any;
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
   role: z.enum(["SUPER_ADMIN", "OFFICE", "TECH"]).optional(),
-  pin: z.string().length(4).regex(/^\d{4}$/).optional(),
+  password: z.string().min(8).optional(),
 });
 
 export async function PATCH(
@@ -25,12 +26,13 @@ export async function PATCH(
     const data = updateSchema.parse(body);
     const update: Record<string, unknown> = {};
     if (data.name) update.name = data.name.trim();
+    if (data.email) update.email = data.email.toLowerCase().trim();
     if (data.role) update.role = data.role;
-    if (data.pin) update.pinHash = await bcrypt.hash(data.pin, 10);
+    if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
     const user = await dbAny.appUser.update({
       where: { id },
       data: update,
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, email: true, role: true },
     });
     return NextResponse.json(user);
   } catch (err) {

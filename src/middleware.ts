@@ -4,11 +4,17 @@ import { COOKIE_NAME } from "@/lib/auth";
 
 const PUBLIC = [
   "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/me",
   "/api/auth/setup",
   "/api/auth/users",
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
   "/api/health",
 ];
 
