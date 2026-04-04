@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isValidEmail } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const dbAny = prisma as any;
+
+// Allow 5 requests per hour per IP
+const FORGOT_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 
 function generateToken(): string {
   const array = new Uint8Array(32);
@@ -13,11 +18,21 @@ function generateToken(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
-    const trimmedEmail = String(email ?? "").toLowerCase().trim();
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      request.headers.get("x-real-ip") ??
+      "unknown";
+    const rl = checkRateLimit(`forgot:${ip}`, FORGOT_RATE_LIMIT);
+    if (!rl.allowed) {
+      // Always return ok to avoid leaking rate-limit state (which would leak email existence)
+      return NextResponse.json({ ok: true });
+    }
 
-    if (!trimmedEmail) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    const body = await request.json();
+    const trimmedEmail = String(body.email ?? "").toLowerCase().trim().slice(0, 320);
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
 
     const user = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
@@ -37,7 +52,7 @@ export async function POST(request: NextRequest) {
       res.cookies.set("_loadout_reset", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "strict",
         maxAge: 3600,
         path: "/reset-password",
       });

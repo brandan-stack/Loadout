@@ -3,6 +3,28 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { checkPasswordStrength } from "@/lib/validation";
+
+function PasswordRules({ password }: { password: string }) {
+  if (!password) return null;
+  const { rules } = checkPasswordStrength(password);
+  const items: { label: string; met: boolean }[] = [
+    { label: "At least 8 characters", met: rules.minLength },
+    { label: "One uppercase letter (A–Z)", met: rules.hasUppercase },
+    { label: "One lowercase letter (a–z)", met: rules.hasLowercase },
+    { label: "One number (0–9)", met: rules.hasNumber },
+  ];
+  return (
+    <ul className="mt-2 space-y-1">
+      {items.map(({ label, met }) => (
+        <li key={label} className={`flex items-center gap-1.5 text-xs ${met ? "text-emerald-400" : "text-slate-500"}`}>
+          <span>{met ? "✓" : "○"}</span>
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -13,7 +35,8 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    const pwCheck = checkPasswordStrength(password);
+    if (!pwCheck.valid) { setError(pwCheck.message!); return; }
     if (password !== confirm) { setError("Passwords do not match"); return; }
 
     setSubmitting(true);
@@ -53,12 +76,13 @@ export default function ResetPasswordPage() {
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
-              placeholder="Min. 8 characters"
+              placeholder="Create a strong password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               autoFocus
             />
+            <PasswordRules password={password} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm New Password</label>
