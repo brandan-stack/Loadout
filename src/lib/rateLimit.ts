@@ -21,8 +21,12 @@ function evict() {
   }
 }
 
-// Evict every 10 minutes
-if (typeof setInterval !== "undefined") {
+// Evict every 10 minutes; only register in non-test environments to avoid
+// test-runner interference. The interval ID is intentionally not exported —
+// production code never needs to cancel it, and tests don't load this module
+// in a way that would leak the timer.
+/* istanbul ignore next */
+if (typeof setInterval !== "undefined" && process.env.NODE_ENV !== "test") {
   setInterval(evict, 10 * 60 * 1000);
 }
 
