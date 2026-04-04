@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import JSZip from "jszip";
 
@@ -18,40 +18,50 @@ function toCSV(rows: Record<string, unknown>[]): string {
   return lines.join("\n");
 }
 
-export async function GET() {
-  const [items, suppliers, transactions, shareLog] = await Promise.all([
-    prisma.item.findMany({ orderBy: { name: "asc" } }),
-    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
-    prisma.inventoryTransaction.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.shareLog.findMany({ orderBy: { createdAt: "asc" } }),
-  ]);
+export async function GET(request: NextRequest) {
+  try {
+    const role = request.headers.get("x-user-role");
+    if (role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-  const zip = new JSZip();
+    const [items, suppliers, transactions, shareLog] = await Promise.all([
+      prisma.item.findMany({ orderBy: { name: "asc" } }),
+      prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+      prisma.inventoryTransaction.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.shareLog.findMany({ orderBy: { createdAt: "asc" } }),
+    ]);
 
-  zip.file("items.csv", toCSV(items as unknown as Record<string, unknown>[]));
-  zip.file("suppliers.csv", toCSV(suppliers as unknown as Record<string, unknown>[]));
-  zip.file("transactions.csv", toCSV(transactions as unknown as Record<string, unknown>[]));
-  zip.file("share_log.csv", toCSV(shareLog as unknown as Record<string, unknown>[]));
+    const zip = new JSZip();
 
-  const manifest = {
-    generatedAt: new Date().toISOString(),
-    counts: {
-      items: items.length,
-      suppliers: suppliers.length,
-      transactions: transactions.length,
-    },
-  };
-  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+    zip.file("items.csv", toCSV(items as unknown as Record<string, unknown>[]));
+    zip.file("suppliers.csv", toCSV(suppliers as unknown as Record<string, unknown>[]));
+    zip.file("transactions.csv", toCSV(transactions as unknown as Record<string, unknown>[]));
+    zip.file("share_log.csv", toCSV(shareLog as unknown as Record<string, unknown>[]));
 
-  const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-  const uint8 = new Uint8Array(buffer);
-  const date = new Date().toISOString().split("T")[0];
+    const manifest = {
+      generatedAt: new Date().toISOString(),
+      counts: {
+        items: items.length,
+        suppliers: suppliers.length,
+        transactions: transactions.length,
+      },
+    };
+    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
 
-  return new NextResponse(uint8, {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="loadout-backup-${date}.zip"`,
-      "Content-Length": uint8.byteLength.toString(),
-    },
-  });
+    const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    const uint8 = new Uint8Array(buffer);
+    const date = new Date().toISOString().split("T")[0];
+
+    return new NextResponse(uint8, {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="loadout-backup-${date}.zip"`,
+        "Content-Length": uint8.byteLength.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Backup export error:", error);
+    return NextResponse.json({ error: "Failed to generate backup" }, { status: 500 });
+  }
 }

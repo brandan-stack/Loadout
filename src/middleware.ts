@@ -11,7 +11,6 @@ const PUBLIC = [
   "/api/auth/logout",
   "/api/auth/me",
   "/api/auth/setup",
-  "/api/auth/users",
   "/api/auth/register",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",

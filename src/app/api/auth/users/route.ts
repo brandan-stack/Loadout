@@ -3,11 +3,11 @@ import { prisma } from "@/lib/db";
 
 const dbAny = prisma as any;
 
-// Public endpoint — returns user names + IDs only (no PINs or sensitive data)
+// Returns user names and IDs for authenticated callers (e.g. technician dropdowns in job forms).
 export async function GET() {
   try {
     const users = await dbAny.appUser.findMany({
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(users);
