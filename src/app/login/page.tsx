@@ -34,16 +34,14 @@ function LoginForm() {
 
     // Retry setup check with exponential back-off to handle cold-start delays.
     // Only show the "Unable to Connect" screen after all retries are exhausted.
-    let attempt = 0;
     const MAX_RETRIES = 4;
 
-    const trySetupCheck = () => {
+    const trySetupCheck = (attempt: number) => {
       fetch("/api/auth/setup")
         .then((r) => {
           if (!r.ok) {
             if (attempt < MAX_RETRIES) {
-              attempt++;
-              setTimeout(trySetupCheck, 800 * attempt);
+              setTimeout(() => trySetupCheck(attempt + 1), 800 * attempt);
             } else {
               setDbError(true);
               setLoading(false);
@@ -57,8 +55,7 @@ function LoginForm() {
         })
         .catch(() => {
           if (attempt < MAX_RETRIES) {
-            attempt++;
-            setTimeout(trySetupCheck, 800 * attempt);
+            setTimeout(() => trySetupCheck(attempt + 1), 800 * attempt);
           } else {
             setDbError(true);
             setLoading(false);
@@ -66,7 +63,7 @@ function LoginForm() {
         });
     };
 
-    trySetupCheck();
+    trySetupCheck(1);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {

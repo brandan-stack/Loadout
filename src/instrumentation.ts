@@ -130,9 +130,9 @@ async function initPostgres(prisma: import("@prisma/client").PrismaClient) {
     `CREATE TABLE IF NOT EXISTS "AppUser" (
       "id" TEXT NOT NULL,
       "name" TEXT NOT NULL,
-      "email" TEXT NOT NULL DEFAULT '',
+      "email" TEXT NOT NULL,
       "role" TEXT NOT NULL DEFAULT 'TECH',
-      "passwordHash" TEXT NOT NULL DEFAULT '',
+      "passwordHash" TEXT NOT NULL,
       "resetToken" TEXT,
       "resetTokenExpiry" TIMESTAMP(3),
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -307,8 +307,10 @@ async function initPostgres(prisma: import("@prisma/client").PrismaClient) {
   }
 
   // Migration: add missing columns to AppUser if the old schema (pinHash) was
-  // applied by a previous deployment. Safe to retry; failures mean the column
-  // already exists or is not applicable.
+  // applied by a previous deployment. The temporary DEFAULT '' allows adding NOT NULL
+  // columns to existing tables; rows with empty emails/passwords cannot authenticate
+  // (bcrypt comparison will always fail, and the login endpoint rejects empty inputs),
+  // so they pose no security risk. Admins with the old schema must create a new account.
   const appUserMigrations = [
     `ALTER TABLE "AppUser" ADD COLUMN IF NOT EXISTS "email" TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE "AppUser" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT NOT NULL DEFAULT ''`,

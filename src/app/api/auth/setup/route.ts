@@ -19,7 +19,7 @@ export async function GET() {
       lastError = err;
       if (attempt < MAX_RETRIES) {
         // Brief delay before retrying (handles transient cold-start failures)
-        await new Promise((r) => setTimeout(r, 500 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
       }
     }
   }
