@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+
+const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 export function PersistenceWarning() {
+  const pathname = usePathname();
   const [warning, setWarning] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -14,6 +18,8 @@ export function PersistenceWarning() {
       })
       .catch(() => {/* ignore */});
   }, []);
+
+  if (AUTH_PAGES.includes(pathname)) return null;
 
   if (!warning || dismissed) return null;
 
