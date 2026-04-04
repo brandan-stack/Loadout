@@ -22,11 +22,16 @@ async function fetchCurrentUser(): Promise<CurrentUser | null> {
   }
 }
 
-export function useCurrentUser() {
+export function useCurrentUser(enabled = true) {
   const [user, setUser] = useState<CurrentUser | null>(cached);
-  const [loading, setLoading] = useState(cached === null);
+  const [loading, setLoading] = useState(enabled && cached === null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     if (cached !== null) {
       setUser(cached);
       setLoading(false);
@@ -40,7 +45,7 @@ export function useCurrentUser() {
       setUser(u);
       setLoading(false);
     });
-  }, []);
+  }, [enabled]);
 
   return { user, loading };
 }

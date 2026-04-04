@@ -29,7 +29,7 @@ const ADMIN_NAV: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { user } = useCurrentUser();
+  const { user } = useCurrentUser(pathname !== "/login");
 
   // Don't render nav on login page
   if (pathname === "/login") return null;

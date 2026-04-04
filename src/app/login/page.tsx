@@ -1,109 +1,174 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-interface PublicUser {
-  id: string;
-  name: string;
-  role: string;
-}
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "Super Admin",
-  OFFICE: "Office",
-  TECH: "Technician",
-};
+import { PASSWORD_RULES_TEXT } from "@/lib/auth-credentials";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [users, setUsers] = useState<PublicUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<PublicUser | null>(null);
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [setupMode, setSetupMode] = useState(false);
+  const [legacyMigrationRequired, setLegacyMigrationRequired] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [setupName, setSetupName] = useState("");
-  const [setupPin, setSetupPin] = useState("");
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
   const [setupConfirm, setSetupConfirm] = useState("");
   const [setupError, setSetupError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [migrationName, setMigrationName] = useState("");
+  const [migrationPin, setMigrationPin] = useState("");
+  const [migrationEmail, setMigrationEmail] = useState("");
+  const [migrationPassword, setMigrationPassword] = useState("");
+  const [migrationConfirm, setMigrationConfirm] = useState("");
+  const [migrationError, setMigrationError] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/setup")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.required) {
-          setSetupMode(true);
-          setLoading(false);
-        } else {
-          return fetch("/api/auth/users")
-            .then((r) => r.json())
-            .then((u) => {
-              setUsers(u);
-              setLoading(false);
-            });
-        }
+      .then((response) => response.json())
+      .then((data) => {
+        setSetupMode(Boolean(data?.required));
+        setLegacyMigrationRequired(Boolean(data?.legacyMigrationRequired));
+        setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  const pressDigit = (d: string) => {
-    if (pin.length < 4) setPin((p) => p + d);
-  };
-  const backspace = () => setPin((p) => p.slice(0, -1));
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!email.trim() || !password || submitting) {
+      return;
+    }
 
-  const handleLogin = async () => {
-    if (!selectedUser || pin.length !== 4 || submitting) return;
     setSubmitting(true);
     setError("");
+
     try {
-      const res = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: selectedUser.id, pin }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      if (res.ok) {
+
+      if (response.ok) {
         router.push("/");
         router.refresh();
-      } else {
-        const d = await res.json();
-        setError(d.error || "Incorrect PIN");
-        setPin("");
-        setSubmitting(false);
+        return;
       }
+
+      const data = await response.json();
+      setError(data.error || "Sign-in failed");
+      setSubmitting(false);
     } catch {
-      setError("Login failed. Please try again.");
-      setPin("");
+      setError("Sign-in failed. Please try again.");
       setSubmitting(false);
     }
-  };
+  }
 
-  const handleSetup = async () => {
-    if (!setupName.trim()) { setSetupError("Name is required"); return; }
-    if (setupPin.length !== 4) { setSetupError("PIN must be exactly 4 digits"); return; }
-    if (setupPin !== setupConfirm) { setSetupError("PINs do not match"); return; }
+  async function handleSetup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!setupName.trim()) {
+      setSetupError("Name is required");
+      return;
+    }
+    if (!setupEmail.trim()) {
+      setSetupError("Email is required");
+      return;
+    }
+    if (!setupPassword) {
+      setSetupError("Password is required");
+      return;
+    }
+    if (setupPassword !== setupConfirm) {
+      setSetupError("Passwords do not match");
+      return;
+    }
+
     setSubmitting(true);
     setSetupError("");
+
     try {
-      const res = await fetch("/api/auth/setup", {
+      const response = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: setupName.trim(), pin: setupPin }),
+        body: JSON.stringify({
+          name: setupName.trim(),
+          email: setupEmail.trim(),
+          password: setupPassword,
+        }),
       });
-      if (res.ok) {
+
+      if (response.ok) {
         router.push("/");
         router.refresh();
-      } else {
-        const d = await res.json();
-        setSetupError(d.error || "Setup failed");
-        setSubmitting(false);
+        return;
       }
+
+      const data = await response.json();
+      setSetupError(data.error || "Setup failed");
+      setSubmitting(false);
     } catch {
       setSetupError("Setup failed. Please try again.");
       setSubmitting(false);
     }
-  };
+  }
+
+  async function handleLegacyMigration(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!migrationName.trim()) {
+      setMigrationError("Current account name is required");
+      return;
+    }
+    if (migrationPin.length !== 4) {
+      setMigrationError("Current 4-digit PIN is required");
+      return;
+    }
+    if (!migrationEmail.trim()) {
+      setMigrationError("New email is required");
+      return;
+    }
+    if (!migrationPassword) {
+      setMigrationError("New password is required");
+      return;
+    }
+    if (migrationPassword !== migrationConfirm) {
+      setMigrationError("Passwords do not match");
+      return;
+    }
+
+    setSubmitting(true);
+    setMigrationError("");
+
+    try {
+      const response = await fetch("/api/auth/migrate-legacy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: migrationName.trim(),
+          pin: migrationPin,
+          email: migrationEmail.trim(),
+          password: migrationPassword,
+        }),
+      });
+
+      if (response.ok) {
+        router.push("/");
+        router.refresh();
+        return;
+      }
+
+      const data = await response.json();
+      setMigrationError(data.error || "Legacy account upgrade failed");
+      setSubmitting(false);
+    } catch {
+      setMigrationError("Legacy account upgrade failed. Please try again.");
+      setSubmitting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -120,152 +185,190 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
-            <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
+            <p className="text-slate-400 text-sm mt-1">Create the Super Admin account with an email and password</p>
           </div>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleSetup} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Admin Name</label>
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 placeholder="e.g. John Smith"
                 value={setupName}
-                onChange={(e) => setSetupName(e.target.value)}
+                onChange={(event) => setSetupName(event.target.value)}
+                autoComplete="name"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">4-Digit PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
-                value={setupPin}
-                onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                type="email"
+                placeholder="you@company.com"
+                value={setupEmail}
+                onChange={(event) => setSetupEmail(event.target.value)}
+                autoComplete="email"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm PIN</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
               <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 tracking-widest"
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
+                placeholder="Create a strong password"
+                value={setupPassword}
+                onChange={(event) => setSetupPassword(event.target.value)}
+                autoComplete="new-password"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">{PASSWORD_RULES_TEXT}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                type="password"
+                placeholder="Re-enter your password"
                 value={setupConfirm}
-                onChange={(e) => setSetupConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onChange={(event) => setSetupConfirm(event.target.value)}
+                autoComplete="new-password"
               />
             </div>
             {setupError && <p className="text-red-400 text-xs">{setupError}</p>}
             <button
-              onClick={handleSetup}
+              type="submit"
               disabled={submitting}
               className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
               {submitting ? "Creating…" : "Create Account & Sign In"}
             </button>
-          </div>
+          </form>
         </div>
       </div>
     );
   }
-
-  if (!selectedUser) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
-            <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
-            <p className="text-slate-400 text-sm mt-1">Select your name to continue</p>
-          </div>
-          <div className="space-y-2">
-            {users.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => setSelectedUser(u)}
-                className="w-full flex items-center justify-between bg-slate-900 border border-slate-700 hover:border-indigo-500 rounded-2xl px-4 py-4 transition-colors group"
-              >
-                <span className="font-semibold text-slate-100 group-hover:text-indigo-300">{u.name}</span>
-                <span className="text-xs text-slate-500 bg-slate-800 rounded-full px-2.5 py-1">
-                  {ROLE_LABEL[u.role] ?? u.role}
-                </span>
-              </button>
-            ))}
-            {users.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-8">No users found.</p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // PIN pad
-  const dots = Array.from({ length: 4 }, (_, i) => i < pin.length);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
-      <div className="w-full max-w-xs">
-        <button
-          onClick={() => { setSelectedUser(null); setPin(""); setError(""); }}
-          className="mb-6 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
-        >
-          ← Back
-        </button>
-        <div className="text-center mb-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
           <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Loadout</span>
-          <h1 className="text-2xl font-bold text-slate-50 mt-1">{selectedUser.name}</h1>
-          <p className="text-slate-400 text-sm">{ROLE_LABEL[selectedUser.role] ?? selectedUser.role}</p>
+          <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
+          <p className="text-slate-400 text-sm mt-1">Use your email and password to access Loadout</p>
         </div>
 
-        {/* PIN dots */}
-        <div className="flex justify-center gap-4 mb-6">
-          {dots.map((filled, i) => (
-            <div
-              key={i}
-              className={`w-4 h-4 rounded-full border-2 transition-colors ${filled ? "bg-indigo-400 border-indigo-400" : "border-slate-600"}`}
-            />
-          ))}
-        </div>
+        {legacyMigrationRequired && (
+          <form onSubmit={handleLegacyMigration} className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-200">Upgrade Legacy Account</h2>
+              <p className="text-xs text-slate-400 mt-1">Use your current account name and old 4-digit PIN once to move that account onto email and password. PIN sign-in will be removed after this upgrade.</p>
+            </div>
 
-        {error && <p className="text-red-400 text-xs text-center mb-4">{error}</p>}
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Current Account Name</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                placeholder="e.g. Admin"
+                value={migrationName}
+                onChange={(event) => setMigrationName(event.target.value)}
+                autoComplete="username"
+              />
+            </div>
 
-        {/* Keypad */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {["1","2","3","4","5","6","7","8","9"].map((d) => (
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Current 4-Digit PIN</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={migrationPin}
+                onChange={(event) => setMigrationPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">New Email</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="email"
+                placeholder="you@company.com"
+                value={migrationEmail}
+                onChange={(event) => setMigrationEmail(event.target.value)}
+                autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">New Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                placeholder="Create a strong password"
+                value={migrationPassword}
+                onChange={(event) => setMigrationPassword(event.target.value)}
+                autoComplete="new-password"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">{PASSWORD_RULES_TEXT}</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm New Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                placeholder="Re-enter your new password"
+                value={migrationConfirm}
+                onChange={(event) => setMigrationConfirm(event.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+
+            {migrationError && <p className="text-red-400 text-xs">{migrationError}</p>}
+
             <button
-              key={d}
-              onClick={() => pressDigit(d)}
-              className="rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-bold text-xl py-4 transition-colors"
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-semibold py-3 text-sm transition-colors disabled:opacity-50"
             >
-              {d}
+              {submitting ? "Upgrading…" : "Upgrade Legacy Account"}
             </button>
-          ))}
-          <div /> {/* empty cell */}
-          <button
-            onClick={() => pressDigit("0")}
-            className="rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-bold text-xl py-4 transition-colors"
-          >
-            0
-          </button>
-          <button
-            onClick={backspace}
-            className="rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold text-xl py-4 transition-colors"
-          >
-            ⌫
-          </button>
-        </div>
+          </form>
+        )}
 
-        <button
-          onClick={handleLogin}
-          disabled={pin.length !== 4 || submitting}
-          className="w-full rounded-xl text-white font-semibold py-3.5 text-sm transition-colors disabled:opacity-40"
-          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
-        >
-          {submitting ? "Signing in…" : "Sign In"}
-        </button>
+        <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
+            <input
+              className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              type="email"
+              placeholder="you@company.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+            <input
+              className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
+          >
+            {submitting ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
       </div>
     </div>
   );

@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/auth-credentials";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, pin } = await request.json();
-    if (!userId || !pin) {
-      return NextResponse.json({ error: "userId and pin are required" }, { status: 400 });
+    const { email, password } = await request.json();
+
+    if (typeof email !== "string" || typeof password !== "string") {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
     const dbAny = prisma as any;
-    const user = await dbAny.appUser.findUnique({ where: { id: userId } });
-    if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    const user = await dbAny.appUser.findUnique({ where: { email: normalizeEmail(email) } });
+    if (!user || !user.passwordHash) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const valid = await bcrypt.compare(String(pin), user.pinHash);
+    const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     const token = await signToken({ userId: user.id, name: user.name, role: user.role });

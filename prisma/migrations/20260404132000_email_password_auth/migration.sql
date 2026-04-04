@@ -1,0 +1,10 @@
+ALTER TABLE "AppUser"
+ADD COLUMN IF NOT EXISTS "email" TEXT;
+
+ALTER TABLE "AppUser"
+ADD COLUMN IF NOT EXISTS "passwordHash" TEXT;
+
+ALTER TABLE "AppUser"
+ALTER COLUMN "pinHash" SET DEFAULT '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS "AppUser_email_key" ON "AppUser"("email");

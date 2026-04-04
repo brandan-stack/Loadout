@@ -180,8 +180,10 @@ export async function register() {
       `CREATE TABLE IF NOT EXISTS "AppUser" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "name" TEXT NOT NULL UNIQUE,
+        "email" TEXT UNIQUE,
         "role" TEXT NOT NULL DEFAULT 'TECH',
-        "pinHash" TEXT NOT NULL,
+        "passwordHash" TEXT,
+        "pinHash" TEXT NOT NULL DEFAULT '',
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -249,6 +251,9 @@ export async function register() {
       `ALTER TABLE "Item" ADD COLUMN "photoUrl" TEXT`,
       `ALTER TABLE "Location" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE "Location" ADD COLUMN "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE "AppUser" ADD COLUMN "email" TEXT`,
+      `ALTER TABLE "AppUser" ADD COLUMN "passwordHash" TEXT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "AppUser_email_key" ON "AppUser"("email")`,
     ];
 
     for (const sql of statements) {

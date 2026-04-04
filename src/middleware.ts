@@ -6,9 +6,10 @@ const PUBLIC = [
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/migrate-legacy",
   "/api/auth/me",
+  "/api/auth/register",
   "/api/auth/setup",
-  "/api/auth/users",
   "/api/health",
 ];
 

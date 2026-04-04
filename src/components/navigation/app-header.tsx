@@ -22,13 +22,17 @@ export function AppHeader() {
   const [counts, setCounts] = useState<ReorderCounts | null>(null);
 
   useEffect(() => {
+    if (pathname === "/login") {
+      return;
+    }
+
     fetch("/api/reorder/recommendations")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d) setCounts({ urgent: d.urgent ?? 0, high: d.high ?? 0 });
       })
       .catch(() => {});
-  }, []);
+  }, [pathname]);
 
   if (pathname === "/login") return null;
 
