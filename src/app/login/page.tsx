@@ -119,9 +119,7 @@ function LoginForm() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm text-center">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <AuthLogo />
-          </div>
+          <AuthLogo />
           <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
           <p className="text-slate-400 text-sm mt-2">The database is unavailable. Please check your connection and try again.</p>
           <button
@@ -141,9 +139,7 @@ function LoginForm() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <AuthLogo />
-            </div>
+            <AuthLogo />
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
             <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
           </div>
@@ -211,9 +207,7 @@ function LoginForm() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <AuthLogo />
-          </div>
+          <AuthLogo />
           <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
           <p className="text-slate-400 text-sm mt-1">Enter your email and password to continue</p>
         </div>
