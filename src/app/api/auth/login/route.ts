@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/auth-credentials";
 import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcryptjs";
 
@@ -11,7 +12,6 @@ const MAX_FIELD_LENGTH = 320;
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate-limit by IP address
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
       request.headers.get("x-real-ip") ??
@@ -33,14 +33,14 @@ export async function POST(request: NextRequest) {
     }
 
     const dbAny = prisma as any;
-    const user = await dbAny.appUser.findUnique({ where: { email: email.toLowerCase().trim() } });
-    if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    const user = await dbAny.appUser.findUnique({ where: { email: normalizeEmail(email) } });
+    if (!user || !user.passwordHash) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     const token = await signToken({ userId: user.id, name: user.name, role: user.role });

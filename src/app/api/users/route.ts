@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { checkPasswordStrength } from "@/lib/validation";
 
 const dbAny = prisma as any;
 
@@ -15,10 +15,10 @@ interface CreatedUser {
 }
 
 const createSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().trim().min(1, "Name is required"),
+  email: emailSchema,
   role: z.enum(["SUPER_ADMIN", "OFFICE", "TECH"]),
-  password: z.string().min(8),
+  password: passwordSchema,
 });
 
 export async function GET(request: NextRequest) {
@@ -46,15 +46,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const data = createSchema.parse(body);
-    const pwCheck = checkPasswordStrength(data.password);
-    if (!pwCheck.valid) {
-      return NextResponse.json({ error: pwCheck.message }, { status: 400 });
-    }
     const passwordHash = await bcrypt.hash(data.password, 10);
     let user: CreatedUser;
     try {
       user = await dbAny.appUser.create({
-        data: { name: data.name.trim(), email: data.email.toLowerCase().trim(), role: data.role, passwordHash },
+        data: { name: data.name, email: data.email, role: data.role, passwordHash, pinHash: "" },
         select: { id: true, name: true, email: true, role: true, createdAt: true },
       });
     } catch (createErr: unknown) {
@@ -67,7 +63,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(user, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors }, { status: 400 });
+      return NextResponse.json({ error: err.errors[0]?.message ?? "Invalid user data" }, { status: 400 });
     }
     console.error("Users POST error:", err);
     return NextResponse.json({ error: "Failed to create user" }, { status: 500 });

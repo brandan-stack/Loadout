@@ -111,15 +111,16 @@ model Supplier {
 }
 
 model AppUser {
-  id                 String    @id @default(cuid())
-  name               String
-  email              String    @unique
-  role               String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
-  passwordHash       String
-  resetToken         String?
-  resetTokenExpiry   DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  name             String
+  email            String?   @unique
+  role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
+  passwordHash     String?
+  pinHash          String    @default("")
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   jobs      Job[]          @relation("TechJobs")
   tools     Tool[]         @relation("PersonalTools")

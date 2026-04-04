@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { checkPasswordStrength } from "@/lib/validation";
+import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
@@ -16,29 +16,33 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [setupMode, setSetupMode] = useState(false);
+  const [legacyMigrationRequired, setLegacyMigrationRequired] = useState(false);
   const [setupName, setSetupName] = useState("");
   const [setupEmail, setSetupEmail] = useState("");
   const [setupPassword, setSetupPassword] = useState("");
   const [setupConfirm, setSetupConfirm] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [migrationName, setMigrationName] = useState("");
+  const [migrationPin, setMigrationPin] = useState("");
+  const [migrationEmail, setMigrationEmail] = useState("");
+  const [migrationPassword, setMigrationPassword] = useState("");
+  const [migrationConfirm, setMigrationConfirm] = useState("");
+  const [migrationError, setMigrationError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
-    // Pre-fill email from the last successful sign-in on this device
     if (typeof window !== "undefined") {
       const savedEmail = localStorage.getItem("loadout_remembered_email");
       if (savedEmail) setEmail(savedEmail);
     }
 
-    // Retry setup check with exponential back-off to handle cold-start delays.
-    // Only show the "Unable to Connect" screen after all retries are exhausted.
     const MAX_RETRIES = 4;
 
     const trySetupCheck = (attempt: number) => {
       fetch("/api/auth/setup")
-        .then((r) => {
-          if (!r.ok) {
+        .then((response) => {
+          if (!response.ok) {
             if (attempt < MAX_RETRIES) {
               setTimeout(() => trySetupCheck(attempt + 1), 800 * attempt);
             } else {
@@ -47,8 +51,9 @@ function LoginForm() {
             }
             return;
           }
-          return r.json().then((d) => {
-            setSetupMode(d.required === true);
+          return response.json().then((data) => {
+            setSetupMode(data.required === true);
+            setLegacyMigrationRequired(data.legacyMigrationRequired === true);
             setLoading(false);
           });
         })
@@ -82,8 +87,8 @@ function LoginForm() {
         }
         window.location.replace("/");
       } else {
-        const d = await res.json();
-        setError(d.error || "Invalid email or password");
+        const data = await res.json();
+        setError(data.error || "Invalid email or password");
         setSubmitting(false);
       }
     } catch {
@@ -95,7 +100,7 @@ function LoginForm() {
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!setupName.trim()) { setSetupError("Name is required"); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(setupEmail.trim())) { setSetupError("Valid email is required"); return; }
+    if (!isValidEmail(setupEmail.trim().toLowerCase())) { setSetupError("Valid email is required"); return; }
     const pwCheck = checkPasswordStrength(setupPassword);
     if (!pwCheck.valid) { setSetupError(pwCheck.message!); return; }
     if (setupPassword !== setupConfirm) { setSetupError("Passwords do not match"); return; }
@@ -105,17 +110,61 @@ function LoginForm() {
       const res = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: setupName.trim(), email: setupEmail.trim().toLowerCase(), password: setupPassword }),
+        body: JSON.stringify({
+          name: setupName.trim(),
+          email: setupEmail.trim().toLowerCase(),
+          password: setupPassword,
+        }),
       });
       if (res.ok) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("loadout_remembered_email", setupEmail.trim().toLowerCase());
+        }
         window.location.replace("/");
       } else {
-        const d = await res.json();
-        setSetupError(d.error || "Setup failed");
+        const data = await res.json();
+        setSetupError(data.error || "Setup failed");
         setSubmitting(false);
       }
     } catch {
       setSetupError("Setup failed. Please try again.");
+      setSubmitting(false);
+    }
+  };
+
+  const handleLegacyMigration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!migrationName.trim()) { setMigrationError("Current account name is required"); return; }
+    if (migrationPin.length !== 4) { setMigrationError("Current 4-digit PIN is required"); return; }
+    if (!isValidEmail(migrationEmail.trim().toLowerCase())) { setMigrationError("Valid email is required"); return; }
+    const pwCheck = checkPasswordStrength(migrationPassword);
+    if (!pwCheck.valid) { setMigrationError(pwCheck.message!); return; }
+    if (migrationPassword !== migrationConfirm) { setMigrationError("Passwords do not match"); return; }
+    setSubmitting(true);
+    setMigrationError("");
+    try {
+      const res = await fetch("/api/auth/migrate-legacy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: migrationName.trim(),
+          pin: migrationPin,
+          email: migrationEmail.trim().toLowerCase(),
+          password: migrationPassword,
+        }),
+      });
+      if (res.ok) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("loadout_remembered_email", migrationEmail.trim().toLowerCase());
+        }
+        window.location.replace("/");
+      } else {
+        const data = await res.json();
+        setMigrationError(data.error || "Legacy account upgrade failed");
+        setSubmitting(false);
+      }
+    } catch {
+      setMigrationError("Legacy account upgrade failed. Please try again.");
       setSubmitting(false);
     }
   };
@@ -228,6 +277,80 @@ function LoginForm() {
           <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
             Password updated successfully. Sign in with your new password.
           </div>
+        )}
+        {legacyMigrationRequired && (
+          <form onSubmit={handleLegacyMigration} className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-200">Upgrade Legacy Account</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Use your current account name and old 4-digit PIN once to move that account onto email and password.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Current Account Name</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                placeholder="e.g. Admin"
+                value={migrationName}
+                onChange={(e) => setMigrationName(e.target.value)}
+                autoComplete="username"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Current 4-Digit PIN</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={migrationPin}
+                onChange={(e) => setMigrationPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">New Email</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="email"
+                placeholder="you@example.com"
+                value={migrationEmail}
+                onChange={(e) => setMigrationEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">New Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                placeholder="Create a strong password"
+                value={migrationPassword}
+                onChange={(e) => setMigrationPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              <PasswordRules password={migrationPassword} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm New Password</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                type="password"
+                placeholder="Re-enter password"
+                value={migrationConfirm}
+                onChange={(e) => setMigrationConfirm(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            {migrationError && <p className="text-red-400 text-xs">{migrationError}</p>}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-semibold py-3 text-sm transition-colors disabled:opacity-50"
+            >
+              {submitting ? "Upgrading…" : "Upgrade Legacy Account"}
+            </button>
+          </form>
         )}
         <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
           <div>

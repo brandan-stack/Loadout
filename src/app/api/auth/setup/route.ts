@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
-import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
+import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 
 const dbAny = prisma as any;
+const setupSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
+  email: emailSchema,
+  password: passwordSchema,
+});
 
 // GET — check if setup is required (no users exist)
 export async function GET() {
@@ -14,11 +20,24 @@ export async function GET() {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const count = await dbAny.appUser.count();
-      return NextResponse.json({ required: count === 0 });
+      const legacyMigrationRequired =
+        count > 0
+          ? (await dbAny.appUser.count({
+              where: {
+                OR: [
+                  { email: null },
+                  { email: "" },
+                  { passwordHash: null },
+                  { passwordHash: "" },
+                ],
+              },
+            })) > 0
+          : false;
+
+      return NextResponse.json({ required: count === 0, legacyMigrationRequired });
     } catch (err) {
       lastError = err;
       if (attempt < MAX_RETRIES) {
-        // Brief delay before retrying (handles transient cold-start failures)
         await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
       }
     }
@@ -37,25 +56,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const trimmedName = String(body.name ?? "").trim().slice(0, 100);
-    const trimmedEmail = String(body.email ?? "").toLowerCase().trim().slice(0, 320);
-    const password = String(body.password ?? "").slice(0, 320);
+    const data = setupSchema.parse(body);
 
-    if (!trimmedName) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
-    }
-    if (!isValidEmail(trimmedEmail)) {
-      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
-    }
-
-    const pwCheck = checkPasswordStrength(password);
-    if (!pwCheck.valid) {
-      return NextResponse.json({ error: pwCheck.message }, { status: 400 });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(data.password, 10);
     const user = await dbAny.appUser.create({
-      data: { name: trimmedName, email: trimmedEmail, role: "SUPER_ADMIN", passwordHash },
+      data: {
+        name: data.name,
+        email: data.email,
+        role: "SUPER_ADMIN",
+        passwordHash,
+        pinHash: "",
+      },
     });
 
     const token = await signToken({ userId: user.id, name: user.name, role: user.role });
@@ -69,6 +80,12 @@ export async function POST(request: NextRequest) {
     });
     return res;
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.errors[0]?.message ?? "Invalid setup data" }, { status: 400 });
+    }
+    if (typeof err === "object" && err && "code" in err && (err as { code?: string }).code === "P2002") {
+      return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
+    }
     console.error("Setup error:", err);
     return NextResponse.json({ error: "Setup failed" }, { status: 500 });
   }
