@@ -26,6 +26,12 @@ function LoginForm() {
   const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
+    // Pre-fill email from the last successful sign-in on this device
+    if (typeof window !== "undefined") {
+      const savedEmail = localStorage.getItem("loadout_remembered_email");
+      if (savedEmail) setEmail(savedEmail);
+    }
+
     fetch("/api/auth/setup")
       .then((r) => {
         if (!r.ok) {
@@ -56,7 +62,10 @@ function LoginForm() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
-        router.push("/");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("loadout_remembered_email", email.trim().toLowerCase());
+      }
+      router.push("/");
         router.refresh();
       } else {
         const d = await res.json();
