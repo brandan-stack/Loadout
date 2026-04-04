@@ -26,79 +26,89 @@ type ImportResult = {
 };
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const parsed = ImportRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const { rows, mapping, dryRun } = parsed.data;
-  const results: ImportResult[] = [];
-  const toCreate: z.infer<typeof ImportRowSchema>[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    // Apply field mapping
-    const mapped: Record<string, string> = {};
-    for (const [csvCol, itemField] of Object.entries(mapping)) {
-      if (row[csvCol] !== undefined) mapped[itemField] = row[csvCol];
+  try {
+    const role = req.headers.get("x-user-role");
+    if (role !== "SUPER_ADMIN" && role !== "OFFICE") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const rowParsed = ImportRowSchema.safeParse(mapped);
-    if (!rowParsed.success) {
-      results.push({
-        index: i,
-        name: mapped.name ?? `Row ${i + 1}`,
-        status: "error",
-        message: Object.values(rowParsed.error.flatten().fieldErrors).flat().join("; "),
-      });
-      continue;
+    const body = await req.json();
+    const parsed = ImportRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    // Check for duplicate barcode
-    if (rowParsed.data.barcode) {
-      const existingBarcode = await prisma.item.findUnique({
-        where: { barcode: rowParsed.data.barcode },
-      });
-      if (existingBarcode) {
+    const { rows, mapping, dryRun } = parsed.data;
+    const results: ImportResult[] = [];
+    const toCreate: z.infer<typeof ImportRowSchema>[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      // Apply field mapping
+      const mapped: Record<string, string> = {};
+      for (const [csvCol, itemField] of Object.entries(mapping)) {
+        if (row[csvCol] !== undefined) mapped[itemField] = row[csvCol];
+      }
+
+      const rowParsed = ImportRowSchema.safeParse(mapped);
+      if (!rowParsed.success) {
         results.push({
           index: i,
-          name: rowParsed.data.name,
-          status: "duplicate",
-          message: `Barcode ${rowParsed.data.barcode} already exists`,
+          name: mapped.name ?? `Row ${i + 1}`,
+          status: "error",
+          message: Object.values(rowParsed.error.flatten().fieldErrors).flat().join("; "),
         });
         continue;
       }
+
+      // Check for duplicate barcode
+      if (rowParsed.data.barcode) {
+        const existingBarcode = await prisma.item.findUnique({
+          where: { barcode: rowParsed.data.barcode },
+        });
+        if (existingBarcode) {
+          results.push({
+            index: i,
+            name: rowParsed.data.name,
+            status: "duplicate",
+            message: `Barcode ${rowParsed.data.barcode} already exists`,
+          });
+          continue;
+        }
+      }
+
+      results.push({ index: i, name: rowParsed.data.name, status: "ok" });
+      toCreate.push(rowParsed.data);
     }
 
-    results.push({ index: i, name: rowParsed.data.name, status: "ok" });
-    toCreate.push(rowParsed.data);
-  }
-
-  if (!dryRun) {
-    if (toCreate.length > 0) {
-      await prisma.item.createMany({
-        data: toCreate.map((item) => ({
-          name: item.name,
-          barcode: item.barcode || null,
-          description: item.description || null,
-          quantityOnHand: item.quantityOnHand,
-          lowStockAmberThreshold: item.lowStockAmberThreshold,
-          lowStockRedThreshold: item.lowStockRedThreshold,
-          unitOfMeasure: item.unitOfMeasure ?? "each",
-        })),
-      });
+    if (!dryRun) {
+      if (toCreate.length > 0) {
+        await prisma.item.createMany({
+          data: toCreate.map((item) => ({
+            name: item.name,
+            barcode: item.barcode || null,
+            description: item.description || null,
+            quantityOnHand: item.quantityOnHand,
+            lowStockAmberThreshold: item.lowStockAmberThreshold,
+            lowStockRedThreshold: item.lowStockRedThreshold,
+            unitOfMeasure: item.unitOfMeasure ?? "each",
+          })),
+        });
+      }
     }
+
+    const summary = {
+      total: rows.length,
+      ok: results.filter((r) => r.status === "ok").length,
+      errors: results.filter((r) => r.status === "error").length,
+      duplicates: results.filter((r) => r.status === "duplicate").length,
+      dryRun,
+      results,
+    };
+
+    return NextResponse.json(summary);
+  } catch (error) {
+    console.error("CSV import error:", error);
+    return NextResponse.json({ error: "Import failed" }, { status: 500 });
   }
-
-  const summary = {
-    total: rows.length,
-    ok: results.filter((r) => r.status === "ok").length,
-    errors: results.filter((r) => r.status === "error").length,
-    duplicates: results.filter((r) => r.status === "duplicate").length,
-    dryRun,
-    results,
-  };
-
-  return NextResponse.json(summary);
 }

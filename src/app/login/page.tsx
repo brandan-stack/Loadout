@@ -32,22 +32,38 @@ function LoginForm() {
       if (savedEmail) setEmail(savedEmail);
     }
 
-    fetch("/api/auth/setup")
-      .then((r) => {
-        if (!r.ok) {
-          setDbError(true);
-          setLoading(false);
-          return;
-        }
-        return r.json().then((d) => {
-          setSetupMode(d.required === true);
-          setLoading(false);
+    // Retry setup check with exponential back-off to handle cold-start delays.
+    // Only show the "Unable to Connect" screen after all retries are exhausted.
+    const MAX_RETRIES = 4;
+
+    const trySetupCheck = (attempt: number) => {
+      fetch("/api/auth/setup")
+        .then((r) => {
+          if (!r.ok) {
+            if (attempt < MAX_RETRIES) {
+              setTimeout(() => trySetupCheck(attempt + 1), 800 * attempt);
+            } else {
+              setDbError(true);
+              setLoading(false);
+            }
+            return;
+          }
+          return r.json().then((d) => {
+            setSetupMode(d.required === true);
+            setLoading(false);
+          });
+        })
+        .catch(() => {
+          if (attempt < MAX_RETRIES) {
+            setTimeout(() => trySetupCheck(attempt + 1), 800 * attempt);
+          } else {
+            setDbError(true);
+            setLoading(false);
+          }
         });
-      })
-      .catch(() => {
-        setDbError(true);
-        setLoading(false);
-      });
+    };
+
+    trySetupCheck(1);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {

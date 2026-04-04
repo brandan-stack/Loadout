@@ -15,38 +15,48 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const variants = await dbAny.itemVariant.findMany({
-    where: { itemId: id },
-    orderBy: { name: "asc" },
-  });
-  return NextResponse.json(variants);
+  try {
+    const { id } = await params;
+    const variants = await dbAny.itemVariant.findMany({
+      where: { itemId: id },
+      orderBy: { name: "asc" },
+    });
+    return NextResponse.json(variants);
+  } catch (error) {
+    console.error("Variants GET error:", error);
+    return NextResponse.json({ error: "Failed to fetch variants" }, { status: 500 });
+  }
 }
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const body = await req.json();
-  const parsed = CreateVariantSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const parsed = CreateVariantSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
 
-  const item = await dbAny.item.findUnique({ where: { id } });
-  if (!item) {
-    return NextResponse.json({ error: "Item not found" }, { status: 404 });
-  }
+    const item = await dbAny.item.findUnique({ where: { id } });
+    if (!item) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
 
-  const variant = await dbAny.itemVariant.create({
-    data: {
-      itemId: id,
-      name: parsed.data.name,
-      sku: parsed.data.sku,
-      quantityOnHand: parsed.data.quantityOnHand,
-      attributes: JSON.stringify(parsed.data.attributes ?? {}),
-    },
-  });
-  return NextResponse.json(variant, { status: 201 });
+    const variant = await dbAny.itemVariant.create({
+      data: {
+        itemId: id,
+        name: parsed.data.name,
+        sku: parsed.data.sku,
+        quantityOnHand: parsed.data.quantityOnHand,
+        attributes: JSON.stringify(parsed.data.attributes ?? {}),
+      },
+    });
+    return NextResponse.json(variant, { status: 201 });
+  } catch (error) {
+    console.error("Variant POST error:", error);
+    return NextResponse.json({ error: "Failed to create variant" }, { status: 500 });
+  }
 }
