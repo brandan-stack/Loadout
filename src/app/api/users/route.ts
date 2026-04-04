@@ -6,6 +6,14 @@ import { checkPasswordStrength } from "@/lib/validation";
 
 const dbAny = prisma as any;
 
+interface CreatedUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: Date;
+}
+
 const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
@@ -43,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: pwCheck.message }, { status: 400 });
     }
     const passwordHash = await bcrypt.hash(data.password, 10);
-    let user: Record<string, unknown>;
+    let user: CreatedUser;
     try {
       user = await dbAny.appUser.create({
         data: { name: data.name.trim(), email: data.email.toLowerCase().trim(), role: data.role, passwordHash },

@@ -53,7 +53,6 @@ export default function UsersPage() {
   async function handleCreate() {
     if (!form.name.trim()) { setFormError("Name is required"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setFormError("Valid email is required"); return; }
-    if (form.password.length < 8) { setFormError("Password must be at least 8 characters"); return; }
     const pwCheck = checkPasswordStrength(form.password);
     if (!pwCheck.valid) { setFormError(pwCheck.message!); return; }
     if (form.password !== form.confirm) { setFormError("Passwords do not match"); return; }

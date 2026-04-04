@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    let user: { id: string; name: string; role: string };
+    let user: { id: string; name: string; email: string; role: string };
     try {
       user = await dbAny.appUser.create({
         data: { name: trimmedName, email: trimmedEmail, role: "TECH", passwordHash },
