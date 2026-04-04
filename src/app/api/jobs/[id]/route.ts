@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -18,11 +19,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const job = await dbAny.job.findUnique({
-      where: { id },
+    const job = await dbAny.job.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
       include: {
         technician: { select: { id: true, name: true } },
         parts: {
@@ -35,12 +38,12 @@ export async function GET(
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     // Techs can only see their own jobs
-    if (role === "TECH" && job.technicianId !== userId) {
+    if (auth.context.role === "TECH" && job.technicianId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Strip unit costs from tech role
-    if (role === "TECH") {
+    if (auth.context.role === "TECH") {
       job.parts = job.parts.map((p: any) => ({ ...p, unitCost: undefined }));
     }
 
@@ -57,14 +60,19 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const job = await dbAny.job.findUnique({ where: { id }, select: { technicianId: true } });
+    const job = await dbAny.job.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { technicianId: true },
+    });
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     // Techs can only update their own jobs, and cannot change status
-    if (role === "TECH" && job.technicianId !== userId) {
+    if (auth.context.role === "TECH" && job.technicianId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -72,7 +80,7 @@ export async function PATCH(
     const data = updateSchema.parse(body);
 
     // Techs cannot change status
-    if (role === "TECH" && data.status) {
+    if (auth.context.role === "TECH" && data.status) {
       return NextResponse.json({ error: "Technicians cannot change job status" }, { status: 403 });
     }
 
@@ -102,17 +110,19 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const job = await dbAny.job.findUnique({
-      where: { id },
+    const job = await dbAny.job.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
       include: { parts: true, technician: { select: { id: true } } },
     });
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
     // Only owner or admins can delete
-    if (role === "TECH" && job.technicianId !== userId) {
+    if (auth.context.role === "TECH" && job.technicianId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

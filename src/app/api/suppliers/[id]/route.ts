@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const supplierUpdateSchema = z.object({
@@ -20,9 +21,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
-    const supplier = await prisma.supplier.findUnique({
-      where: { id },
+    const supplier = await prisma.supplier.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
     });
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
@@ -39,9 +45,22 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const body = await req.json();
     const data = supplierUpdateSchema.parse(body);
+
+    const existing = await prisma.supplier.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+    }
 
     const supplier = await prisma.supplier.update({
       where: { id },
@@ -64,7 +83,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
+    const existing = await prisma.supplier.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+    }
     // Soft delete
     await prisma.supplier.update({
       where: { id },

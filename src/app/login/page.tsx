@@ -16,6 +16,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [setupMode, setSetupMode] = useState(false);
+  const [setupOrganizationName, setSetupOrganizationName] = useState("");
   const [setupName, setSetupName] = useState("");
   const [setupEmail, setSetupEmail] = useState("");
   const [setupPassword, setSetupPassword] = useState("");
@@ -91,6 +92,7 @@ function LoginForm() {
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!setupOrganizationName.trim()) { setSetupError("Business name is required"); return; }
     if (!setupName.trim()) { setSetupError("Name is required"); return; }
     if (!isValidEmail(setupEmail.trim().toLowerCase())) { setSetupError("Valid email is required"); return; }
     const pwCheck = checkPasswordStrength(setupPassword);
@@ -103,6 +105,7 @@ function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          organizationName: setupOrganizationName.trim(),
           name: setupName.trim(),
           email: setupEmail.trim().toLowerCase(),
           password: setupPassword,
@@ -158,9 +161,19 @@ function LoginForm() {
           <div className="text-center mb-8">
             <AuthLogo />
             <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
-            <p className="text-slate-400 text-sm mt-1">Create the Super Admin account</p>
+            <p className="text-slate-400 text-sm mt-1">Create the first business workspace and superadmin account</p>
           </div>
           <form onSubmit={handleSetup} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Business Name</label>
+              <input
+                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                placeholder="e.g. North Shop HVAC"
+                value={setupOrganizationName}
+                onChange={(e) => setSetupOrganizationName(e.target.value)}
+                autoComplete="organization"
+              />
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
               <input

@@ -13,9 +13,14 @@ import {
  * Generate low-stock report
  */
 export async function getLowStockReport(
+  organizationId: string,
   filters: ReportFilters
 ): Promise<LowStockItem[]> {
   const allItems = (await prisma.item.findMany({
+    where: {
+      organizationId,
+      ...(filters.supplierId ? { preferredSupplierId: filters.supplierId } : {}),
+    },
     include: {
       preferredSupplier: true,
     },
@@ -60,12 +65,17 @@ export async function getLowStockReport(
  * Generate usage period report
  */
 export async function getUsageReport(
+  organizationId: string,
   filters: ReportFilters
 ): Promise<UsageReport[]> {
   const dateFrom = filters.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
   const dateTo = filters.dateTo || new Date();
 
   const items = (await prisma.item.findMany({
+    where: {
+      organizationId,
+      ...(filters.supplierId ? { preferredSupplierId: filters.supplierId } : {}),
+    },
     include: {
       transactions: {
         where: {
@@ -118,12 +128,16 @@ export async function getUsageReport(
  * Generate dead-stock report (items not used for X days)
  */
 export async function getDeadStockReport(
+  organizationId: string,
   filters: ReportFilters
 ): Promise<DeadStockItem[]> {
   const daysUnusedThreshold = 90; // 3 months
-  const cutoffDate = new Date(Date.now() - daysUnusedThreshold * 24 * 60 * 60 * 1000);
 
   const items = (await prisma.item.findMany({
+    where: {
+      organizationId,
+      ...(filters.supplierId ? { preferredSupplierId: filters.supplierId } : {}),
+    },
     include: {
       transactions: {
         where: { type: "use" },
@@ -160,11 +174,16 @@ export async function getDeadStockReport(
  * Generate fast-movers report
  */
 export async function getFastMoversReport(
+  organizationId: string,
   filters: ReportFilters
 ): Promise<FastMover[]> {
   const dateFrom = filters.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
   const items = (await prisma.item.findMany({
+    where: {
+      organizationId,
+      ...(filters.supplierId ? { preferredSupplierId: filters.supplierId } : {}),
+    },
     include: {
       transactions: {
         where: {

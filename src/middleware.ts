@@ -71,6 +71,8 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set("x-user-id", String(payload.userId));
     requestHeaders.set("x-user-role", String(payload.role));
     requestHeaders.set("x-user-name", String(payload.name));
+    requestHeaders.set("x-organization-id", String(payload.organizationId));
+    requestHeaders.set("x-organization-name", String(payload.organizationName));
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch {
     if (pathname.startsWith("/api/")) {

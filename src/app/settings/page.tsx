@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 
 interface AppSettings {
+  organizationName: string;
+  organizationContactEmail: string;
   simpleMode: boolean;
   premiumEnabled: boolean;
   enableMultiLocation: boolean;
@@ -16,6 +18,15 @@ interface AppSettings {
   defaultLowStockAmber: number;
   defaultLowStockRed: number;
 }
+
+type ToggleSettingKey =
+  | "simpleMode"
+  | "premiumEnabled"
+  | "enableMultiLocation"
+  | "enableVariants"
+  | "enableImportWizard"
+  | "enableBackupZip"
+  | "enableAITagging";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -144,7 +155,7 @@ export default function SettingsPage() {
     }
   }
 
-  const toggle = (key: keyof AppSettings) => {
+  const toggle = (key: ToggleSettingKey) => {
     if (!settings) return;
     setSettings({ ...settings, [key]: !settings[key as keyof AppSettings] });
   };
@@ -167,7 +178,7 @@ export default function SettingsPage() {
   }: {
     label: string;
     description: string;
-    settingKey: keyof AppSettings;
+    settingKey: ToggleSettingKey;
     badge?: string;
   }) => (
     <div className="flex items-start justify-between py-3.5 border-b border-white/[0.04] last:border-0">
@@ -232,11 +243,56 @@ export default function SettingsPage() {
         >
           <div>
             <h2 className="font-semibold text-sm text-slate-100">Manage Users</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Add technicians, office staff, and admins. Set emails, passwords, and roles.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Add teammates inside {settings.organizationName}. Set emails, passwords, and roles.</p>
           </div>
           <svg className="text-slate-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
         </div>
       </Link>
+
+      <div
+        className="mb-5 rounded-2xl overflow-hidden"
+        style={{ background: "rgba(12,17,36,0.85)", border: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="px-5 py-3 border-b border-white/[0.04]">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Business Workspace</p>
+        </div>
+        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Business Name
+            </label>
+            <input
+              type="text"
+              value={settings.organizationName}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  organizationName: e.target.value,
+                })
+              }
+              className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Contact Email
+            </label>
+            <input
+              type="email"
+              value={settings.organizationContactEmail}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  organizationContactEmail: e.target.value,
+                })
+              }
+              className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Core settings */}
       <div

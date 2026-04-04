@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -38,9 +39,15 @@ const itemSchema = z.object({
 
 type ItemInput = z.infer<typeof itemSchema>;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const items = await dbAny.item.findMany({
+      where: { organizationId: auth.context.organizationId },
       include: {
         photos: true,
         preferredSupplier: true,
@@ -56,6 +63,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const sanitizedBody = {
       ...body,
@@ -75,8 +87,11 @@ export async function POST(request: NextRequest) {
 
     // Check barcode uniqueness if provided
     if (itemData.barcode) {
-      const existing = await prisma.item.findUnique({
-        where: { barcode: itemData.barcode },
+      const existing = await prisma.item.findFirst({
+        where: {
+          organizationId: auth.context.organizationId,
+          barcode: itemData.barcode,
+        },
       });
       if (existing) {
         return NextResponse.json(
@@ -86,9 +101,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (itemData.preferredSupplierId) {
+      const supplier = await prisma.supplier.findFirst({
+        where: {
+          id: itemData.preferredSupplierId,
+          organizationId: auth.context.organizationId,
+        },
+        select: { id: true },
+      });
+      if (!supplier) {
+        return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+      }
+    }
+
+    if (locationId) {
+      const location = await prisma.location.findFirst({
+        where: {
+          id: locationId,
+          organizationId: auth.context.organizationId,
+        },
+        select: { id: true },
+      });
+      if (!location) {
+        return NextResponse.json({ error: "Location not found" }, { status: 404 });
+      }
+    }
+
     const item = await dbAny.item.create({
       data: {
         ...itemData,
+        organizationId: auth.context.organizationId,
         quantityUsedTotal: 0,
       },
       include: {

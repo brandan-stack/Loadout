@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -14,6 +15,11 @@ const TransferSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await req.json();
     const parsed = TransferSchema.safeParse(body);
     if (!parsed.success) {
@@ -27,6 +33,25 @@ export async function POST(req: NextRequest) {
         { error: "Source and destination locations must differ" },
         { status: 400 }
       );
+    }
+
+    const [fromLocation, toLocation, item] = await Promise.all([
+      prisma.location.findFirst({
+        where: { id: fromLocationId, organizationId: auth.context.organizationId },
+        select: { id: true },
+      }),
+      prisma.location.findFirst({
+        where: { id: toLocationId, organizationId: auth.context.organizationId },
+        select: { id: true },
+      }),
+      prisma.item.findFirst({
+        where: { id: itemId, organizationId: auth.context.organizationId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!fromLocation || !toLocation || !item) {
+      return NextResponse.json({ error: "Transfer target not found" }, { status: 404 });
     }
 
     // Check source stock exists and has sufficient quantity
@@ -50,7 +75,14 @@ export async function POST(req: NextRequest) {
         create: { locationId: toLocationId, itemId, quantityOnHand: quantity },
       }),
       dbAny.locationTransfer.create({
-        data: { fromLocationId, toLocationId, itemId, quantity, notes },
+        data: {
+          organizationId: auth.context.organizationId,
+          fromLocationId,
+          toLocationId,
+          itemId,
+          quantity,
+          notes,
+        },
       }),
     ]);
 
@@ -63,8 +95,15 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const itemId = req.nextUrl.searchParams.get("itemId");
-    const where = itemId ? { itemId } : {};
+    const where = itemId
+      ? { organizationId: auth.context.organizationId, itemId }
+      : { organizationId: auth.context.organizationId };
     const transfers = await dbAny.locationTransfer.findMany({
       where,
       orderBy: { createdAt: "desc" },

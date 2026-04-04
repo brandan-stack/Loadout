@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -44,9 +45,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
-    const item = await dbAny.item.findUnique({
-      where: { id },
+    const item = await dbAny.item.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
       include: {
         photos: true,
         preferredSupplier: true,
@@ -71,20 +77,49 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const body = await req.json();
     const data = itemUpdateSchema.parse(body);
 
+    const existingItem = await dbAny.item.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!existingItem) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
     // Check barcode uniqueness if updating
     if (data.barcode) {
-      const existing = await prisma.item.findUnique({
-        where: { barcode: data.barcode },
+      const existing = await prisma.item.findFirst({
+        where: {
+          organizationId: auth.context.organizationId,
+          barcode: data.barcode,
+        },
       });
       if (existing && existing.id !== id) {
         return NextResponse.json(
           { error: "Barcode already exists" },
           { status: 409 }
         );
+      }
+    }
+
+    if (data.preferredSupplierId) {
+      const supplier = await prisma.supplier.findFirst({
+        where: {
+          id: data.preferredSupplierId,
+          organizationId: auth.context.organizationId,
+        },
+        select: { id: true },
+      });
+      if (!supplier) {
+        return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
       }
     }
 
@@ -112,7 +147,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
+    const item = await prisma.item.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!item) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
     // Delete related photos first
     await prisma.itemPhoto.deleteMany({
       where: { itemId: id },

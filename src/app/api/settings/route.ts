@@ -2,9 +2,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/features/settings-service";
+import { requireRequestContext } from "@/lib/request-context";
+import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const settingsUpdateSchema = z.object({
+  organizationName: z.string().trim().min(1).max(120).optional(),
+  organizationContactEmail: z.string().trim().email().optional(),
   premiumEnabled: z.boolean().optional(),
   simpleMode: z.boolean().optional(),
   enableMultiLocation: z.boolean().optional(),
@@ -20,10 +24,24 @@ const settingsUpdateSchema = z.object({
   defaultLowStockRed: z.number().min(0).optional(),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const settings = await getSettings();
-    return NextResponse.json(settings);
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const settings = await getSettings(auth.context.organizationId);
+    const organization = await prisma.organization.findUnique({
+      where: { id: auth.context.organizationId },
+      select: { name: true, contactEmail: true },
+    });
+
+    return NextResponse.json({
+      ...settings,
+      organizationName: organization?.name ?? auth.context.organizationName,
+      organizationContactEmail: organization?.contactEmail ?? "",
+    });
   } catch (error) {
     console.error("Settings GET error:", error);
     return NextResponse.json(
@@ -35,14 +53,39 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const role = request.headers.get("x-user-role");
-    if (role !== "SUPER_ADMIN") {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+    if (auth.context.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const body = await request.json();
     const updates = settingsUpdateSchema.parse(body);
-    const settings = await updateSettings(updates);
-    return NextResponse.json(settings);
+    const { organizationName, organizationContactEmail, ...settingsUpdates } = updates;
+
+    const [settings, organization] = await Promise.all([
+      updateSettings(auth.context.organizationId, settingsUpdates),
+      organizationName || organizationContactEmail
+        ? prisma.organization.update({
+            where: { id: auth.context.organizationId },
+            data: {
+              ...(organizationName ? { name: organizationName } : {}),
+              ...(organizationContactEmail ? { contactEmail: organizationContactEmail } : {}),
+            },
+            select: { name: true, contactEmail: true },
+          })
+        : prisma.organization.findUnique({
+            where: { id: auth.context.organizationId },
+            select: { name: true, contactEmail: true },
+          }),
+    ]);
+
+    return NextResponse.json({
+      ...settings,
+      organizationName: organization?.name ?? auth.context.organizationName,
+      organizationContactEmail: organization?.contactEmail ?? "",
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

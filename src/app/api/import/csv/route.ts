@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const ImportRowSchema = z.object({
@@ -27,8 +28,12 @@ type ImportResult = {
 
 export async function POST(req: NextRequest) {
   try {
-    const role = req.headers.get("x-user-role");
-    if (role !== "SUPER_ADMIN" && role !== "OFFICE") {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (auth.context.role !== "SUPER_ADMIN" && auth.context.role !== "OFFICE") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -64,7 +69,12 @@ export async function POST(req: NextRequest) {
       // Check for duplicate barcode
       if (rowParsed.data.barcode) {
         const existingBarcode = await prisma.item.findUnique({
-          where: { barcode: rowParsed.data.barcode },
+          where: {
+            organizationId_barcode: {
+              organizationId: auth.context.organizationId,
+              barcode: rowParsed.data.barcode,
+            },
+          },
         });
         if (existingBarcode) {
           results.push({
@@ -86,6 +96,7 @@ export async function POST(req: NextRequest) {
         await prisma.item.createMany({
           data: toCreate.map((item) => ({
             name: item.name,
+            organizationId: auth.context.organizationId,
             barcode: item.barcode || null,
             description: item.description || null,
             quantityOnHand: item.quantityOnHand,

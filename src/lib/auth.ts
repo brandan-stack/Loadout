@@ -16,6 +16,8 @@ export interface SessionPayload {
   userId: string;
   name: string;
   role: UserRole;
+  organizationId: string;
+  organizationName: string;
 }
 
 export async function signToken(payload: SessionPayload): Promise<string> {

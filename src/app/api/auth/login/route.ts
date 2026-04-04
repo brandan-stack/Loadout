@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
     }
 
     const dbAny = prisma as any;
-    const user = await dbAny.appUser.findUnique({ where: { email: normalizeEmail(email) } });
+    const user = await dbAny.appUser.findUnique({
+      where: { email: normalizeEmail(email) },
+      include: { organization: { select: { id: true, name: true } } },
+    });
     if (!user || !user.passwordHash) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
@@ -43,9 +46,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const token = await signToken({ userId: user.id, name: user.name, role: user.role });
+    const token = await signToken({
+      userId: user.id,
+      name: user.name,
+      role: user.role,
+      organizationId: user.organization.id,
+      organizationName: user.organization.name,
+    });
 
-    const res = NextResponse.json({ ok: true, role: user.role, name: user.name });
+    const res = NextResponse.json({
+      ok: true,
+      role: user.role,
+      name: user.name,
+      organizationId: user.organization.id,
+      organizationName: user.organization.name,
+    });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

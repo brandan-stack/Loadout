@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 
 interface BarcodeResult {
   found: boolean;
@@ -18,6 +19,11 @@ interface BarcodeResult {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const barcode = request.nextUrl.searchParams.get("barcode");
 
     if (!barcode || !barcode.trim()) {
@@ -29,8 +35,11 @@ export async function GET(request: NextRequest) {
 
     const normalized = barcode.trim().toUpperCase();
 
-    const item = await prisma.item.findUnique({
-      where: { barcode: normalized },
+    const item = await prisma.item.findFirst({
+      where: {
+        organizationId: auth.context.organizationId,
+        barcode: normalized,
+      },
       select: {
         id: true,
         name: true,

@@ -11,14 +11,37 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Organization {
+  id           String            @id @default(cuid())
+  name         String
+  contactEmail String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  users             AppUser[]
+  items             Item[]
+  suppliers         Supplier[]
+  jobs              Job[]
+  tools             Tool[]
+  reportViews       ReportView[]
+  shareLogs         ShareLog[]
+  itemVariants      ItemVariant[]
+  locations         Location[]
+  locationTransfers LocationTransfer[]
+  scheduledReports  ScheduledReport[]
+  settings          Settings?
+}
+
 model Item {
   id                    String   @id @default(cuid())
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name                  String
   manufacturer          String?
   partNumber            String?
   modelNumber           String?
   serialNumber          String?
-  barcode               String?  @unique
+  barcode               String?
   description           String?
   quantityOnHand        Int      @default(0)
   quantityUsedTotal     Int      @default(0)
@@ -59,8 +82,10 @@ model Item {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
-  @@index([barcode])
-  @@index([lowStockRedThreshold])
+  @@unique([organizationId, barcode])
+  @@index([organizationId])
+  @@index([organizationId, barcode])
+  @@index([organizationId, lowStockRedThreshold])
 }
 
 model ItemPhoto {
@@ -99,7 +124,9 @@ model InventoryTransaction {
 
 model Supplier {
   id        String   @id @default(cuid())
-  name      String   @unique
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name      String
   contact   String?
   website   String?
   leadTimeD Int      @default(7)
@@ -108,10 +135,15 @@ model Supplier {
   items     Item[]   @relation()
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 model AppUser {
   id               String    @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name             String
   email            String    @unique
   role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
@@ -124,11 +156,15 @@ model AppUser {
   jobs      Job[]          @relation("TechJobs")
   tools     Tool[]         @relation("PersonalTools")
   checkouts ToolCheckout[]
+
+  @@index([organizationId])
 }
 
 model Job {
   id           String    @id @default(cuid())
-  jobNumber    String    @unique
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobNumber    String
   customer     String
   technicianId String
   technician   AppUser   @relation("TechJobs", fields: [technicianId], references: [id])
@@ -139,9 +175,11 @@ model Job {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@unique([organizationId, jobNumber])
+  @@index([organizationId])
   @@index([technicianId])
   @@index([status])
-  @@index([jobNumber])
+  @@index([organizationId, jobNumber])
 }
 
 model JobPart {
@@ -161,6 +199,8 @@ model JobPart {
 
 model Tool {
   id           String         @id @default(cuid())
+  organizationId String
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name         String
   manufacturer String?
   partNumber   String?
@@ -179,6 +219,7 @@ model Tool {
   @@index([name])
   @@index([supplier])
   @@index([ownerId])
+  @@index([organizationId])
 }
 
 model ToolCheckout {
@@ -197,6 +238,8 @@ model ToolCheckout {
 
 model ReportView {
   id        String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name      String
   type      String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
   filters   String   @default("{}") // JSON stored as string
@@ -204,39 +247,54 @@ model ReportView {
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model ShareLog {
   id           String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   type         String   // "pdf" | "email"
   reportType   String?
   emailClient  String?  // "apple_mail" | "gmail" | "outlook" | "default"
   filters      String   @default("{}") // JSON
   createdAt    DateTime @default(now())
+
+  @@index([organizationId])
 }
 
 model ItemVariant {
   id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   itemId         String
   item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
   name           String   // e.g. "Red / Large"
-  sku            String?  @unique
+  sku            String?
   quantityOnHand Int      @default(0)
   attributes     String   @default("{}") // JSON: { size, color, etc. }
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  @@unique([organizationId, sku])
+  @@index([organizationId])
   @@index([itemId])
 }
 
 model Location {
   id          String         @id @default(cuid())
-  name        String         @unique
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name        String
   description String?
   archived    Boolean        @default(false)
   stock       LocationStock[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 model LocationStock {
@@ -255,6 +313,8 @@ model LocationStock {
 
 model LocationTransfer {
   id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fromLocationId String
   toLocationId   String
   itemId         String
@@ -265,10 +325,13 @@ model LocationTransfer {
   @@index([itemId])
   @@index([fromLocationId])
   @@index([toLocationId])
+  @@index([organizationId])
 }
 
 model ScheduledReport {
   id         String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name       String
   reportType String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
   frequency  String   // "daily" | "weekly" | "monthly"
@@ -278,10 +341,14 @@ model ScheduledReport {
   archived   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model Settings {
   id                    String    @id @default(cuid())
+  organizationId        String    @unique
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   premiumEnabled        Boolean   @default(false)
   simpleMode            Boolean   @default(true)
   

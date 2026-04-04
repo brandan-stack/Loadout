@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 
 const dbAny = prisma as any;
 
@@ -9,13 +10,18 @@ export async function DELETE(
 ) {
   try {
     const { id: jobId, partId } = await params;
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const job = await dbAny.job.findUnique({ where: { id: jobId }, select: { id: true, jobNumber: true, technicianId: true, status: true } });
+    const job = await dbAny.job.findFirst({
+      where: { id: jobId, organizationId: auth.context.organizationId },
+      select: { id: true, jobNumber: true, technicianId: true, status: true },
+    });
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    if (role === "TECH" && job.technicianId !== userId) {
+    if (auth.context.role === "TECH" && job.technicianId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -23,7 +29,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Cannot modify an invoiced job" }, { status: 400 });
     }
 
-    const part = await dbAny.jobPart.findUnique({ where: { id: partId } });
+    const part = await dbAny.jobPart.findFirst({
+      where: { id: partId, jobId },
+    });
     if (!part || part.jobId !== jobId) {
       return NextResponse.json({ error: "Part not found" }, { status: 404 });
     }

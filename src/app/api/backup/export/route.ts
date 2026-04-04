@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import JSZip from "jszip";
 
 function toCSV(rows: Record<string, unknown>[]): string {
@@ -20,16 +21,22 @@ function toCSV(rows: Record<string, unknown>[]): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const role = request.headers.get("x-user-role");
-    if (role !== "SUPER_ADMIN") {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+    if (auth.context.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const [items, suppliers, transactions, shareLog] = await Promise.all([
-      prisma.item.findMany({ orderBy: { name: "asc" } }),
-      prisma.supplier.findMany({ orderBy: { name: "asc" } }),
-      prisma.inventoryTransaction.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.shareLog.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.item.findMany({ where: { organizationId: auth.context.organizationId }, orderBy: { name: "asc" } }),
+      prisma.supplier.findMany({ where: { organizationId: auth.context.organizationId }, orderBy: { name: "asc" } }),
+      prisma.inventoryTransaction.findMany({
+        where: { item: { organizationId: auth.context.organizationId } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.shareLog.findMany({ where: { organizationId: auth.context.organizationId }, orderBy: { createdAt: "asc" } }),
     ]);
 
     const zip = new JSZip();

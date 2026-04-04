@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -18,13 +19,21 @@ type UnknownBarcodeInput = z.infer<typeof unknownBarcodeSchema>;
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const data = unknownBarcodeSchema.parse(body);
     const normalized = data.barcode.trim().toUpperCase();
 
     // Check barcode doesn't already exist
-    const existing = await prisma.item.findUnique({
-      where: { barcode: normalized },
+    const existing = await prisma.item.findFirst({
+      where: {
+        organizationId: auth.context.organizationId,
+        barcode: normalized,
+      },
     });
 
     if (existing) {
@@ -37,6 +46,7 @@ export async function POST(request: NextRequest) {
     // Create new item
     const item = await dbAny.item.create({
       data: {
+        organizationId: auth.context.organizationId,
         barcode: normalized,
         name: data.itemName,
         quantityOnHand: data.quantityOnHand,

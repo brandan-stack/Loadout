@@ -3,13 +3,11 @@
 import { prisma } from "@/lib/db";
 import { ReorderRecommendation } from "./types";
 
-/**
- * Calculate reorder recommendations based on usage velocity and lead times
- */
-export async function getReorderRecommendations(): Promise<
-  ReorderRecommendation[]
-> {
+export async function getReorderRecommendations(
+  organizationId: string
+): Promise<ReorderRecommendation[]> {
   const items = (await prisma.item.findMany({
+    where: { organizationId },
     include: {
       preferredSupplier: true,
       transactions: {
@@ -35,10 +33,6 @@ export async function getReorderRecommendations(): Promise<
 
       // Max quantity = 2x safety stock
       const maxQuantity = minQuantity * 2;
-
-      // If current < min, recommend reorder
-      const needsReorder = item.quantityOnHand < minQuantity;
-
       // Calculate priority
       let priority: "urgent" | "high" | "medium" | "low" = "low";
       if (item.quantityOnHand === 0) {
@@ -107,10 +101,11 @@ export async function getReorderRecommendations(): Promise<
  * Calculate reorder recommendations for a specific item
  */
 export async function getItemReorderRecommendation(
+  organizationId: string,
   itemId: string
 ): Promise<ReorderRecommendation | null> {
-  const item = (await prisma.item.findUnique({
-    where: { id: itemId },
+  const item = (await prisma.item.findFirst({
+    where: { id: itemId, organizationId },
     include: {
       preferredSupplier: true,
       transactions: {

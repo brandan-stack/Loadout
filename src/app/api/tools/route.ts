@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -18,15 +19,20 @@ const toolSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     // Techs see: all SHOP tools + their own PERSONAL tools
     // Admins/Office see: everything
     const where =
-      role === "TECH"
-        ? { OR: [{ type: "SHOP" }, { type: "PERSONAL", ownerId: userId }] }
-        : {};
+      auth.context.role === "TECH"
+        ? {
+            organizationId: auth.context.organizationId,
+            OR: [{ type: "SHOP" }, { type: "PERSONAL", ownerId: auth.context.userId }],
+          }
+        : { organizationId: auth.context.organizationId };
 
     const tools = await dbAny.tool.findMany({
       where,
@@ -49,24 +55,42 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    const role = request.headers.get("x-user-role");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const data = toolSchema.parse(body);
 
     // Personal tools: set owner to requesting user (unless admin overrides)
-    const ownerId = data.type === "PERSONAL" ? (body.ownerId ?? userId) : null;
+    const ownerId = data.type === "PERSONAL" ? (body.ownerId ?? auth.context.userId) : null;
 
     // Only admins/office can create SHOP tools
-    if (data.type === "SHOP" && role === "TECH") {
+    if (data.type === "SHOP" && auth.context.role === "TECH") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Cost visible only to admins/office — strip from tech
-    const cost = role === "TECH" ? 0 : data.cost;
+    const cost = auth.context.role === "TECH" ? 0 : data.cost;
+
+    if (ownerId) {
+      const owner = await dbAny.appUser.findFirst({
+        where: { id: ownerId, organizationId: auth.context.organizationId },
+        select: { id: true },
+      });
+      if (!owner) {
+        return NextResponse.json({ error: "Owner not found" }, { status: 404 });
+      }
+    }
 
     const tool = await dbAny.tool.create({
-      data: { ...data, cost, ownerId },
+      data: {
+        ...data,
+        organizationId: auth.context.organizationId,
+        cost,
+        ownerId,
+      },
       include: {
         owner: { select: { id: true, name: true } },
         checkouts: { where: { returnedAt: null }, take: 1 },

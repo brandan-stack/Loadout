@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -18,6 +19,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { quantity, supplierCost, notes, lotNumber } = addInventorySchema.parse(body);
@@ -28,7 +34,7 @@ export async function POST(
         where: { id },
       });
 
-      if (!item) {
+      if (!item || item.organizationId !== auth.context.organizationId) {
         throw new Error("Item not found");
       }
 

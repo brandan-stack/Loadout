@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const CreateLocationSchema = z.object({
@@ -7,10 +8,15 @@ const CreateLocationSchema = z.object({
   description: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const locations = await prisma.location.findMany({
-      where: { archived: false },
+      where: { archived: false, organizationId: auth.context.organizationId },
       orderBy: { name: "asc" },
       include: {
         stock: {
@@ -27,13 +33,22 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await req.json();
     const parsed = CreateLocationSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
     const location = await prisma.location.create({
-      data: { name: parsed.data.name, description: parsed.data.description },
+      data: {
+        organizationId: auth.context.organizationId,
+        name: parsed.data.name,
+        description: parsed.data.description,
+      },
     });
     return NextResponse.json(location, { status: 201 });
   } catch (error) {

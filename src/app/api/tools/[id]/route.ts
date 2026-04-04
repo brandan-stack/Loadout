@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -23,11 +24,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const role = req.headers.get("x-user-role");
-    const userId = req.headers.get("x-user-id");
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const tool = await dbAny.tool.findUnique({
-      where: { id },
+    const tool = await dbAny.tool.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
       include: {
         owner: { select: { id: true, name: true } },
         checkouts: {
@@ -41,11 +44,11 @@ export async function GET(
       return NextResponse.json({ error: "Tool not found" }, { status: 404 });
     }
     // Techs can only see their own PERSONAL tools + all SHOP tools
-    if (role === "TECH" && tool.type === "PERSONAL" && tool.ownerId !== userId) {
+    if (auth.context.role === "TECH" && tool.type === "PERSONAL" && tool.ownerId !== auth.context.userId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     // Strip cost from techs
-    if (role === "TECH") {
+    if (auth.context.role === "TECH") {
       const { cost: _cost, ...rest } = tool;
       return NextResponse.json({ ...rest, cost: undefined });
     }
@@ -62,17 +65,21 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const role = req.headers.get("x-user-role");
-    const userId = req.headers.get("x-user-id");
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const existing = await dbAny.tool.findUnique({ where: { id } });
+    const existing = await dbAny.tool.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Tool not found" }, { status: 404 });
     }
 
     // TECH can only edit their own PERSONAL tools
-    if (role === "TECH") {
-      if (existing.type !== "PERSONAL" || existing.ownerId !== userId) {
+    if (auth.context.role === "TECH") {
+      if (existing.type !== "PERSONAL" || existing.ownerId !== auth.context.userId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
@@ -81,10 +88,20 @@ export async function PUT(
     const data = toolUpdateSchema.parse(body);
 
     // TECH cannot change cost, type, or ownerId
-    if (role === "TECH") {
+    if (auth.context.role === "TECH") {
       delete (data as Record<string, unknown>).cost;
       delete (data as Record<string, unknown>).type;
       delete (data as Record<string, unknown>).ownerId;
+    }
+
+    if (data.ownerId) {
+      const owner = await dbAny.appUser.findFirst({
+        where: { id: data.ownerId, organizationId: auth.context.organizationId },
+        select: { id: true },
+      });
+      if (!owner) {
+        return NextResponse.json({ error: "Owner not found" }, { status: 404 });
+      }
     }
 
     const tool = await dbAny.tool.update({
@@ -112,17 +129,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const role = req.headers.get("x-user-role");
-    const userId = req.headers.get("x-user-id");
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const existing = await dbAny.tool.findUnique({ where: { id } });
+    const existing = await dbAny.tool.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Tool not found" }, { status: 404 });
     }
 
     // TECH can only delete their own PERSONAL tools
-    if (role === "TECH") {
-      if (existing.type !== "PERSONAL" || existing.ownerId !== userId) {
+    if (auth.context.role === "TECH") {
+      if (existing.type !== "PERSONAL" || existing.ownerId !== auth.context.userId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }

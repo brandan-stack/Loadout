@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -16,13 +17,18 @@ export async function POST(
 ) {
   try {
     const { id: jobId } = await params;
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const job = await dbAny.job.findUnique({ where: { id: jobId }, select: { id: true, jobNumber: true, technicianId: true, status: true } });
+    const job = await dbAny.job.findFirst({
+      where: { id: jobId, organizationId: auth.context.organizationId },
+      select: { id: true, jobNumber: true, technicianId: true, status: true },
+    });
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    if (role === "TECH" && job.technicianId !== userId) {
+    if (auth.context.role === "TECH" && job.technicianId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -33,7 +39,9 @@ export async function POST(
     const body = await request.json();
     const data = addPartSchema.parse(body);
 
-    const item = await dbAny.item.findUnique({ where: { id: data.itemId } });
+    const item = await dbAny.item.findFirst({
+      where: { id: data.itemId, organizationId: auth.context.organizationId },
+    });
     if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
     if (item.quantityOnHand < data.quantity) {

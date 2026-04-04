@@ -2,14 +2,20 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getReorderRecommendations, getItemReorderRecommendation } from "@/lib/reorder/suggestion-service";
+import { requireRequestContext } from "@/lib/request-context";
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const itemId = request.nextUrl.searchParams.get("itemId");
 
     if (itemId) {
       // Single item recommendation
-      const recommendation = await getItemReorderRecommendation(itemId);
+      const recommendation = await getItemReorderRecommendation(auth.context.organizationId, itemId);
       if (!recommendation) {
         return NextResponse.json(
           { error: "Item not found" },
@@ -20,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     // All items recommendations
-    const recommendations = await getReorderRecommendations();
+    const recommendations = await getReorderRecommendations(auth.context.organizationId);
     return NextResponse.json({
       recommendations,
       count: recommendations.length,

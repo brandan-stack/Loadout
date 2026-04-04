@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -16,11 +17,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; variantId: string }> }
 ) {
   try {
-    const { variantId } = await params;
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const { id, variantId } = await params;
     const body = await req.json();
     const parsed = UpdateVariantSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const existing = await dbAny.itemVariant.findFirst({
+      where: {
+        id: variantId,
+        itemId: id,
+        organizationId: auth.context.organizationId,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Variant not found" }, { status: 404 });
     }
 
     const updateData: Record<string, unknown> = {};
@@ -47,7 +65,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; variantId: string }> }
 ) {
   try {
-    const { variantId } = await params;
+    const auth = requireRequestContext(_req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const { id, variantId } = await params;
+    const existing = await dbAny.itemVariant.findFirst({
+      where: {
+        id: variantId,
+        itemId: id,
+        organizationId: auth.context.organizationId,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Variant not found" }, { status: 404 });
+    }
     await dbAny.itemVariant.delete({ where: { id: variantId } });
     return new NextResponse(null, { status: 204 });
   } catch (error) {

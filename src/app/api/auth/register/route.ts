@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
+const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
 
 // Allow 5 registrations per hour per IP
 const REGISTER_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
@@ -27,11 +28,15 @@ export async function POST(request: NextRequest) {
 
 		const body = await request.json();
 		const trimmedName = String(body.name ?? "").trim().slice(0, 100);
+		const trimmedOrganizationName = String(body.organizationName ?? "").trim().slice(0, 120);
 		const trimmedEmail = String(body.email ?? "").toLowerCase().trim().slice(0, MAX_FIELD_LENGTH);
 		const password = String(body.password ?? "").slice(0, MAX_FIELD_LENGTH);
 
 		if (!trimmedName) {
 			return NextResponse.json({ error: "Name is required" }, { status: 400 });
+		}
+		if (!trimmedOrganizationName) {
+			return NextResponse.json({ error: "Business name is required" }, { status: 400 });
 		}
 		if (!isValidEmail(trimmedEmail)) {
 			return NextResponse.json({ error: "Valid email address is required" }, { status: 400 });
@@ -48,10 +53,57 @@ export async function POST(request: NextRequest) {
 		}
 
 		const passwordHash = await bcrypt.hash(password, 10);
-		let user: { id: string; name: string; email: string; role: string };
+		let user: { id: string; name: string; email: string; role: string; organization: { id: string; name: string } };
 		try {
-			user = await dbAny.appUser.create({
-				data: { name: trimmedName, email: trimmedEmail, role: "TECH", passwordHash },
+			user = await dbAny.$transaction(async (tx: any) => {
+				const userCount = await tx.appUser.count();
+				const organization =
+					userCount === 0
+						? ((await tx.organization.findUnique({
+							where: { id: BOOTSTRAP_ORG_ID },
+						}))
+							? await tx.organization.update({
+								where: { id: BOOTSTRAP_ORG_ID },
+								data: {
+									name: trimmedOrganizationName,
+									contactEmail: trimmedEmail,
+								},
+							})
+							: await tx.organization.create({
+								data: {
+									name: trimmedOrganizationName,
+									contactEmail: trimmedEmail,
+								},
+							}))
+						: await tx.organization.create({
+							data: {
+								name: trimmedOrganizationName,
+								contactEmail: trimmedEmail,
+							},
+						});
+
+				const createdUser = await tx.appUser.create({
+					data: {
+						name: trimmedName,
+						email: trimmedEmail,
+						role: "SUPER_ADMIN",
+						passwordHash,
+						organizationId: organization.id,
+					},
+					include: {
+						organization: { select: { id: true, name: true } },
+					},
+				});
+
+				await tx.settings.upsert({
+					where: { organizationId: organization.id },
+					update: {},
+					create: {
+						organizationId: organization.id,
+					},
+				});
+
+				return createdUser;
 			});
 		} catch (createErr: unknown) {
 			const code = (createErr as { code?: string })?.code;
@@ -64,8 +116,20 @@ export async function POST(request: NextRequest) {
 			throw createErr;
 		}
 
-		const token = await signToken({ userId: user.id, name: user.name, role: user.role as UserRole });
-		const res = NextResponse.json({ ok: true, role: user.role, name: user.name });
+		const token = await signToken({
+			userId: user.id,
+			name: user.name,
+			role: user.role as UserRole,
+			organizationId: user.organization.id,
+			organizationName: user.organization.name,
+		});
+		const res = NextResponse.json({
+			ok: true,
+			role: user.role,
+			name: user.name,
+			organizationId: user.organization.id,
+			organizationName: user.organization.name,
+		});
 		res.cookies.set(COOKIE_NAME, token, {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === "production",

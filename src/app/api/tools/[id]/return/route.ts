@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 
 const dbAny = prisma as any;
 
@@ -10,18 +11,24 @@ export async function POST(
 ) {
   try {
     const { id: toolId } = await params;
-    const userId = request.headers.get("x-user-id")!;
-    const role = request.headers.get("x-user-role")!;
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const checkout = await dbAny.toolCheckout.findFirst({
-      where: { toolId, returnedAt: null },
+      where: {
+        toolId,
+        returnedAt: null,
+        tool: { organizationId: auth.context.organizationId },
+      },
     });
     if (!checkout) {
       return NextResponse.json({ error: "Tool is not currently checked out" }, { status: 400 });
     }
 
     // Only the person who checked it out, or an admin, can return it
-    if (role === "TECH" && checkout.userId !== userId) {
+    if (auth.context.role === "TECH" && checkout.userId !== auth.context.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

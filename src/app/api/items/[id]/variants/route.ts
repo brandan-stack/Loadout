@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -16,9 +17,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(_req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const variants = await dbAny.itemVariant.findMany({
-      where: { itemId: id },
+      where: { itemId: id, organizationId: auth.context.organizationId },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(variants);
@@ -33,6 +39,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRequestContext(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { id } = await params;
     const body = await req.json();
     const parsed = CreateVariantSchema.safeParse(body);
@@ -40,13 +51,16 @@ export async function POST(
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const item = await dbAny.item.findUnique({ where: { id } });
+    const item = await dbAny.item.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+    });
     if (!item) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
     const variant = await dbAny.itemVariant.create({
       data: {
+        organizationId: auth.context.organizationId,
         itemId: id,
         name: parsed.data.name,
         sku: parsed.data.sku,

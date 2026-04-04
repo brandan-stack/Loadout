@@ -8,6 +8,7 @@ import {
   getDeadStockReport,
   getFastMoversReport,
 } from "@/lib/reports/query-service";
+import { requireRequestContext } from "@/lib/request-context";
 import { ReportFilters } from "@/lib/reports/types";
 
 const generateReportSchema = z.object({
@@ -21,6 +22,11 @@ const generateReportSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const { type, dateFrom, dateTo, supplierId, sortBy, sortOrder } =
       generateReportSchema.parse(body);
@@ -37,16 +43,16 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case "low_stock":
-        data = await getLowStockReport(filters);
+        data = await getLowStockReport(auth.context.organizationId, filters);
         break;
       case "usage_period":
-        data = await getUsageReport(filters);
+        data = await getUsageReport(auth.context.organizationId, filters);
         break;
       case "dead_stock":
-        data = await getDeadStockReport(filters);
+        data = await getDeadStockReport(auth.context.organizationId, filters);
         break;
       case "fast_movers":
-        data = await getFastMoversReport(filters);
+        data = await getFastMoversReport(auth.context.organizationId, filters);
         break;
       default:
         return NextResponse.json(

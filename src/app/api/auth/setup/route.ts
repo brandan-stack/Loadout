@@ -6,7 +6,9 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const dbAny = prisma as any;
+const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
 const setupSchema = z.object({
+  organizationName: z.string().trim().min(1, "Business name is required").max(120, "Business name is too long"),
   name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
   email: emailSchema,
   password: passwordSchema,
@@ -45,17 +47,61 @@ export async function POST(request: NextRequest) {
     const data = setupSchema.parse(body);
 
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const user = await dbAny.appUser.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        role: "SUPER_ADMIN",
-        passwordHash,
-      },
+    const user = await dbAny.$transaction(async (tx: any) => {
+      const bootstrapOrganization = await tx.organization.findUnique({
+        where: { id: BOOTSTRAP_ORG_ID },
+      });
+      const organization = bootstrapOrganization
+        ? await tx.organization.update({
+            where: { id: BOOTSTRAP_ORG_ID },
+            data: {
+              name: data.organizationName,
+              contactEmail: data.email,
+            },
+          })
+        : await tx.organization.create({
+            data: {
+              name: data.organizationName,
+              contactEmail: data.email,
+            },
+          });
+
+      const createdUser = await tx.appUser.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          role: "SUPER_ADMIN",
+          passwordHash,
+          organizationId: organization.id,
+        },
+        include: {
+          organization: { select: { id: true, name: true } },
+        },
+      });
+
+      await tx.settings.upsert({
+        where: { organizationId: organization.id },
+        update: {},
+        create: {
+          organizationId: organization.id,
+        },
+      });
+
+      return createdUser;
     });
 
-    const token = await signToken({ userId: user.id, name: user.name, role: user.role });
-    const res = NextResponse.json({ ok: true });
+    const token = await signToken({
+      userId: user.id,
+      name: user.name,
+      role: user.role,
+      organizationId: user.organization.id,
+      organizationName: user.organization.name,
+    });
+    const res = NextResponse.json({
+      ok: true,
+      organizationId: user.organization.id,
+      organizationName: user.organization.name,
+    });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

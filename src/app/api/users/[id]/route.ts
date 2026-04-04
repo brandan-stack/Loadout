@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -17,12 +18,22 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const role = request.headers.get("x-user-role");
-  if (role !== "SUPER_ADMIN") {
+  const auth = requireRequestContext(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  if (auth.context.role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
     const { id } = await params;
+    const existing = await dbAny.appUser.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
     const body = await request.json();
     const data = updateSchema.parse(body);
     const update: Record<string, unknown> = {};
@@ -52,15 +63,25 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const role = request.headers.get("x-user-role");
-  const selfId = request.headers.get("x-user-id");
-  if (role !== "SUPER_ADMIN") {
+  const auth = requireRequestContext(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  const selfId = auth.context.userId;
+  if (auth.context.role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
     const { id } = await params;
     if (id === selfId) {
       return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
+    }
+    const existing = await dbAny.appUser.findFirst({
+      where: { id, organizationId: auth.context.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
     await dbAny.appUser.delete({ where: { id } });
     return NextResponse.json({ ok: true });

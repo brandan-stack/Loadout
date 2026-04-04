@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 
 const dbAny = prisma as any;
 
@@ -10,9 +11,14 @@ export async function POST(
 ) {
   try {
     const { id: toolId } = await params;
-    const userId = request.headers.get("x-user-id")!;
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
-    const tool = await dbAny.tool.findUnique({ where: { id: toolId } });
+    const tool = await dbAny.tool.findFirst({
+      where: { id: toolId, organizationId: auth.context.organizationId },
+    });
     if (!tool) return NextResponse.json({ error: "Tool not found" }, { status: 404 });
     if (tool.type !== "SHOP") {
       return NextResponse.json({ error: "Only shop tools can be signed out" }, { status: 400 });
@@ -28,7 +34,7 @@ export async function POST(
 
     const body = await request.json().catch(() => ({}));
     const checkout = await dbAny.toolCheckout.create({
-      data: { toolId, userId, notes: body.notes ?? null },
+      data: { toolId, userId: auth.context.userId, notes: body.notes ?? null },
       include: { user: { select: { id: true, name: true } } },
     });
     return NextResponse.json(checkout, { status: 201 });

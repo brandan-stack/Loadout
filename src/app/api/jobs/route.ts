@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -13,12 +14,18 @@ const createSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const role = request.headers.get("x-user-role");
-    const userId = request.headers.get("x-user-id");
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const includeParts = request.nextUrl.searchParams.get("includeParts") === "1";
 
     // Techs only see their own jobs
-    const where = role === "TECH" ? { technicianId: userId! } : {};
+    const where = {
+      organizationId: auth.context.organizationId,
+      ...(auth.context.role === "TECH" ? { technicianId: auth.context.userId } : {}),
+    };
 
     const includeClause = includeParts
       ? {
@@ -48,17 +55,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     const body = await request.json();
     const data = createSchema.parse(body);
 
     const job = await dbAny.job.create({
       data: {
+        organizationId: auth.context.organizationId,
         jobNumber: data.jobNumber.trim(),
         customer: data.customer.trim(),
-        technicianId: userId,
+        technicianId: auth.context.userId,
         date: data.date ? new Date(data.date) : new Date(),
         notes: data.notes?.trim() || null,
       },

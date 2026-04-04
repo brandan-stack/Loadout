@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { z } from "zod";
 
 const shareLogSchema = z.object({
@@ -13,11 +14,17 @@ const shareLogSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const data = shareLogSchema.parse(body);
 
     const shareLog = await prisma.shareLog.create({
       data: {
+        organizationId: auth.context.organizationId,
         type: data.type,
         reportType: data.reportType,
         emailClient: data.emailClient,
@@ -38,16 +45,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Get share activity logs (last 50)
- */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const logs = await prisma.shareLog.findMany({
+      where: { organizationId: auth.context.organizationId },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
-
     return NextResponse.json(logs);
   } catch (error) {
     console.error("Share log retrieval error:", error);

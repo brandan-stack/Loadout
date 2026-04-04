@@ -7,6 +7,8 @@ export interface CurrentUser {
   userId: string;
   name: string;
   role: UserRole;
+  organizationId: string;
+  organizationName: string;
 }
 
 let cached: CurrentUser | null = null;

@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireRequestContext } from "@/lib/request-context";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -15,10 +16,15 @@ const supplierSchema = z.object({
 
 type SupplierInput = z.infer<typeof supplierSchema>;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const suppliers = await prisma.supplier.findMany({
-      where: { archived: false },
+      where: { archived: false, organizationId: auth.context.organizationId },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(suppliers);
@@ -30,11 +36,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRequestContext(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const data = supplierSchema.parse(body);
 
     const supplier = await prisma.supplier.create({
-      data,
+      data: {
+        ...data,
+        organizationId: auth.context.organizationId,
+      },
     });
 
     return NextResponse.json(supplier, { status: 201 });

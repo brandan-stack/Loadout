@@ -7,6 +7,7 @@ import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
 export default function SignUpPage() {
+  const [organizationName, setOrganizationName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +17,7 @@ export default function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!organizationName.trim()) { setError("Business name is required"); return; }
     if (!name.trim()) { setError("Name is required"); return; }
     if (!isValidEmail(email.trim().toLowerCase())) { setError("Valid email is required"); return; }
 
@@ -29,7 +31,12 @@ export default function SignUpPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({
+          organizationName: organizationName.trim(),
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
       if (res.ok) {
         window.location.replace("/");
@@ -50,9 +57,20 @@ export default function SignUpPage() {
         <div className="text-center mb-8">
           <AuthLogo />
           <h1 className="text-3xl font-bold text-slate-50 mt-2">Create Account</h1>
-          <p className="text-slate-400 text-sm mt-1">Sign up to get started</p>
+          <p className="text-slate-400 text-sm mt-1">Create your business workspace and superadmin account</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Business Name</label>
+            <input
+              className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              placeholder="Your company or shop name"
+              value={organizationName}
+              onChange={(e) => setOrganizationName(e.target.value)}
+              autoComplete="organization"
+              autoFocus
+            />
+          </div>
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
             <input
@@ -61,7 +79,6 @@ export default function SignUpPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
-              autoFocus
             />
           </div>
           <div>

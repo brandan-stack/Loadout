@@ -188,7 +188,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage team members, emails, passwords, and roles</p>
+          <p className="text-slate-500 text-sm mt-1">Manage team members, emails, passwords, and roles for {me?.organizationName ?? "your business"}</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
