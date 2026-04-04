@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".") || trimmedEmail.startsWith("@") || trimmedEmail.endsWith("@") || trimmedEmail.endsWith(".")) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 

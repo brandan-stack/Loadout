@@ -26,8 +26,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [clearing, setClearing] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const [cleared, setCleared] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [storageUsage, setStorageUsage] = useState<{
     usedMB: number;
     quotaMB: number;
@@ -148,9 +149,17 @@ export default function SettingsPage() {
   }
 
   async function handleSignOut() {
+    setSignOutError("");
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch { /* ignore */ }
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (!res.ok) {
+        setSignOutError("Sign out failed. Please try again.");
+        return;
+      }
+    } catch {
+      setSignOutError("Sign out failed. Please try again.");
+      return;
+    }
     clearUserCache();
     router.push("/login");
     router.refresh();
@@ -504,6 +513,9 @@ export default function SettingsPage() {
         >
           Sign Out
         </button>
+        {signOutError && (
+          <p className="mt-2 text-xs text-red-400 text-center">{signOutError}</p>
+        )}
       </div>
     </main>
   );

@@ -6,10 +6,12 @@ const dbAny = prisma as any;
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, password } = await request.json();
+    // Read reset token from httpOnly cookie (never exposed in URL or response body)
+    const token = request.cookies.get("_loadout_reset")?.value;
+    const { password } = await request.json();
 
     if (!token) {
-      return NextResponse.json({ error: "Reset token is required" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
     }
     if (!password || String(password).length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
     }
 
-    if (!user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
+    if (!user.resetTokenExpiry || new Date(user.resetTokenExpiry) <= new Date()) {
       return NextResponse.json({ error: "Reset link has expired. Please request a new one." }, { status: 400 });
     }
 
@@ -33,7 +35,10 @@ export async function POST(request: NextRequest) {
       data: { passwordHash, resetToken: null, resetTokenExpiry: null },
     });
 
-    return NextResponse.json({ ok: true });
+    const res = NextResponse.json({ ok: true });
+    // Clear the reset cookie
+    res.cookies.set("_loadout_reset", "", { maxAge: 0, path: "/reset-password" });
+    return res;
   } catch (err) {
     console.error("Reset password error:", err);
     return NextResponse.json({ error: "Failed to reset password" }, { status: 500 });

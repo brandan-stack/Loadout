@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
     if (!trimmedName) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    // Basic email format validation (non-backtracking)
+    if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".") || trimmedEmail.startsWith("@") || trimmedEmail.endsWith("@") || trimmedEmail.endsWith(".")) {
       return NextResponse.json({ error: "Valid email address is required" }, { status: 400 });
     }
     if (!password || String(password).length < 8) {

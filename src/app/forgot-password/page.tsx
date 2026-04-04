@@ -23,11 +23,10 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const d = await res.json();
-      if (res.ok && d.token) {
-        // Redirect directly to reset page with token
-        router.push(`/reset-password?token=${encodeURIComponent(d.token)}`);
-      } else if (res.ok) {
-        // Email not found — show a generic message to avoid leaking info
+      if (res.ok) {
+        // Always redirect to /reset-password — the server has set a secure
+        // httpOnly cookie if the email was found. Both found/not-found show
+        // the same outcome to avoid leaking email registration status.
         router.push("/reset-password");
       } else {
         setError(d.error || "Failed to process request");

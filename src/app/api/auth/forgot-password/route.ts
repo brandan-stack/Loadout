@@ -22,21 +22,30 @@ export async function POST(request: NextRequest) {
 
     const user = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
 
-    // Always return success to avoid leaking which emails are registered
-    if (!user) {
-      return NextResponse.json({ ok: true });
+    if (user) {
+      const token = generateToken();
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await dbAny.appUser.update({
+        where: { id: user.id },
+        data: { resetToken: token, resetTokenExpiry: expiry },
+      });
+
+      // Store token in a short-lived httpOnly cookie so it is never exposed in
+      // the response body (avoids leaking it via browser network logs / server logs).
+      const res = NextResponse.json({ ok: true });
+      res.cookies.set("_loadout_reset", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 3600,
+        path: "/reset-password",
+      });
+      return res;
     }
 
-    const token = generateToken();
-    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    await dbAny.appUser.update({
-      where: { id: user.id },
-      data: { resetToken: token, resetTokenExpiry: expiry },
-    });
-
-    // Return the token so it can be used directly (no email server configured)
-    return NextResponse.json({ ok: true, token });
+    // Always return ok to avoid leaking which emails are registered.
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Forgot password error:", err);
     return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
