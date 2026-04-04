@@ -122,7 +122,7 @@ function LoginForm() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 py-8">
         <div className="text-slate-400 animate-pulse">Loading…</div>
       </div>
     );
@@ -130,7 +130,7 @@ function LoginForm() {
 
   if (dbError) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
         <div className="w-full max-w-sm text-center">
           <AuthLogo />
           <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
@@ -149,7 +149,7 @@ function LoginForm() {
 
   if (setupMode) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <AuthLogo />
@@ -217,7 +217,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <AuthLogo />
@@ -282,7 +282,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 py-8">
         <div className="text-slate-400 animate-pulse">Loading…</div>
       </div>
     }>
