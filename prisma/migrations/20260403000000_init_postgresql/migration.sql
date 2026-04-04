@@ -71,8 +71,11 @@ CREATE TABLE "InventoryTransaction" (
 CREATE TABLE "AppUser" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'TECH',
-    "pinHash" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
+    "resetToken" TEXT,
+    "resetTokenExpiry" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -276,7 +279,7 @@ CREATE INDEX "InventoryTransaction_createdAt_idx" ON "InventoryTransaction"("cre
 CREATE INDEX "InventoryTransaction_type_idx" ON "InventoryTransaction"("type");
 
 -- CreateUniqueIndex
-CREATE UNIQUE INDEX "AppUser_name_key" ON "AppUser"("name");
+CREATE UNIQUE INDEX "AppUser_email_key" ON "AppUser"("email");
 
 -- CreateUniqueIndex
 CREATE UNIQUE INDEX "Job_jobNumber_key" ON "Job"("jobNumber");

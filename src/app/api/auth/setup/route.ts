@@ -8,12 +8,24 @@ const dbAny = prisma as any;
 
 // GET — check if setup is required (no users exist)
 export async function GET() {
-  try {
-    const count = await dbAny.appUser.count();
-    return NextResponse.json({ required: count === 0 });
-  } catch {
-    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  const MAX_RETRIES = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const count = await dbAny.appUser.count();
+      return NextResponse.json({ required: count === 0 });
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES) {
+        // Brief delay before retrying (handles transient cold-start failures)
+        await new Promise((r) => setTimeout(r, 500 * attempt));
+      }
+    }
   }
+
+  console.error("[setup] Database check failed after retries:", lastError);
+  return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
 }
 
 // POST — create the first Super Admin (only works when no users exist)

@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy --schema=./prisma/schema.postgresql.prisma || true && prisma generate --schema=./prisma/schema.postgresql.prisma && next build",
+    "build": "prisma generate --schema=./prisma/schema.postgresql.prisma && next build",
     "start": "next start",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.postgresql.prisma",
     "prisma:reset": "prisma migrate reset --force",
     "db:push": "prisma db push",
     "seed": "tsx prisma/seed.ts"
