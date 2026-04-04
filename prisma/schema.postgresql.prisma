@@ -113,10 +113,9 @@ model Supplier {
 model AppUser {
   id               String    @id @default(cuid())
   name             String
-  email            String?   @unique
+  email            String    @unique
   role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
-  passwordHash     String?
-  pinHash          String    @default("")
+  passwordHash     String
   resetToken       String?
   resetTokenExpiry DateTime?
   createdAt        DateTime  @default(now())

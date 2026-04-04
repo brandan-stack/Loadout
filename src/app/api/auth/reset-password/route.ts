@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
     await dbAny.appUser.update({
       where: { id: user.id },
-      data: { passwordHash, pinHash: "", resetToken: null, resetTokenExpiry: null },
+      data: { passwordHash, resetToken: null, resetTokenExpiry: null },
     });
 
     const res = NextResponse.json({ ok: true });

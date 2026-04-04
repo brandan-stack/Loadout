@@ -30,18 +30,13 @@ describe("GET /api/auth/setup", () => {
 
   it("returns { required: false } when users exist", async () => {
     const { prisma } = await import("@/lib/db");
-    (prisma as any).appUser = {
-      count: jest
-        .fn()
-        .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(0),
-    };
+    (prisma as any).appUser = { count: jest.fn().mockResolvedValue(1) };
 
     const response = await GET();
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data).toEqual({ required: false, legacyMigrationRequired: false });
+    expect(data).toEqual({ required: false });
   });
 
   it("returns { required: true } when no users exist", async () => {
@@ -52,7 +47,7 @@ describe("GET /api/auth/setup", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data).toEqual({ required: true, legacyMigrationRequired: false });
+    expect(data).toEqual({ required: true });
   });
 
   it("returns 503 (not required: true) when database throws an error", async () => {

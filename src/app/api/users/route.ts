@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     let user: CreatedUser;
     try {
       user = await dbAny.appUser.create({
-        data: { name: data.name, email: data.email, role: data.role, passwordHash, pinHash: "" },
+        data: { name: data.name, email: data.email, role: data.role, passwordHash },
         select: { id: true, name: true, email: true, role: true, createdAt: true },
       });
     } catch (createErr: unknown) {

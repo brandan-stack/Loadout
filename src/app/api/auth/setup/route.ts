@@ -20,21 +20,7 @@ export async function GET() {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const count = await dbAny.appUser.count();
-      const legacyMigrationRequired =
-        count > 0
-          ? (await dbAny.appUser.count({
-              where: {
-                OR: [
-                  { email: null },
-                  { email: "" },
-                  { passwordHash: null },
-                  { passwordHash: "" },
-                ],
-              },
-            })) > 0
-          : false;
-
-      return NextResponse.json({ required: count === 0, legacyMigrationRequired });
+      return NextResponse.json({ required: count === 0 });
     } catch (err) {
       lastError = err;
       if (attempt < MAX_RETRIES) {
@@ -65,7 +51,6 @@ export async function POST(request: NextRequest) {
         email: data.email,
         role: "SUPER_ADMIN",
         passwordHash,
-        pinHash: "",
       },
     });
 

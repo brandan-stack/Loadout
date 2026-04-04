@@ -29,10 +29,7 @@ export async function PATCH(
     if (data.name) update.name = data.name;
     if (data.email) update.email = data.email;
     if (data.role) update.role = data.role;
-    if (data.password) {
-      update.passwordHash = await bcrypt.hash(data.password, 10);
-      update.pinHash = "";
-    }
+    if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
     const user = await dbAny.appUser.update({
       where: { id },
       data: update,
