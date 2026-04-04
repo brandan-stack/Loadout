@@ -41,8 +41,10 @@ interface Item {
   lowStockAmberThreshold: number;
   lowStockRedThreshold: number;
   preferredSupplierId?: string;
+  preferredSupplier?: { id: string; name: string } | null;
   lastUnitCost?: number;
   unitOfMeasure: string;
+  locationStock?: Array<{ location: { id: string; name: string } }>;
   createdAt: string;
 }
 
@@ -99,6 +101,17 @@ export default function ItemCatalog() {
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [photoUploading, setPhotoUploading] = useState(false);
+  // Expanded item detail view
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  // Edit mode
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Quick quantity adjustment
+  const [qtyAdjustId, setQtyAdjustId] = useState<string | null>(null);
+  const [qtyAdjustValue, setQtyAdjustValue] = useState("");
+  const [qtyAdjusting, setQtyAdjusting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     manufacturer: "",
@@ -191,7 +204,103 @@ export default function ItemCatalog() {
     setAiResult(null);
   }
 
-  async function handleAddItem(e: React.FormEvent) {
+  function startEditing(item: Item) {
+    setFormData({
+      name: item.name,
+      manufacturer: item.manufacturer ?? "",
+      partNumber: item.partNumber ?? "",
+      modelNumber: item.modelNumber ?? "",
+      serialNumber: item.serialNumber ?? "",
+      barcode: item.barcode ?? "",
+      description: item.description ?? "",
+      quantityOnHand: String(item.quantityOnHand),
+      lowStockAmberThreshold: String(item.lowStockAmberThreshold),
+      lowStockRedThreshold: String(item.lowStockRedThreshold),
+      preferredSupplierId: item.preferredSupplierId ?? "",
+      lastUnitCost: item.lastUnitCost ?? 0,
+      unitOfMeasure: item.unitOfMeasure,
+      locationId: "",
+    });
+    setPhotoPreview(item.photoUrl ?? "");
+    setEditingItemId(item.id);
+    setShowForm(true);
+    setExpandedItemId(null);
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingItemId(null);
+    setError("");
+    setAiResult(null);
+    setPhotoPreview("");
+    setFormData({
+      name: "",
+      manufacturer: "",
+      partNumber: "",
+      modelNumber: "",
+      serialNumber: "",
+      barcode: "",
+      description: "",
+      quantityOnHand: "",
+      lowStockAmberThreshold: "",
+      lowStockRedThreshold: "",
+      preferredSupplierId: "",
+      lastUnitCost: 0,
+      unitOfMeasure: "units",
+      locationId: "",
+    });
+  }
+
+  async function handleDeleteItem(id: string) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setDeleteConfirmId(null);
+        setExpandedItemId(null);
+        fetchData();
+      } else {
+        const body = await res.json().catch(() => null);
+        setError(body?.error || "Failed to delete item.");
+      }
+    } catch {
+      setError("Failed to delete item. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleQtyAdjust(item: Item) {
+    const newQty = parseInt(qtyAdjustValue, 10);
+    if (isNaN(newQty) || newQty < 0) {
+      setError("Quantity must be 0 or greater.");
+      return;
+    }
+    setQtyAdjusting(true);
+    try {
+      const res = await fetch(`/api/items/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantityOnHand: newQty }),
+      });
+      if (res.ok) {
+        setQtyAdjustId(null);
+        setQtyAdjustValue("");
+        fetchData();
+      } else {
+        const body = await res.json().catch(() => null);
+        setError(body?.error || "Failed to update quantity.");
+      }
+    } catch {
+      setError("Failed to update quantity.");
+    } finally {
+      setQtyAdjusting(false);
+    }
+  }
+
+  async function handleSaveItem(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
@@ -258,31 +367,15 @@ export default function ItemCatalog() {
     };
 
     try {
-      const res = await fetch("/api/items", {
-        method: "POST",
+      const isEditing = editingItemId !== null;
+      const res = await fetch(isEditing ? `/api/items/${editingItemId}` : "/api/items", {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        setFormData({
-          name: "",
-          manufacturer: "",
-          partNumber: "",
-          modelNumber: "",
-          serialNumber: "",
-          barcode: "",
-          description: "",
-          quantityOnHand: "",
-          lowStockAmberThreshold: "",
-          lowStockRedThreshold: "",
-          preferredSupplierId: "",
-          lastUnitCost: 0,
-          unitOfMeasure: "units",
-          locationId: "",
-        });
-        setPhotoPreview("");
-        setShowForm(false);
+        cancelForm();
         fetchData();
       } else {
         const errBody = await res.json().catch(() => null);
@@ -293,8 +386,8 @@ export default function ItemCatalog() {
           setError(errBody?.error || "Failed to save item.");
         }
       }
-    } catch (error) {
-      console.error("Failed to add item:", error);
+    } catch (err) {
+      console.error("Failed to save item:", err);
       setError("Failed to save item. Please try again.");
     }
   }
@@ -353,7 +446,10 @@ export default function ItemCatalog() {
             Scan
           </Link>
           <button
-            onClick={() => { setShowForm(!showForm); setError(""); }}
+            onClick={() => { 
+              if (showForm) { cancelForm(); } 
+              else { setShowForm(true); setError(""); } 
+            }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
             style={{
               background: showForm
@@ -418,6 +514,10 @@ export default function ItemCatalog() {
           className="mb-6 rounded-2xl p-5"
           style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
+          {/* Form title */}
+          <p className="text-sm font-bold text-slate-200 mb-4">
+            {editingItemId ? "✏️ Edit Item" : "➕ Add New Item"}
+          </p>
           {/* AI Scan panel */}
           <div className="mb-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
             <p className="text-sm font-semibold text-slate-200 mb-1">📷 AI Item Recognition</p>
@@ -525,7 +625,7 @@ export default function ItemCatalog() {
             )}
           </div>
 
-          <form onSubmit={handleAddItem}>
+          <form onSubmit={handleSaveItem}>
             <div className="space-y-4">
               {/* Item Photo Upload */}
               <div>
@@ -723,14 +823,14 @@ export default function ItemCatalog() {
                   boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
                 }}
               >
-                Save Item
+                {editingItemId ? "Save Changes" : "Save Item"}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* ─── Item list (row layout) ─── */}
+      {/* ─── Item list (expandable cards) ─── */}
       {filteredItems.length > 0 && (
         <div
           className="rounded-2xl overflow-hidden"
@@ -740,82 +840,260 @@ export default function ItemCatalog() {
           const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
           const isLow = !isCritical && item.quantityOnHand <= item.lowStockAmberThreshold;
           const isLast = idx === filteredItems.length - 1;
+          const isExpanded = expandedItemId === item.id;
           return (
             <div
               key={item.id}
-              className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.025]"
               style={{
                 background: isCritical
                   ? "rgba(239,68,68,0.04)"
                   : isLow
                   ? "rgba(245,158,11,0.03)"
                   : "rgba(12,17,36,0.85)",
-                borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
+                borderBottom: isLast && !isExpanded ? "none" : "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              {/* Thumb */}
-              <div className="shrink-0">
-                {item.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.photoUrl}
-                    alt={item.name}
-                    className="object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
-                    style={{ width: "40px", height: "40px" }}
-                    onClick={() => setEnlargedPhoto(item.photoUrl!)}
-                    title="Click to enlarge"
-                  />
-                ) : (
-                  <div
-                    className="flex items-center justify-center rounded-lg text-base"
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    📦
-                  </div>
-                )}
-              </div>
+              {/* ── Compact row (always visible) ── */}
+              <div
+                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-white/[0.025] transition-colors"
+                onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                role="button"
+                aria-expanded={isExpanded}
+              >
+                {/* Thumb — stopPropagation prevents thumbnail click from toggling the expand/collapse row */}
+                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {item.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.photoUrl}
+                      alt={item.name}
+                      className="object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ width: "40px", height: "40px" }}
+                      onClick={() => setEnlargedPhoto(item.photoUrl!)}
+                      title="Click to enlarge"
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center justify-center rounded-lg text-base"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      📦
+                    </div>
+                  )}
+                </div>
 
-              {/* Name + meta */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-100 truncate leading-tight">{item.name}</p>
-                <p className="text-xs text-slate-500 truncate mt-0.5">
-                  {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
-                    .filter(Boolean)
-                    .join(" · ") || <span className="italic">No details</span>}
-                </p>
-              </div>
-
-              {/* Qty + status */}
-              <div className="shrink-0 flex items-center gap-2.5 text-right">
-                {(isCritical || isLow) && (
-                  <span
-                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md hidden sm:inline-block"
-                    style={{
-                      background: isCritical ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.13)",
-                      color: isCritical ? "#fca5a5" : "#fcd34d",
-                      border: isCritical ? "1px solid rgba(239,68,68,0.22)" : "1px solid rgba(245,158,11,0.20)",
-                    }}
-                  >
-                    {isCritical ? "Critical" : "Low"}
-                  </span>
-                )}
-                <div>
-                  <p
-                    className="text-sm font-bold tabular-nums"
-                    style={{
-                      color: isCritical ? "#f87171" : isLow ? "#fbbf24" : "#cbd5e1",
-                    }}
-                  >
-                    {item.quantityOnHand}
+                {/* Name + meta */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-100 truncate leading-tight">{item.name}</p>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                    {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
+                      .filter(Boolean)
+                      .join(" · ") || <span className="italic">No details</span>}
                   </p>
-                  <p className="text-[10px] text-slate-600 text-right">{item.unitOfMeasure}</p>
+                </div>
+
+                {/* Qty + status + chevron */}
+                <div className="shrink-0 flex items-center gap-2 text-right">
+                  {(isCritical || isLow) && (
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md hidden sm:inline-block"
+                      style={{
+                        background: isCritical ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.13)",
+                        color: isCritical ? "#fca5a5" : "#fcd34d",
+                        border: isCritical ? "1px solid rgba(239,68,68,0.22)" : "1px solid rgba(245,158,11,0.20)",
+                      }}
+                    >
+                      {isCritical ? "Critical" : "Low"}
+                    </span>
+                  )}
+                  <div>
+                    <p
+                      className="text-sm font-bold tabular-nums"
+                      style={{
+                        color: isCritical ? "#f87171" : isLow ? "#fbbf24" : "#cbd5e1",
+                      }}
+                    >
+                      {item.quantityOnHand}
+                    </p>
+                    <p className="text-[10px] text-slate-600 text-right">{item.unitOfMeasure}</p>
+                  </div>
+                  <svg
+                    className={`text-slate-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
                 </div>
               </div>
+
+              {/* ── Expanded detail panel ── */}
+              {isExpanded && (
+                <div
+                  className="px-4 pb-4 pt-1 border-t"
+                  style={{ borderColor: "rgba(255,255,255,0.05)" }}
+                >
+                  {/* Detail grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mb-4 text-xs">
+                    {item.description && (
+                      <div className="sm:col-span-2">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Description</span>
+                        <p className="text-slate-300 mt-0.5">{item.description}</p>
+                      </div>
+                    )}
+                    {item.manufacturer && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Manufacturer</span>
+                        <p className="text-slate-300 mt-0.5">{item.manufacturer}</p>
+                      </div>
+                    )}
+                    {item.modelNumber && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Model #</span>
+                        <p className="text-slate-300 mt-0.5">{item.modelNumber}</p>
+                      </div>
+                    )}
+                    {item.partNumber && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Part #</span>
+                        <p className="text-slate-300 mt-0.5">{item.partNumber}</p>
+                      </div>
+                    )}
+                    {item.serialNumber && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Serial #</span>
+                        <p className="text-slate-300 mt-0.5">{item.serialNumber}</p>
+                      </div>
+                    )}
+                    {item.barcode && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Barcode</span>
+                        <p className="text-slate-300 mt-0.5 font-mono">{item.barcode}</p>
+                      </div>
+                    )}
+                    {item.preferredSupplier && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Supplier</span>
+                        <p className="text-slate-300 mt-0.5">{item.preferredSupplier.name}</p>
+                      </div>
+                    )}
+                    {item.lastUnitCost !== undefined && item.lastUnitCost !== null && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Unit Cost</span>
+                        <p className="text-slate-300 mt-0.5">${item.lastUnitCost.toFixed(2)}</p>
+                      </div>
+                    )}
+                    {item.locationStock && item.locationStock.length > 0 && (
+                      <div>
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider">Location</span>
+                        <p className="text-slate-300 mt-0.5">{item.locationStock.map(ls => ls.location.name).join(", ")}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-slate-500 font-semibold uppercase tracking-wider">Unit of Measure</span>
+                      <p className="text-slate-300 mt-0.5">{item.unitOfMeasure}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-semibold uppercase tracking-wider">Alert Thresholds</span>
+                      <p className="text-slate-300 mt-0.5">
+                        <span className="text-amber-400">Low ≤ {item.lowStockAmberThreshold}</span>
+                        <span className="text-slate-600 mx-1">·</span>
+                        <span className="text-red-400">Critical ≤ {item.lowStockRedThreshold}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick quantity adjust */}
+                  <div className="mb-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Adjust Stock Quantity</p>
+                    {qtyAdjustId === item.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={qtyAdjustValue}
+                          onChange={(e) => setQtyAdjustValue(e.target.value)}
+                          placeholder="New quantity"
+                          className="w-32 rounded-lg text-slate-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                          style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.18)" }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => void handleQtyAdjust(item)}
+                          disabled={qtyAdjusting}
+                          className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
+                          style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
+                        >
+                          {qtyAdjusting ? "Saving…" : "Set"}
+                        </button>
+                        <button
+                          onClick={() => { setQtyAdjustId(null); setQtyAdjustValue(""); }}
+                          className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-300 text-sm font-semibold tabular-nums">
+                          {item.quantityOnHand} <span className="text-slate-500 font-normal">{item.unitOfMeasure}</span>
+                        </span>
+                        <button
+                          onClick={() => { setQtyAdjustId(item.id); setQtyAdjustValue(String(item.quantityOnHand)); }}
+                          className="px-3 py-1.5 rounded-lg text-slate-300 text-xs font-medium hover:text-white transition-colors"
+                          style={{ border: "1px solid rgba(148,163,184,0.15)" }}
+                        >
+                          ✏️ Update Qty
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => startEditing(item)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:brightness-110"
+                      style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
+                    >
+                      ✏️ Edit Item
+                    </button>
+                    {deleteConfirmId === item.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-400">Delete this item?</span>
+                        <button
+                          onClick={() => void handleDeleteItem(item.id)}
+                          disabled={deleting}
+                          className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold disabled:opacity-50"
+                        >
+                          {deleting ? "Deleting…" : "Yes, Delete"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
+                        style={{ border: "1px solid rgba(239,68,68,0.2)" }}
+                      >
+                        🗑 Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
           })}

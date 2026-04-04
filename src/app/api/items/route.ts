@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
       include: {
         photos: true,
         preferredSupplier: true,
+        locationStock: {
+          include: { location: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
