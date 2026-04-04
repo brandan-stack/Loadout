@@ -3,6 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { checkPasswordStrength } from "@/lib/validation";
+import { PasswordRules } from "@/components/ui/PasswordRules";
 
 function LoginForm() {
   const router = useRouter();
@@ -70,7 +72,8 @@ function LoginForm() {
     e.preventDefault();
     if (!setupName.trim()) { setSetupError("Name is required"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(setupEmail.trim())) { setSetupError("Valid email is required"); return; }
-    if (setupPassword.length < 8) { setSetupError("Password must be at least 8 characters"); return; }
+    const pwCheck = checkPasswordStrength(setupPassword);
+    if (!pwCheck.valid) { setSetupError(pwCheck.message!); return; }
     if (setupPassword !== setupConfirm) { setSetupError("Passwords do not match"); return; }
     setSubmitting(true);
     setSetupError("");
@@ -157,11 +160,12 @@ function LoginForm() {
               <input
                 className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 type="password"
-                placeholder="Min. 8 characters"
+                placeholder="Create a strong password"
                 value={setupPassword}
                 onChange={(e) => setSetupPassword(e.target.value)}
                 autoComplete="new-password"
               />
+              <PasswordRules password={setupPassword} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>

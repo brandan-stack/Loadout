@@ -12,3 +12,45 @@ export function isValidEmail(email: string): boolean {
   if (dotIndex === domain.length - 1) return false; // must have characters after the dot
   return true;
 }
+
+export interface PasswordStrength {
+  valid: boolean;
+  /** Human-readable failure reason, or undefined when valid. */
+  message?: string;
+  /** Individual rule results for live UI feedback. */
+  rules: {
+    minLength: boolean;
+    hasUppercase: boolean;
+    hasLowercase: boolean;
+    hasNumber: boolean;
+  };
+}
+
+/**
+ * Validates password strength.
+ * Requirements: ≥8 characters, at least one uppercase letter,
+ * one lowercase letter, and one number.
+ */
+export function checkPasswordStrength(password: string): PasswordStrength {
+  const rules = {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+  };
+
+  if (!rules.minLength) {
+    return { valid: false, message: "Password must be at least 8 characters", rules };
+  }
+  if (!rules.hasUppercase) {
+    return { valid: false, message: "Password must contain at least one uppercase letter", rules };
+  }
+  if (!rules.hasLowercase) {
+    return { valid: false, message: "Password must contain at least one lowercase letter", rules };
+  }
+  if (!rules.hasNumber) {
+    return { valid: false, message: "Password must contain at least one number", rules };
+  }
+
+  return { valid: true, rules };
+}

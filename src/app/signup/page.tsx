@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { checkPasswordStrength } from "@/lib/validation";
+import { PasswordRules } from "@/components/ui/PasswordRules";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -19,7 +21,9 @@ export default function SignUpPage() {
     const atIdx = email.trim().indexOf("@");
     const emailOk = atIdx > 0 && atIdx < email.trim().length - 1 && email.trim().slice(atIdx + 1).includes(".");
     if (!emailOk) { setError("Valid email is required"); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+
+    const pwCheck = checkPasswordStrength(password);
+    if (!pwCheck.valid) { setError(pwCheck.message!); return; }
     if (password !== confirm) { setError("Passwords do not match"); return; }
 
     setSubmitting(true);
@@ -80,11 +84,12 @@ export default function SignUpPage() {
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
-              placeholder="Min. 8 characters"
+              placeholder="Create a strong password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
             />
+            <PasswordRules password={password} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
