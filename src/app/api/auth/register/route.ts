@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
+import { signToken, COOKIE_NAME, MAX_AGE, type UserRole } from "@/lib/auth";
 import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcryptjs";
@@ -48,11 +48,25 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await dbAny.appUser.create({
-      data: { name: trimmedName, email: trimmedEmail, role: "TECH", passwordHash },
-    });
+    let user: { id: string; name: string; email: string; role: string };
+    try {
+      user = await dbAny.appUser.create({
+        data: { name: trimmedName, email: trimmedEmail, role: "TECH", passwordHash },
+      });
+    } catch (createErr: unknown) {
+      // Handle unique constraint violation (race condition: another request registered
+      // the same email between our findUnique check and this create call).
+      const code = (createErr as { code?: string })?.code;
+      if (code === "P2002") {
+        return NextResponse.json(
+          { error: "An account with this email already exists" },
+          { status: 409 }
+        );
+      }
+      throw createErr;
+    }
 
-    const token = await signToken({ userId: user.id, name: user.name, role: user.role });
+    const token = await signToken({ userId: user.id, name: user.name, role: user.role as UserRole });
     const res = NextResponse.json({ ok: true, role: user.role, name: user.name });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
