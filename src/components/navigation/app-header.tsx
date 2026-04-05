@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ScanLine, Sparkles } from "lucide-react";
 import {
+  getCurrentSectionLabel,
   getDesktopNavItems,
   getDesktopUtilityNavItems,
   isAuthPath,
   isNavItemActive,
 } from "@/components/navigation/navigation-config";
+import { getNavIcon } from "@/components/navigation/nav-icons";
 
 interface ReorderCounts {
   urgent: number;
   high: number;
+  total: number;
 }
 
 export function AppHeader() {
@@ -27,133 +31,166 @@ export function AppHeader() {
     }
 
     fetch("/api/reorder/recommendations")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setCounts({ urgent: d.urgent ?? 0, high: d.high ?? 0 });
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!data) {
+          return;
+        }
+
+        setCounts({
+          urgent: data.urgent ?? 0,
+          high: data.high ?? 0,
+          total: data.count ?? (data.urgent ?? 0) + (data.high ?? 0),
+        });
       })
       .catch(() => {});
   }, [pathname]);
 
-  if (isAuthPath(pathname)) return null;
+  if (isAuthPath(pathname)) {
+    return null;
+  }
 
-  const hasAlerts = counts && (counts.urgent > 0 || counts.high > 0);
+  const sectionLabel = getCurrentSectionLabel(pathname);
+  const hasAlerts = Boolean(counts && counts.total > 0);
 
   return (
     <header
-      className="sticky top-0 z-40 w-full"
-      style={{
-        background: "rgba(7, 11, 20, 0.92)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 18px rgba(0,0,0,0.42)",
-      }}
+      className="sticky top-0 z-40 w-full px-3 md:px-4"
+      style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
     >
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div className="mx-auto max-w-[1400px]">
+        <div className="md:hidden">
+          <div className="dashboard-rise rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,15,29,0.9),rgba(9,15,29,0.74))] px-4 py-3.5 shadow-[0_18px_42px_rgba(2,6,23,0.38),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3">
+              <Link href="/" prefetch={false} className="flex min-w-0 items-center gap-3">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] shadow-[0_16px_28px_rgba(59,130,246,0.26)]">
+                  <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.24),transparent_38%)]" />
+                  <div className="relative h-4 w-4 rotate-45 rounded-[4px] border-[1.5px] border-white/90" />
+                </div>
 
-        {/* ─── Left: Logo + Wordmark ─── */}
-        <Link href="/" prefetch={false} className="flex items-center gap-3 select-none shrink-0">
-          <div
-            className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{
-              background: "linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)",
-              boxShadow: "0 0 10px rgba(99,102,241,0.22)",
-            }}
-          >
-            <div className="w-3.5 h-3.5 border-[1.5px] border-white/85 rotate-45 rounded-[2px]" />
-          </div>
-          <div className="leading-none">
-            <div
-              className="text-white font-bold"
-              style={{ fontSize: "14px", letterSpacing: "0.12em" }}
-            >
-              LOADOUT
-            </div>
-            <div
-              className="text-slate-500 font-medium uppercase"
-              style={{ fontSize: "9px", letterSpacing: "0.18em", marginTop: "2px" }}
-            >
-              Field Parts Tracking
-            </div>
-          </div>
-        </Link>
-
-        {/* ─── Right: Nav (desktop) ─── */}
-        <nav className="hidden md:flex items-center gap-0.5" aria-label="Main navigation">
-          {mainItems.map((item) => {
-            const active = isNavItemActive(item, pathname);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={false}
-                className={`relative px-3.5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                  active
-                    ? "text-white"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-                }`}
-              >
-                {active && (
-                  <span
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full"
-                    style={{ background: "linear-gradient(90deg, #6366f1, #818cf8)" }}
-                  />
-                )}
-                <span>{item.label}</span>
-                {item.includesReorderBadge && hasAlerts && (
-                  <span className="flex items-center gap-1.5">
-                    {counts!.urgent > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs font-semibold text-red-400 leading-none">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block shrink-0" />
-                        {counts!.urgent}
-                      </span>
-                    )}
-                    {counts!.high > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs font-semibold text-amber-400 leading-none">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block shrink-0" />
-                        {counts!.high}
-                      </span>
-                    )}
-                  </span>
-                )}
+                <div className="min-w-0 leading-none">
+                  <div className="truncate text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-slate-400/90">
+                    Loadout
+                  </div>
+                  <div className="mt-1 truncate text-[1rem] font-semibold tracking-[-0.03em] text-white">
+                    {sectionLabel}
+                  </div>
+                </div>
               </Link>
-            );
-          })}
 
-          {utilityItems.map((item) => {
-            const active = isNavItemActive(item, pathname);
-            return (
               <Link
-                key={item.href}
-                href={item.href}
+                href="/scan"
                 prefetch={false}
-                className={`ml-1 p-2 rounded-lg transition-colors ${
-                  active
-                    ? "text-white bg-white/[0.07]"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-                }`}
-                title={item.label}
-                aria-label={item.label}
+                className="panel-interactive relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-300/16 bg-sky-300/10 text-sky-50 shadow-[0_12px_22px_rgba(56,189,248,0.14)] hover:border-sky-200/30 hover:bg-sky-300/16 hover:text-white active:scale-[0.96]"
+                aria-label="Open scanner"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
+                <ScanLine className="h-4.5 w-4.5" />
+                {hasAlerts && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.6)]" />}
+              </Link>
+            </div>
+
+            <div className="mt-3.5 flex items-center justify-between gap-3 rounded-[1.2rem] border border-white/8 bg-white/[0.045] px-3.5 py-2.5">
+              <div className="flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-300/85">
+                <Sparkles className="h-3.5 w-3.5 text-sky-200" />
+                Field Command Center
+              </div>
+              <div className="text-right text-[0.72rem] font-medium text-slate-400">
+                {hasAlerts
+                  ? `${counts!.urgent} urgent • ${counts!.high} warning`
+                  : "No active blockers"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:block">
+          <div className="dashboard-rise rounded-[1.65rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,20,0.88),rgba(7,11,20,0.74))] px-5 py-3.5 shadow-[0_20px_52px_rgba(2,6,23,0.42),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-6">
+              <Link href="/" prefetch={false} className="flex shrink-0 items-center gap-3.5">
+                <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] shadow-[0_18px_30px_rgba(59,130,246,0.24)]">
+                  <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.24),transparent_38%)]" />
+                  <div className="relative h-4 w-4 rotate-45 rounded-[4px] border-[1.5px] border-white/90" />
+                </div>
+
+                <div className="leading-none">
+                  <div className="text-[0.72rem] font-semibold uppercase tracking-[0.26em] text-slate-400/90">
+                    LOADOUT
+                  </div>
+                  <div className="mt-1 text-[1rem] font-semibold tracking-[-0.035em] text-white">
+                    Field Parts Tracking
+                  </div>
+                </div>
+              </Link>
+
+              <nav className="flex min-w-0 flex-1 items-center justify-center gap-1.5" aria-label="Main navigation">
+                {mainItems.map((item) => {
+                  const active = isNavItemActive(item, pathname);
+                  const Icon = getNavIcon(item.icon);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      prefetch={false}
+                      className={`panel-interactive relative inline-flex items-center gap-2 rounded-[1.05rem] px-4 py-2.5 text-sm font-medium tracking-[-0.01em] ${
+                        active
+                          ? "bg-white/[0.08] text-white shadow-[0_14px_28px_rgba(2,6,23,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]"
+                          : "text-slate-300/72 hover:bg-white/[0.045] hover:text-white"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 ${active ? "text-sky-100" : "text-slate-400"}`} />
+                      <span>{item.label}</span>
+
+                      {item.includesReorderBadge && hasAlerts && (
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-rose-300/14 bg-rose-300/10 px-2 py-1 text-[0.65rem] font-semibold text-rose-100 shadow-[0_0_16px_rgba(251,113,133,0.12)]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {counts!.total}
+                        </span>
+                      )}
+
+                      {active && (
+                        <span className="absolute inset-x-4 bottom-1.5 h-px rounded-full bg-gradient-to-r from-transparent via-sky-300/80 to-transparent" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/scan"
+                  prefetch={false}
+                  className="panel-interactive inline-flex items-center gap-2 rounded-[1rem] border border-sky-300/14 bg-sky-300/10 px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] text-sky-50 shadow-[0_14px_24px_rgba(56,189,248,0.12)] hover:border-sky-200/28 hover:bg-sky-300/16 hover:text-white"
                 >
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </Link>
-            );
-          })}
-        </nav>
+                  <ScanLine className="h-4 w-4" />
+                  Scan
+                </Link>
 
+                {utilityItems.map((item) => {
+                  const active = isNavItemActive(item, pathname);
+                  const Icon = getNavIcon(item.icon);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      prefetch={false}
+                      className={`panel-interactive inline-flex h-11 w-11 items-center justify-center rounded-[1rem] border ${
+                        active
+                          ? "border-white/12 bg-white/[0.08] text-white shadow-[0_14px_24px_rgba(2,6,23,0.22)]"
+                          : "border-white/8 bg-white/[0.04] text-slate-300/72 hover:border-white/14 hover:bg-white/[0.07] hover:text-white"
+                      }`}
+                      title={item.label}
+                      aria-label={item.label}
+                    >
+                      <Icon className="h-4.5 w-4.5" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
   );

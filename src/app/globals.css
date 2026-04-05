@@ -30,6 +30,11 @@ body {
     linear-gradient(180deg, #070d18 0%, var(--app-bg) 58%, #040914 100%);
 }
 
+::selection {
+  background: rgba(56, 189, 248, 0.24);
+  color: #f8fafc;
+}
+
 h1,
 h2,
 h3,
@@ -81,6 +86,82 @@ main {
 .card-lift:hover {
   transform: translateY(-2px);
   box-shadow: 0 16px 32px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(129, 140, 248, 0.14);
+}
+
+.panel-interactive {
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+  will-change: transform;
+}
+
+.panel-interactive:hover {
+  transform: translateY(-3px);
+}
+
+.panel-interactive:active {
+  transform: translateY(-1px) scale(0.995);
+}
+
+.dashboard-balance {
+  text-wrap: balance;
+}
+
+@keyframes dashboard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dashboard-rise {
+  animation: dashboard-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.dashboard-delay-1 {
+  animation-delay: 60ms;
+}
+
+.dashboard-delay-2 {
+  animation-delay: 120ms;
+}
+
+.dashboard-delay-3 {
+  animation-delay: 180ms;
+}
+
+.dashboard-delay-4 {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .panel-interactive {
+    transition: none;
+  }
+
+  .panel-interactive:hover,
+  .panel-interactive:active {
+    transform: none;
+  }
+
+  .dashboard-rise,
+  .dashboard-delay-1,
+  .dashboard-delay-2,
+  .dashboard-delay-3,
+  .dashboard-delay-4 {
+    animation: none;
+  }
 }
 
 .soft-button {

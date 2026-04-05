@@ -1,4 +1,5 @@
 import type { UserRole } from "@/lib/auth";
+import type { AppNavIcon } from "@/components/navigation/nav-icons";
 
 type NavMatchMode = "exact" | "prefix";
 type DesktopNavSlot = "main" | "utility" | "hidden";
@@ -8,7 +9,7 @@ export interface AppNavItem {
   href: string;
   label: string;
   mobileLabel?: string;
-  icon?: string;
+  icon: AppNavIcon;
   match?: NavMatchMode;
   roles?: UserRole[];
   desktopSlot: DesktopNavSlot;
@@ -26,16 +27,17 @@ const AUTH_PATHS = new Set([
 export const APP_NAV_ITEMS: AppNavItem[] = [
   {
     href: "/",
-    label: "Home",
-    icon: "⊞",
+    label: "Dashboard",
+    mobileLabel: "Home",
+    icon: "dashboard",
     match: "exact",
-    desktopSlot: "hidden",
+    desktopSlot: "main",
     mobileSlot: "primary",
   },
   {
     href: "/jobs",
     label: "Jobs",
-    icon: "🔧",
+    icon: "jobs",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
@@ -43,28 +45,28 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/items",
     label: "Inventory",
     mobileLabel: "Items",
-    icon: "📦",
+    icon: "inventory",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
   {
     href: "/reports",
     label: "Reports",
-    icon: "📊",
+    icon: "reports",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
   {
     href: "/suppliers",
     label: "Suppliers",
-    icon: "🏭",
+    icon: "suppliers",
     desktopSlot: "main",
     mobileSlot: "secondary",
   },
   {
     href: "/reorder",
     label: "Reorder",
-    icon: "↺",
+    icon: "reorder",
     desktopSlot: "main",
     mobileSlot: "secondary",
     includesReorderBadge: true,
@@ -72,14 +74,14 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   {
     href: "/settings",
     label: "Settings",
-    icon: "⚙",
+    icon: "settings",
     desktopSlot: "utility",
     mobileSlot: "secondary",
   },
   {
     href: "/admin/users",
     label: "Users",
-    icon: "👥",
+    icon: "users",
     roles: ["SUPER_ADMIN"],
     desktopSlot: "hidden",
     mobileSlot: "secondary",
@@ -122,6 +124,23 @@ export function getMobileSecondaryNavItems(role?: UserRole | null) {
   return APP_NAV_ITEMS.filter(
     (item) => item.mobileSlot === "secondary" && isAllowedForRole(item, role)
   );
+}
+
+export function getCurrentSectionLabel(pathname: string, role?: UserRole | null) {
+  const activeItem = getMobileNavItems(role).find((item) => isNavItemActive(item, pathname));
+  if (activeItem) {
+    return activeItem.label;
+  }
+
+  const segment = pathname.split("/").filter(Boolean)[0];
+  if (!segment) {
+    return "Dashboard";
+  }
+
+  return segment
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function isAllowedForRole(item: AppNavItem, role?: UserRole | null) {
