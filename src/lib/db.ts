@@ -7,7 +7,37 @@ import { PrismaClient } from "@prisma/client";
 // Set DATABASE_URL to a PostgreSQL connection string for persistent, production-grade storage.
 // NOTE: instrumentation.ts sets this env var to "file:/tmp/dev.db" before importing this module,
 // so the fallback here is only reached if this module is imported before instrumentation runs.
-const DATABASE_URL = process.env.DATABASE_URL ?? "file:/tmp/dev.db";
+const DATABASE_URL = normalizeDatabaseUrl(process.env.DATABASE_URL ?? "file:/tmp/dev.db");
+
+function normalizeDatabaseUrl(url: string) {
+  if (!url.startsWith("postgres://") && !url.startsWith("postgresql://")) {
+    return url;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+
+  const isSupabaseTransactionPooler =
+    parsed.hostname.endsWith(".pooler.supabase.com") && parsed.port === "6543";
+
+  if (!isSupabaseTransactionPooler) {
+    return url;
+  }
+
+  if (!parsed.searchParams.has("pgbouncer")) {
+    parsed.searchParams.set("pgbouncer", "true");
+  }
+
+  if (!parsed.searchParams.has("connection_limit")) {
+    parsed.searchParams.set("connection_limit", "1");
+  }
+
+  return parsed.toString();
+}
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 

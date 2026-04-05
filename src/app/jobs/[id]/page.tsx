@@ -158,6 +158,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const totalMaterialCost = job?.parts.reduce((sum, p) => sum + p.quantity * (p.unitCost ?? 0), 0) ?? 0;
   const canEdit = job && job.status !== "INVOICED" && (user?.role !== "TECH" || job.technician.id === user?.userId);
   const canChangeStatus = user?.role === "SUPER_ADMIN" || user?.role === "OFFICE";
+  const partsGridTemplate = user?.role !== "TECH" ? "minmax(0,1fr) auto auto auto auto" : "minmax(0,1fr) auto auto";
 
   if (loading) {
     return (
@@ -190,7 +191,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-5">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-2 flex items-center gap-1">← Jobs</button>
           <div className="flex items-center gap-2 flex-wrap">
@@ -204,9 +205,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           {job.notes && <p className="text-slate-400 text-sm mt-1 italic">{job.notes}</p>}
         </div>
         {canChangeStatus && (
-          <div className="shrink-0">
+          <div className="w-full shrink-0 sm:w-auto">
             <select
-              className="rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              className="w-full rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:w-auto"
               style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
               value={job.status}
               disabled={statusUpdating}
@@ -222,7 +223,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Parts table */}
       <div className="bg-slate-900 border border-slate-700 rounded-2xl mb-5 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+        <div className="flex flex-col gap-1 border-b border-slate-700 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-bold text-slate-200">Parts Used</h2>
           <span className="text-xs text-slate-500">{job.parts.length} item{job.parts.length !== 1 ? "s" : ""}</span>
         </div>
@@ -231,9 +232,49 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <div className="px-4 py-8 text-center text-slate-500 text-sm">No parts added yet</div>
         ) : (
           <div className="divide-y divide-slate-800">
+            <div className="space-y-3 p-4 md:hidden">
+              {job.parts.map((part) => (
+                <div key={part.id} className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-100">{part.item.name}</p>
+                      {part.item.partNumber && <p className="mt-1 text-xs text-slate-500">{part.item.partNumber}</p>}
+                      {part.notes && <p className="mt-1 text-xs italic text-slate-400">{part.notes}</p>}
+                    </div>
+                    {canEdit ? (
+                      <button
+                        onClick={() => handleRemovePart(part.id)}
+                        disabled={removingId === part.id}
+                        className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                      >
+                        {removingId === part.id ? "..." : "Remove"}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className={`mt-3 grid gap-3 text-sm ${user?.role !== "TECH" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Qty</p>
+                      <p className="mt-0.5 text-slate-200">{part.quantity} <span className="text-xs text-slate-500">{part.item.unitOfMeasure}</span></p>
+                    </div>
+                    {user?.role !== "TECH" && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
+                        <p className="mt-0.5 text-slate-200">${(part.unitCost ?? 0).toFixed(2)}</p>
+                      </div>
+                    )}
+                    {user?.role !== "TECH" && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500">Line Total</p>
+                        <p className="mt-0.5 font-semibold text-slate-100">${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
             {/* Table header */}
-            <div className="grid px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide"
-              style={{ gridTemplateColumns: "1fr auto auto auto auto" }}>
+            <div className="hidden grid px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid"
+              style={{ gridTemplateColumns: partsGridTemplate }}>
               <span>Part</span>
               <span className="text-right pr-4">Qty</span>
               {user?.role !== "TECH" && <span className="text-right pr-4">Unit Cost</span>}
@@ -243,8 +284,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             {job.parts.map((part) => (
               <div
                 key={part.id}
-                className="grid items-center px-4 py-3 text-sm"
-                style={{ gridTemplateColumns: "1fr auto auto auto auto" }}
+                className="hidden items-center px-4 py-3 text-sm md:grid"
+                style={{ gridTemplateColumns: partsGridTemplate }}
               >
                 <div className="min-w-0">
                   <p className="font-medium text-slate-100 truncate">{part.item.name}</p>

@@ -1,0 +1,770 @@
+{
+  "generatedAt": "2026-04-04T17:51:29.083Z",
+  "baseURL": "http://127.0.0.1:3000",
+  "email": "responsive.qa.1775325087009@example.com",
+  "routes": [
+    {
+      "path": "/",
+      "slug": "home"
+    },
+    {
+      "path": "/jobs",
+      "slug": "jobs"
+    },
+    {
+      "path": "/items",
+      "slug": "items"
+    },
+    {
+      "path": "/reports",
+      "slug": "reports"
+    },
+    {
+      "path": "/suppliers",
+      "slug": "suppliers"
+    },
+    {
+      "path": "/reorder",
+      "slug": "reorder"
+    },
+    {
+      "path": "/settings",
+      "slug": "settings"
+    },
+    {
+      "path": "/admin/users",
+      "slug": "admin-users"
+    }
+  ],
+  "viewports": [
+    {
+      "device": "iphone-se",
+      "viewport": {
+        "width": 320,
+        "height": 568
+      },
+      "mobile": true,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/iphone-se-home.png",
+          "pathname": "/",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/iphone-se-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/iphone-se-items.png",
+          "pathname": "/items",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/iphone-se-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/iphone-se-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/iphone-se-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/iphone-se-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/iphone-se-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 320,
+          "innerHeight": 568,
+          "scrollWidth": 320,
+          "bodyScrollWidth": 320,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 0
+        }
+      ],
+      "moreMenu": {
+        "visible": true,
+        "items": [
+          "🏭SuppliersOpen suppliers",
+          "↺ReorderOpen reorder",
+          "⚙SettingsOpen settings",
+          "👥UsersOpen users"
+        ],
+        "screenshot": "screenshots/iphone-se-more-menu.png"
+      }
+    },
+    {
+      "device": "galaxy-s8-plus",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "mobile": false,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/galaxy-s8-plus-home.png",
+          "pathname": "/",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/galaxy-s8-plus-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/galaxy-s8-plus-items.png",
+          "pathname": "/items",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/galaxy-s8-plus-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/galaxy-s8-plus-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/galaxy-s8-plus-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/galaxy-s8-plus-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/galaxy-s8-plus-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "scrollWidth": 1280,
+          "bodyScrollWidth": 1280,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        }
+      ],
+      "moreMenu": {
+        "visible": false,
+        "items": [],
+        "skippedReason": "Desktop header rendered for this viewport"
+      }
+    },
+    {
+      "device": "iphone-14",
+      "viewport": {
+        "width": 390,
+        "height": 664
+      },
+      "mobile": true,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/iphone-14-home.png",
+          "pathname": "/",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/iphone-14-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/iphone-14-items.png",
+          "pathname": "/items",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/iphone-14-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/iphone-14-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/iphone-14-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/iphone-14-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/iphone-14-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 390,
+          "innerHeight": 664,
+          "scrollWidth": 390,
+          "bodyScrollWidth": 390,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        }
+      ],
+      "moreMenu": {
+        "visible": true,
+        "items": [
+          "🏭SuppliersOpen suppliers",
+          "↺ReorderOpen reorder",
+          "⚙SettingsOpen settings",
+          "👥UsersOpen users"
+        ],
+        "screenshot": "screenshots/iphone-14-more-menu.png"
+      }
+    },
+    {
+      "device": "pixel-7",
+      "viewport": {
+        "width": 412,
+        "height": 839
+      },
+      "mobile": true,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/pixel-7-home.png",
+          "pathname": "/",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/pixel-7-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/pixel-7-items.png",
+          "pathname": "/items",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/pixel-7-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/pixel-7-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/pixel-7-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/pixel-7-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/pixel-7-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 412,
+          "innerHeight": 839,
+          "scrollWidth": 412,
+          "bodyScrollWidth": 412,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": true,
+          "desktopNavVisible": false,
+          "wrappedLabels": 5
+        }
+      ],
+      "moreMenu": {
+        "visible": true,
+        "items": [
+          "🏭SuppliersOpen suppliers",
+          "↺ReorderOpen reorder",
+          "⚙SettingsOpen settings",
+          "👥UsersOpen users"
+        ],
+        "screenshot": "screenshots/pixel-7-more-menu.png"
+      }
+    },
+    {
+      "device": "ipad-mini",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "mobile": true,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/ipad-mini-home.png",
+          "pathname": "/",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/ipad-mini-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/ipad-mini-items.png",
+          "pathname": "/items",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/ipad-mini-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/ipad-mini-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/ipad-mini-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/ipad-mini-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/ipad-mini-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "scrollWidth": 768,
+          "bodyScrollWidth": 768,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        }
+      ],
+      "moreMenu": {
+        "visible": false,
+        "items": [],
+        "skippedReason": "Desktop header rendered for this viewport"
+      }
+    },
+    {
+      "device": "desktop-1366",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "mobile": false,
+      "routes": [
+        {
+          "route": "/",
+          "screenshot": "screenshots/desktop-1366-home.png",
+          "pathname": "/",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/jobs",
+          "screenshot": "screenshots/desktop-1366-jobs.png",
+          "pathname": "/jobs",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/items",
+          "screenshot": "screenshots/desktop-1366-items.png",
+          "pathname": "/items",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reports",
+          "screenshot": "screenshots/desktop-1366-reports.png",
+          "pathname": "/reports",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/suppliers",
+          "screenshot": "screenshots/desktop-1366-suppliers.png",
+          "pathname": "/suppliers",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/reorder",
+          "screenshot": "screenshots/desktop-1366-reorder.png",
+          "pathname": "/reorder",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/settings",
+          "screenshot": "screenshots/desktop-1366-settings.png",
+          "pathname": "/settings",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        },
+        {
+          "route": "/admin/users",
+          "screenshot": "screenshots/desktop-1366-admin-users.png",
+          "pathname": "/admin/users",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "scrollWidth": 1366,
+          "bodyScrollWidth": 1366,
+          "horizontalOverflow": 0,
+          "mobileNavVisible": false,
+          "desktopNavVisible": true,
+          "wrappedLabels": 0
+        }
+      ],
+      "moreMenu": {
+        "visible": false,
+        "items": [],
+        "skippedReason": "Desktop header rendered for this viewport"
+      }
+    }
+  ]
+}

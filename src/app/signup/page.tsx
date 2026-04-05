@@ -39,7 +39,10 @@ export default function SignUpPage() {
         }),
       });
       if (res.ok) {
-        window.location.replace("/");
+        if (typeof window !== "undefined") {
+          localStorage.setItem("loadout_remembered_email", email.trim().toLowerCase());
+        }
+        window.location.replace("/login?created=1");
       } else {
         const d = await res.json();
         setError(d.error || "Registration failed");
@@ -52,14 +55,14 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <AuthLogo />
-          <h1 className="text-3xl font-bold text-slate-50 mt-2">Create Account</h1>
-          <p className="text-slate-400 text-sm mt-1">Create your business workspace and superadmin account</p>
+          <h1 className="mt-2 text-2xl font-bold text-slate-50 sm:text-3xl">Create Account</h1>
+          <p className="text-slate-400 text-sm mt-1">Create your business workspace and superadmin account. You will sign in separately after this step.</p>
         </div>
-        <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6">
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Business Name</label>
             <input
@@ -124,6 +127,9 @@ export default function SignUpPage() {
           >
             {submitting ? "Creating account…" : "Create Account"}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            After account creation, return to the sign-in page to access your workspace.
+          </p>
           <p className="text-center text-xs text-slate-500">
             Already have an account?{" "}
             <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">

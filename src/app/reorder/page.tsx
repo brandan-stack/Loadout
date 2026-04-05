@@ -141,7 +141,7 @@ export default function ReorderPage() {
                     : "3px solid transparent",
                 }}
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-semibold text-slate-100">{rec.name}</h3>
@@ -162,14 +162,14 @@ export default function ReorderPage() {
                   </div>
                   <Link
                     href={`/items?item=${rec.itemId}`}
-                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors"
+                    className="shrink-0 self-start rounded-lg px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:text-white"
                     style={{ border: "1px solid rgba(255,255,255,0.09)" }}
                   >
                     View Item
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
+                <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {[
                     { label: "On Hand", value: String(rec.currentQuantity) },
                     { label: "Min", value: rec.minQuantity.toFixed(0) },

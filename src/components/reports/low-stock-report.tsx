@@ -77,7 +77,50 @@ export function LowStockReportPage() {
 
       {data && data.length > 0 ? (
         <GlassBubbleCard>
-          <div className="overflow-x-auto">
+          <div className="space-y-3 sm:hidden">
+            {data.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-slate-700/70 p-4"
+                style={{
+                  background: item.severity === "red" ? "rgba(239,68,68,0.05)" : "rgba(245,158,11,0.04)",
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-100">{item.name}</p>
+                    <p className="mt-1 font-mono text-xs text-slate-400">{item.barcode || "—"}</p>
+                  </div>
+                  <span
+                    className={`rounded px-2 py-1 text-xs font-bold ${
+                      item.severity === "red" ? "bg-red-600 text-white" : "bg-amber-500 text-white"
+                    }`}
+                  >
+                    {item.severity.toUpperCase()}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">On Hand</p>
+                    <p className="mt-0.5 font-semibold text-slate-100">{item.quantityOnHand}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Supplier</p>
+                    <p className="mt-0.5 text-slate-200">{item.preferredSupplier?.name || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Amber</p>
+                    <p className="mt-0.5 text-slate-200">{item.lowStockAmberThreshold}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Red</p>
+                    <p className="mt-0.5 text-slate-200">{item.lowStockRedThreshold}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[44rem] text-sm">
             <thead>
               <tr className="border-b border-slate-700">

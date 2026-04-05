@@ -3,26 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  getDesktopNavItems,
+  getDesktopUtilityNavItems,
+  isAuthPath,
+  isNavItemActive,
+} from "@/components/navigation/navigation-config";
 
 interface ReorderCounts {
   urgent: number;
   high: number;
 }
 
-const NAV_ITEMS = [
-  { href: "/jobs", label: "Jobs" },
-  { href: "/items", label: "Inventory" },
-  { href: "/reports", label: "Reports" },
-  { href: "/suppliers", label: "Suppliers" },
-  { href: "/reorder", label: "Reorder" },
-];
-
 export function AppHeader() {
   const pathname = usePathname();
   const [counts, setCounts] = useState<ReorderCounts | null>(null);
+  const mainItems = getDesktopNavItems();
+  const utilityItems = getDesktopUtilityNavItems();
 
   useEffect(() => {
-    if (pathname === "/login") {
+    if (isAuthPath(pathname)) {
       return;
     }
 
@@ -34,12 +34,7 @@ export function AppHeader() {
       .catch(() => {});
   }, [pathname]);
 
-  if (
-    pathname === "/login" ||
-    pathname === "/signup" ||
-    pathname === "/forgot-password" ||
-    pathname === "/reset-password"
-  ) return null;
+  if (isAuthPath(pathname)) return null;
 
   const hasAlerts = counts && (counts.urgent > 0 || counts.high > 0);
 
@@ -85,13 +80,12 @@ export function AppHeader() {
 
         {/* ─── Right: Nav (desktop) ─── */}
         <nav className="hidden md:flex items-center gap-0.5" aria-label="Main navigation">
-          {NAV_ITEMS.map(({ href, label }) => {
-            const active = pathname.startsWith(href);
-            const isReorder = href === "/reorder";
+          {mainItems.map((item) => {
+            const active = isNavItemActive(item, pathname);
             return (
               <Link
-                key={href}
-                href={href}
+                key={item.href}
+                href={item.href}
                 prefetch={false}
                 className={`relative px-3.5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                   active
@@ -105,8 +99,8 @@ export function AppHeader() {
                     style={{ background: "linear-gradient(90deg, #6366f1, #818cf8)" }}
                   />
                 )}
-                <span>{label}</span>
-                {isReorder && hasAlerts && (
+                <span>{item.label}</span>
+                {item.includesReorderBadge && hasAlerts && (
                   <span className="flex items-center gap-1.5">
                     {counts!.urgent > 0 && (
                       <span className="flex items-center gap-0.5 text-xs font-semibold text-red-400 leading-none">
@@ -126,33 +120,38 @@ export function AppHeader() {
             );
           })}
 
-          {/* Settings icon */}
-          <Link
-            href="/settings"
-            prefetch={false}
-            className={`ml-1 p-2 rounded-lg transition-colors ${
-              pathname.startsWith("/settings")
-                ? "text-white bg-white/[0.07]"
-                : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-            }`}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </Link>
+          {utilityItems.map((item) => {
+            const active = isNavItemActive(item, pathname);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                className={`ml-1 p-2 rounded-lg transition-colors ${
+                  active
+                    ? "text-white bg-white/[0.07]"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                }`}
+                title={item.label}
+                aria-label={item.label}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </Link>
+            );
+          })}
         </nav>
 
       </div>

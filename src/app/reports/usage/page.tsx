@@ -109,7 +109,36 @@ export default function UsageReportPage() {
 
       {typedData.length > 0 ? (
         <GlassBubbleCard>
-          <div className="overflow-x-auto">
+          <div className="space-y-3 sm:hidden">
+            {typedData.map((row) => (
+              <div key={row.itemId} className="rounded-2xl border border-slate-700/70 bg-slate-900/55 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-100">{row.name}</p>
+                    <p className="mt-1 font-mono text-xs text-slate-400">{row.barcode || "-"}</p>
+                  </div>
+                  <span className="inline-block rounded border border-white/10 bg-white/10 px-2 py-0.5 text-xs font-semibold text-slate-200">
+                    {row.trend}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Used</p>
+                    <p className="mt-0.5 text-slate-200">{row.quantityUsed}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Avg/Day</p>
+                    <p className="mt-0.5 text-slate-200">{row.averageUsagePerDay}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Last Used</p>
+                    <p className="mt-0.5 text-slate-200">{formatDate(row.lastUsed)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[44rem] text-sm">
               <thead>
                 <tr className="border-b border-slate-700">

@@ -106,7 +106,7 @@ export default function JobsReportPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <Link href="/reports" className="text-slate-400 hover:text-slate-200 text-sm">← Reports</Link>
         <h1 className="text-2xl sm:text-3xl font-bold">Parts by Job</h1>
       </div>
@@ -204,34 +204,65 @@ export default function JobsReportPage() {
                     {(job.parts || []).length === 0 ? (
                       <p className="text-xs text-slate-500 italic">No parts logged for this job.</p>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-xs text-slate-400 border-b border-slate-700">
-                            <th className="text-left pb-2">Part</th>
-                            <th className="text-right pb-2">Qty</th>
-                            <th className="text-right pb-2">Unit Cost</th>
-                            <th className="text-right pb-2">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <>
+                        <div className="space-y-3 sm:hidden">
                           {(job.parts || []).map(p => (
-                            <tr key={p.id} className="border-b border-slate-800 last:border-0">
-                              <td className="py-1.5 text-slate-200">
-                                {p.item.name}
-                                {p.item.partNumber && <span className="text-xs text-slate-500 ml-1">({p.item.partNumber})</span>}
-                                {p.notes && <span className="text-xs text-slate-400 italic ml-1">– {p.notes}</span>}
-                              </td>
-                              <td className="text-right text-slate-300">{p.quantity} {p.item.unitOfMeasure}</td>
-                              <td className="text-right text-slate-300">${p.unitCost.toFixed(2)}</td>
-                              <td className="text-right font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</td>
-                            </tr>
+                            <div key={p.id} className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-3">
+                              <p className="font-medium text-slate-200">{p.item.name}</p>
+                              {p.item.partNumber && <p className="mt-1 text-xs text-slate-500">{p.item.partNumber}</p>}
+                              {p.notes && <p className="mt-1 text-xs italic text-slate-400">{p.notes}</p>}
+                              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Qty</p>
+                                  <p className="mt-0.5 text-slate-200">{p.quantity} {p.item.unitOfMeasure}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
+                                  <p className="mt-0.5 text-slate-200">${p.unitCost.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Total</p>
+                                  <p className="mt-0.5 font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</p>
+                                </div>
+                              </div>
+                            </div>
                           ))}
-                          <tr>
-                            <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-slate-400">Job Total</td>
-                            <td className="pt-3 text-right font-bold text-slate-100">${jobTotal.toFixed(2)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                          <div className="pt-1 text-right">
+                            <p className="text-xs font-semibold text-slate-400">Job Total</p>
+                            <p className="mt-0.5 text-lg font-bold text-slate-100">${jobTotal.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="hidden overflow-x-auto sm:block">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-700 text-xs text-slate-400">
+                                <th className="pb-2 text-left">Part</th>
+                                <th className="pb-2 text-right">Qty</th>
+                                <th className="pb-2 text-right">Unit Cost</th>
+                                <th className="pb-2 text-right">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(job.parts || []).map(p => (
+                                <tr key={p.id} className="border-b border-slate-800 last:border-0">
+                                  <td className="py-1.5 text-slate-200">
+                                    {p.item.name}
+                                    {p.item.partNumber && <span className="ml-1 text-xs text-slate-500">({p.item.partNumber})</span>}
+                                    {p.notes && <span className="ml-1 text-xs italic text-slate-400">- {p.notes}</span>}
+                                  </td>
+                                  <td className="text-right text-slate-300">{p.quantity} {p.item.unitOfMeasure}</td>
+                                  <td className="text-right text-slate-300">${p.unitCost.toFixed(2)}</td>
+                                  <td className="text-right font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-slate-400">Job Total</td>
+                                <td className="pt-3 text-right font-bold text-slate-100">${jobTotal.toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
                     <div className="mt-3">
                       <Link href={`/jobs/${job.id}`}

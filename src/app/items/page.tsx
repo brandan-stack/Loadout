@@ -342,11 +342,11 @@ export default function ItemCatalog() {
             {items.length} item{items.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
           <Link
             href="/scan"
             prefetch={false}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:text-white hover:bg-white/[0.06]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white sm:flex-none"
             style={{ border: "1px solid rgba(148,163,184,0.15)" }}
           >
             <span style={{ fontSize: "13px" }}>⬡</span>
@@ -354,7 +354,7 @@ export default function ItemCatalog() {
           </Link>
           <button
             onClick={() => { setShowForm(!showForm); setError(""); }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] sm:flex-none"
             style={{
               background: showForm
                 ? "rgba(71,85,105,0.7)"
@@ -375,7 +375,7 @@ export default function ItemCatalog() {
 
       {/* ─── Filter chips + Search ─── */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="horizontal-scroll-row flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 sm:flex-wrap sm:overflow-visible sm:pb-0">
           {(["all", "low", "critical"] as const).map((f) => {
             const labels = { all: "All Parts", low: `Low Stock${lowCount > 0 ? ` (${lowCount})` : ""}`, critical: `Critical${criticalCount > 0 ? ` (${criticalCount})` : ""}` };
             const active = stockFilter === f;
@@ -383,7 +383,7 @@ export default function ItemCatalog() {
               <button
                 key={f}
                 onClick={() => setStockFilter(f)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                 style={{
                   background: active
                     ? f === "critical" ? "rgba(239,68,68,0.18)" : f === "low" ? "rgba(245,158,11,0.16)" : "rgba(255,255,255,0.08)"

@@ -3,12 +3,11 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
-import { PasswordRules } from "@/components/ui/PasswordRules";
 import { AuthLogo } from "@/components/ui/AuthLogo";
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const createdSuccess = searchParams.get("created") === "1";
   const resetSuccess = searchParams.get("reset") === "1";
 
   const [email, setEmail] = useState("");
@@ -16,12 +15,6 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [setupMode, setSetupMode] = useState(false);
-  const [setupOrganizationName, setSetupOrganizationName] = useState("");
-  const [setupName, setSetupName] = useState("");
-  const [setupEmail, setSetupEmail] = useState("");
-  const [setupPassword, setSetupPassword] = useState("");
-  const [setupConfirm, setSetupConfirm] = useState("");
-  const [setupError, setSetupError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [dbError, setDbError] = useState(false);
 
@@ -90,46 +83,9 @@ function LoginForm() {
     }
   };
 
-  const handleSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!setupOrganizationName.trim()) { setSetupError("Business name is required"); return; }
-    if (!setupName.trim()) { setSetupError("Name is required"); return; }
-    if (!isValidEmail(setupEmail.trim().toLowerCase())) { setSetupError("Valid email is required"); return; }
-    const pwCheck = checkPasswordStrength(setupPassword);
-    if (!pwCheck.valid) { setSetupError(pwCheck.message!); return; }
-    if (setupPassword !== setupConfirm) { setSetupError("Passwords do not match"); return; }
-    setSubmitting(true);
-    setSetupError("");
-    try {
-      const res = await fetch("/api/auth/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organizationName: setupOrganizationName.trim(),
-          name: setupName.trim(),
-          email: setupEmail.trim().toLowerCase(),
-          password: setupPassword,
-        }),
-      });
-      if (res.ok) {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("loadout_remembered_email", setupEmail.trim().toLowerCase());
-        }
-        window.location.replace("/");
-      } else {
-        const data = await res.json();
-        setSetupError(data.error || "Setup failed");
-        setSubmitting(false);
-      }
-    } catch {
-      setSetupError("Setup failed. Please try again.");
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 py-8">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
         <div className="text-slate-400 animate-pulse">Loading…</div>
       </div>
     );
@@ -137,7 +93,7 @@ function LoginForm() {
 
   if (dbError) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
         <div className="w-full max-w-sm text-center">
           <AuthLogo />
           <h1 className="text-2xl font-bold text-slate-50 mt-2">Unable to Connect</h1>
@@ -156,97 +112,52 @@ function LoginForm() {
 
   if (setupMode) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <AuthLogo />
-            <h1 className="text-3xl font-bold text-slate-50 mt-2">First-Time Setup</h1>
-            <p className="text-slate-400 text-sm mt-1">Create the first business workspace and superadmin account</p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-50 sm:text-3xl">Sign In</h1>
+            <p className="text-slate-400 text-sm mt-1">Account creation and sign-in are handled on separate pages</p>
           </div>
-          <form onSubmit={handleSetup} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Business Name</label>
-              <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                placeholder="e.g. North Shop HVAC"
-                value={setupOrganizationName}
-                onChange={(e) => setSetupOrganizationName(e.target.value)}
-                autoComplete="organization"
-              />
+          <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-center sm:p-6">
+            <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-sm text-slate-200">
+              No account exists yet. Create the first business account on the separate account creation page, then return here to sign in.
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
-              <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                placeholder="e.g. John Smith"
-                value={setupName}
-                onChange={(e) => setSetupName(e.target.value)}
-                autoComplete="name"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
-              <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                type="email"
-                placeholder="admin@example.com"
-                value={setupEmail}
-                onChange={(e) => setSetupEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
-              <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                type="password"
-                placeholder="Create a strong password"
-                value={setupPassword}
-                onChange={(e) => setSetupPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-              <PasswordRules password={setupPassword} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
-              <input
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                type="password"
-                placeholder="Re-enter password"
-                value={setupConfirm}
-                onChange={(e) => setSetupConfirm(e.target.value)}
-                autoComplete="new-password"
-              />
-            </div>
-            {setupError && <p className="text-red-400 text-xs">{setupError}</p>}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
+            <Link
+              href="/signup"
+              className="block w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors"
               style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
-              {submitting ? "Creating…" : "Create Account & Sign In"}
-            </button>
-          </form>
+              Go to Create Account
+            </Link>
+            <p className="text-xs text-slate-500">
+              Password recovery is available after an account has been created.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-4 py-8">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <AuthLogo />
-          <h1 className="text-3xl font-bold text-slate-50 mt-2">Sign In</h1>
+          <h1 className="mt-2 text-2xl font-bold text-slate-50 sm:text-3xl">Sign In</h1>
           <p className="text-slate-400 text-sm mt-1">Enter your email and password to continue</p>
         </div>
+        {createdSuccess && (
+          <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
+            Account created successfully. Sign in with your email and password.
+          </div>
+        )}
         {resetSuccess && (
           <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
             Password updated successfully. Sign in with your new password.
           </div>
         )}
-        <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6">
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">Email</label>
             <input
@@ -260,7 +171,7 @@ function LoginForm() {
             />
           </div>
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <label className="block text-xs font-semibold text-slate-400">Password</label>
               <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
                 Forgot password?
@@ -299,7 +210,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 py-8">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950 px-4 py-6 sm:py-8">
         <div className="text-slate-400 animate-pulse">Loading…</div>
       </div>
     }>

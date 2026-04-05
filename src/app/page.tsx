@@ -1,12 +1,39 @@
 import Link from "next/link";
 
+const QUICK_LINKS = [
+  { href: "/jobs", label: "Jobs", description: "Track open work orders", icon: "🔧" },
+  { href: "/items", label: "Inventory", description: "Browse parts and stock", icon: "📦" },
+  { href: "/reports", label: "Reports", description: "Review usage and trends", icon: "📊" },
+  { href: "/suppliers", label: "Suppliers", description: "Manage vendors", icon: "🏭" },
+  { href: "/reorder", label: "Reorder", description: "Restock low items", icon: "↺" },
+  { href: "/settings", label: "Settings", description: "Configure the workspace", icon: "⚙" },
+];
+
 export default function Home() {
+  const passwordRecoveryConfigured = Boolean(
+    process.env.SMTP_HOST &&
+    process.env.SMTP_FROM &&
+    (!process.env.SMTP_USER || process.env.SMTP_PASS)
+  );
+
   return (
     <main
       className="flex flex-col items-center px-4 pt-10 pb-8"
-      style={{ minHeight: "calc(100vh - 3.5rem)" }}
+      style={{ minHeight: "calc(100dvh - 3.5rem)" }}
     >
       <div className="w-full max-w-xl">
+        {!passwordRecoveryConfigured && (
+          <div
+            className="mb-4 rounded-2xl px-4 py-3 text-sm"
+            style={{
+              background: "rgba(245, 158, 11, 0.08)",
+              border: "1px solid rgba(245, 158, 11, 0.24)",
+              color: "rgba(253, 224, 71, 0.92)",
+            }}
+          >
+            Password recovery email setup is still required before forgot-password can be used in production.
+          </div>
+        )}
 
         {/* ─── Greeting ─── */}
         <p
@@ -57,7 +84,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-8 flex items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 href="/items"
                 prefetch={false}
@@ -82,6 +109,37 @@ export default function Home() {
               </Link>
             </div>
           </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {QUICK_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              prefetch={false}
+              className="group flex items-start gap-3 rounded-2xl px-4 py-3.5 transition-colors hover:bg-white/[0.04]"
+              style={{
+                background: "rgba(12,17,36,0.78)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                {link.icon}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-100 transition-colors group-hover:text-white">
+                  {link.label}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">{link.description}</span>
+              </span>
+            </Link>
+          ))}
         </div>
 
         {/* ─── Tagline ─── */}

@@ -2,22 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isValidEmail } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { createPasswordResetTokenPair, getAppBaseUrl } from "@/lib/password-reset";
+import { isPasswordRecoveryEmailConfigured, sendPasswordResetEmail } from "@/lib/server-email";
 
 const dbAny = prisma as any;
 
 // Allow 5 requests per hour per IP
 const FORGOT_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 
-function generateToken(): string {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 export async function POST(request: NextRequest) {
   try {
+    if (!isPasswordRecoveryEmailConfigured()) {
+      return NextResponse.json({ error: "Password recovery email is not configured" }, { status: 503 });
+    }
+
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
       request.headers.get("x-real-ip") ??
@@ -35,32 +33,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
 
-    const user = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
+    const user = await dbAny.appUser.findUnique({
+      where: { email: trimmedEmail },
+      include: { organization: { select: { name: true } } },
+    });
 
     if (user) {
-      const token = generateToken();
+      const { token, tokenHash } = createPasswordResetTokenPair();
       const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      const resetUrl = `${getAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(token)}`;
 
       await dbAny.appUser.update({
         where: { id: user.id },
-        data: { resetToken: token, resetTokenExpiry: expiry },
+        data: { resetToken: tokenHash, resetTokenExpiry: expiry },
       });
 
-      // Store token in a short-lived httpOnly cookie so it is never exposed in
-      // the response body (avoids leaking it via browser network logs / server logs).
-      const res = NextResponse.json({ ok: true });
-      res.cookies.set("_loadout_reset", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 3600,
-        path: "/reset-password",
-      });
-      return res;
+      try {
+        await sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          organizationName: user.organization?.name,
+          resetUrl,
+        });
+      } catch (mailError) {
+        console.error("Password reset email send failed:", mailError);
+        await dbAny.appUser.update({
+          where: { id: user.id },
+          data: { resetToken: null, resetTokenExpiry: null },
+        });
+      }
     }
 
-    // Always return ok to avoid leaking which emails are registered.
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, emailSent: true });
   } catch (err) {
     console.error("Forgot password error:", err);
     return NextResponse.json({ error: "Failed to process request" }, { status: 500 });

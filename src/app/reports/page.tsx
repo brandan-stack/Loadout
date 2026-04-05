@@ -62,7 +62,7 @@ export default function ReportsPage() {
             key={report.slug}
             href={`/reports/${report.slug}`}
             prefetch={false}
-            className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03] group"
+            className="group flex items-start gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03]"
             style={{
               background: "rgba(12,17,36,0.85)",
               borderBottom: idx < REPORTS.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
@@ -81,10 +81,10 @@ export default function ReportsPage() {
               <p className="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors">
                 {report.title}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5 truncate">{report.description}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{report.description}</p>
             </div>
             <svg
-              className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors"
+              className="mt-1 shrink-0 text-slate-600 transition-colors group-hover:text-slate-400"
               width="14"
               height="14"
               viewBox="0 0 24 24"

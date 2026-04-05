@@ -91,7 +91,37 @@ export default function DeadStockReportPage() {
 
       {typedData.length > 0 ? (
         <GlassBubbleCard>
-          <div className="overflow-x-auto">
+          <div className="space-y-3 sm:hidden">
+            {typedData.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-slate-700/70 bg-slate-900/55 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-100">{row.name}</p>
+                    <p className="mt-1 font-mono text-xs text-slate-400">{row.barcode || "-"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Unused</p>
+                    <p className="text-base font-semibold text-slate-100">{row.daysUnused}d</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">On Hand</p>
+                    <p className="mt-0.5 text-slate-200">{row.quantityOnHand}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Created</p>
+                    <p className="mt-0.5 text-slate-200">{formatDate(row.createdAt)}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Last Used</p>
+                    <p className="mt-0.5 text-slate-200">{formatDate(row.lastUsed)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[44rem] text-sm">
               <thead>
                 <tr className="border-b border-slate-700">

@@ -185,14 +185,14 @@ export default function UsersPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
           <p className="text-slate-500 text-sm mt-1">Manage team members, emails, passwords, and roles for {me?.organizationName ?? "your business"}</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-xl text-white px-4 py-2 text-sm font-semibold"
+          className="self-start rounded-xl px-4 py-2 text-sm font-semibold text-white sm:self-auto"
           style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
         >
           + Add User

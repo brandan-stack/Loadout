@@ -8,13 +8,6 @@ jest.mock("@/lib/db", () => ({
   prisma: {},
 }));
 
-// Mock the auth module
-jest.mock("@/lib/auth", () => ({
-  signToken: jest.fn().mockResolvedValue("mock-token"),
-  COOKIE_NAME: "loadout_session",
-  MAX_AGE: 604800,
-}));
-
 // Mock bcryptjs
 jest.mock("bcryptjs", () => ({
   hash: jest.fn().mockResolvedValue("hashed-password"),
@@ -48,28 +41,67 @@ describe("POST /api/auth/register", () => {
     (checkRateLimit as jest.Mock).mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 });
   });
 
-  it("returns 200 and sets cookie on successful registration", async () => {
+  async function mockSuccessfulTransaction(userCount = 1) {
     const { prisma } = await import("@/lib/db");
     (prisma as any).appUser = {
       findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: "user-1", name: "Test User", email: "test@example.com", role: "TECH" }),
     };
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const tx = {
+      appUser: {
+        count: jest.fn().mockResolvedValue(userCount),
+        create: jest.fn().mockResolvedValue({
+          id: "user-1",
+          name: "Test User",
+          email: "test@example.com",
+          role: "SUPER_ADMIN",
+          organization: { id: "org-1", name: "Test Org" },
+        }),
+      },
+      organization: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+        create: jest.fn().mockResolvedValue({ id: "org-1", name: "Test Org", contactEmail: "test@example.com" }),
+      },
+      settings: {
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    (prisma as any).$transaction = jest.fn(async (callback: (transaction: typeof tx) => unknown) => callback(tx));
+
+    return { prisma, tx };
+  }
+
+  it("returns 201 without signing in on successful registration", async () => {
+    const { tx } = await mockSuccessfulTransaction();
+
+    const req = makeRequest({
+      organizationName: "Test Org",
+      name: "Test User",
+      email: "test@example.com",
+      password: "TestPass1",
+    });
     const response = await POST(req);
     const data = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
     expect(data.ok).toBe(true);
-    expect(data.role).toBe("TECH");
+    expect(data.role).toBe("SUPER_ADMIN");
     expect(data.name).toBe("Test User");
-    // Verify the session cookie is set
+    expect(data.requiresLogin).toBe(true);
     const setCookie = response.headers.get("set-cookie");
-    expect(setCookie).toContain("loadout_session=mock-token");
+    expect(setCookie).toBeNull();
+    expect(tx.organization.create).toHaveBeenCalledWith({
+      data: {
+        name: "Test Org",
+        contactEmail: "test@example.com",
+      },
+    });
   });
 
   it("returns 400 when name is missing", async () => {
-    const req = makeRequest({ name: "", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "", email: "test@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -77,8 +109,17 @@ describe("POST /api/auth/register", () => {
     expect(data.error).toBe("Name is required");
   });
 
+  it("returns 400 when business name is missing", async () => {
+    const req = makeRequest({ organizationName: "", name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const response = await POST(req);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("Business name is required");
+  });
+
   it("returns 400 when email is invalid", async () => {
-    const req = makeRequest({ name: "Test User", email: "notanemail", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "notanemail", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -87,7 +128,7 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 when password is too short", async () => {
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "Short1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "Short1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -96,7 +137,7 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 when password has no uppercase letter", async () => {
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "lowercase1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "lowercase1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -105,7 +146,7 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 when password has no number", async () => {
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "NoNumberHere" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "NoNumberHere" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -119,7 +160,7 @@ describe("POST /api/auth/register", () => {
       findUnique: jest.fn().mockResolvedValue({ id: "existing-user" }),
     };
 
-    const req = makeRequest({ name: "Test User", email: "existing@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "existing@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -132,10 +173,10 @@ describe("POST /api/auth/register", () => {
     const p2002Error = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
     (prisma as any).appUser = {
       findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockRejectedValue(p2002Error),
     };
+    (prisma as any).$transaction = jest.fn().mockRejectedValue(p2002Error);
 
-    const req = makeRequest({ name: "Test User", email: "race@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "race@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -149,10 +190,10 @@ describe("POST /api/auth/register", () => {
     const { prisma } = await import("@/lib/db");
     (prisma as any).appUser = {
       findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockRejectedValue(new Error("Connection refused")),
     };
+    (prisma as any).$transaction = jest.fn().mockRejectedValue(new Error("Connection refused"));
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -164,7 +205,7 @@ describe("POST /api/auth/register", () => {
     const { checkRateLimit } = require("@/lib/rateLimit");
     (checkRateLimit as jest.Mock).mockReturnValue({ allowed: false, remaining: 0, retryAfterSeconds: 3600 });
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -178,7 +219,7 @@ describe("POST /api/auth/register", () => {
       findUnique: jest.fn().mockRejectedValue(new Error("Database unavailable")),
     };
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     const response = await POST(req);
     const data = await response.json();
 
@@ -188,47 +229,35 @@ describe("POST /api/auth/register", () => {
 
   it("hashes the password before storing", async () => {
     const bcrypt = require("bcryptjs");
-    const { prisma } = await import("@/lib/db");
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: "user-1", name: "Test User", email: "test@example.com", role: "TECH" }),
-    };
+    const { tx } = await mockSuccessfulTransaction();
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     await POST(req);
 
     expect(bcrypt.hash).toHaveBeenCalledWith("TestPass1", 10);
     // Ensure the raw password is NOT passed to create
-    const createCall = (prisma as any).appUser.create.mock.calls[0][0];
+    const createCall = tx.appUser.create.mock.calls[0][0];
     expect(createCall.data.passwordHash).toBe("hashed-password");
     expect(createCall.data).not.toHaveProperty("password");
   });
 
-  it("creates user with TECH role by default", async () => {
-    const { prisma } = await import("@/lib/db");
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: "user-1", name: "Test User", email: "test@example.com", role: "TECH" }),
-    };
+  it("creates user with SUPER_ADMIN role by default", async () => {
+    const { tx } = await mockSuccessfulTransaction();
 
-    const req = makeRequest({ name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     await POST(req);
 
-    const createCall = (prisma as any).appUser.create.mock.calls[0][0];
-    expect(createCall.data.role).toBe("TECH");
+    const createCall = tx.appUser.create.mock.calls[0][0];
+    expect(createCall.data.role).toBe("SUPER_ADMIN");
   });
 
   it("normalises email to lowercase before saving", async () => {
-    const { prisma } = await import("@/lib/db");
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: "user-1", name: "Test", email: "user@example.com", role: "TECH" }),
-    };
+    const { tx } = await mockSuccessfulTransaction();
 
-    const req = makeRequest({ name: "Test", email: "User@EXAMPLE.COM", password: "TestPass1" });
+    const req = makeRequest({ organizationName: "Test Org", name: "Test", email: "User@EXAMPLE.COM", password: "TestPass1" });
     await POST(req);
 
-    const createCall = (prisma as any).appUser.create.mock.calls[0][0];
+    const createCall = tx.appUser.create.mock.calls[0][0];
     expect(createCall.data.email).toBe("user@example.com");
   });
 });

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { hashPasswordResetToken } from "@/lib/password-reset";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
 
 // Allow 5 reset attempts per hour per IP
 const RESET_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
+const MAX_FIELD_LENGTH = 320;
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,10 +26,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Read reset token from httpOnly cookie (never exposed in URL or response body)
-    const token = request.cookies.get("_loadout_reset")?.value;
     const body = await request.json();
-    const password = String(body.password ?? "").slice(0, 320);
+    const token = String(body.token ?? "").trim().slice(0, MAX_FIELD_LENGTH);
+    const password = String(body.password ?? "").slice(0, MAX_FIELD_LENGTH);
 
     if (!token) {
       return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
@@ -38,8 +39,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: pwCheck.message }, { status: 400 });
     }
 
+    const tokenHash = hashPasswordResetToken(token);
     const user = await dbAny.appUser.findFirst({
-      where: { resetToken: String(token) },
+      where: { resetToken: tokenHash },
     });
 
     if (!user) {
@@ -56,10 +58,7 @@ export async function POST(request: NextRequest) {
       data: { passwordHash, resetToken: null, resetTokenExpiry: null },
     });
 
-    const res = NextResponse.json({ ok: true });
-    // Clear the reset cookie — use path "/" to ensure it's removed regardless of origin path
-    res.cookies.set("_loadout_reset", "", { maxAge: 0, path: "/" });
-    return res;
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Reset password error:", err);
     return NextResponse.json({ error: "Failed to reset password" }, { status: 500 });

@@ -181,7 +181,7 @@ export default function SettingsPage() {
     settingKey: ToggleSettingKey;
     badge?: string;
   }) => (
-    <div className="flex items-start justify-between py-3.5 border-b border-white/[0.04] last:border-0">
+    <div className="flex flex-col gap-3 py-3.5 border-b border-white/[0.04] last:border-0 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm text-slate-200">{label}</span>
@@ -202,7 +202,7 @@ export default function SettingsPage() {
       </div>
       <button
         onClick={() => toggle(settingKey)}
-        className="relative ml-5 shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+        className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none sm:ml-5"
         style={{
           background: settings[settingKey] ? "rgba(99,102,241,0.75)" : "rgba(51,65,85,0.8)",
         }}
@@ -235,7 +235,7 @@ export default function SettingsPage() {
       {/* User management */}
       <Link href="/admin/users">
         <div
-          className="mb-5 rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer transition-colors hover:bg-white/[0.04]"
+          className="mb-5 flex cursor-pointer flex-col gap-3 rounded-2xl px-5 py-4 transition-colors hover:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between"
           style={{
             background: "rgba(99,102,241,0.06)",
             border: "1px solid rgba(99,102,241,0.16)",

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -90,26 +89,15 @@ export async function POST(request: NextRequest) {
       return createdUser;
     });
 
-    const token = await signToken({
-      userId: user.id,
-      name: user.name,
-      role: user.role,
-      organizationId: user.organization.id,
-      organizationName: user.organization.name,
-    });
-    const res = NextResponse.json({
-      ok: true,
-      organizationId: user.organization.id,
-      organizationName: user.organization.name,
-    });
-    res.cookies.set(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: MAX_AGE,
-      path: "/",
-    });
-    return res;
+    return NextResponse.json(
+      {
+        ok: true,
+        organizationId: user.organization.id,
+        organizationName: user.organization.name,
+        requiresLogin: true,
+      },
+      { status: 201 }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.errors[0]?.message ?? "Invalid setup data" }, { status: 400 });

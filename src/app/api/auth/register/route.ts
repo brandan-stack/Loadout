@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { signToken, COOKIE_NAME, MAX_AGE, type UserRole } from "@/lib/auth";
 import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcryptjs";
@@ -116,28 +115,17 @@ export async function POST(request: NextRequest) {
 			throw createErr;
 		}
 
-		const token = await signToken({
-			userId: user.id,
-			name: user.name,
-			role: user.role as UserRole,
-			organizationId: user.organization.id,
-			organizationName: user.organization.name,
-		});
-		const res = NextResponse.json({
-			ok: true,
-			role: user.role,
-			name: user.name,
-			organizationId: user.organization.id,
-			organizationName: user.organization.name,
-		});
-		res.cookies.set(COOKIE_NAME, token, {
-			httpOnly: true,
-			secure: process.env.NODE_ENV === "production",
-			sameSite: "strict",
-			maxAge: MAX_AGE,
-			path: "/",
-		});
-		return res;
+		return NextResponse.json(
+			{
+				ok: true,
+				role: user.role,
+				name: user.name,
+				organizationId: user.organization.id,
+				organizationName: user.organization.name,
+				requiresLogin: true,
+			},
+			{ status: 201 }
+		);
 	} catch (err) {
 		console.error("Register error:", err);
 		return NextResponse.json({ error: "Registration failed" }, { status: 500 });

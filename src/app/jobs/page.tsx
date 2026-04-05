@@ -79,7 +79,7 @@ export default function JobsPage() {
     <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
 
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1
             className="font-bold text-white leading-none"
@@ -94,7 +94,7 @@ export default function JobsPage() {
         {user?.role !== "OFFICE" && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+            className="flex items-center justify-center gap-1.5 self-start rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] sm:self-auto"
             style={{
               background: showForm
                 ? "rgba(71,85,105,0.7)"
