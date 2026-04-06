@@ -21,6 +21,12 @@ export interface ReorderRecommendation {
   reason: string;
 }
 
+export interface ReorderRecommendationSummary {
+  urgent: number;
+  high: number;
+  total: number;
+}
+
 export interface ReorderThresholds {
   minQuantity: number;
   maxQuantity: number;

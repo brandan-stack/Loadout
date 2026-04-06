@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { ScanLine, Sparkles } from "lucide-react";
 import {
   getCurrentSectionLabel,
@@ -11,40 +10,14 @@ import {
   isAuthPath,
   isNavItemActive,
 } from "@/components/navigation/navigation-config";
+import { useReorderCounts } from "@/hooks/useReorderCounts";
 import { getNavIcon } from "@/components/navigation/nav-icons";
-
-interface ReorderCounts {
-  urgent: number;
-  high: number;
-  total: number;
-}
 
 export function AppHeader() {
   const pathname = usePathname();
-  const [counts, setCounts] = useState<ReorderCounts | null>(null);
   const mainItems = getDesktopNavItems();
   const utilityItems = getDesktopUtilityNavItems();
-
-  useEffect(() => {
-    if (isAuthPath(pathname)) {
-      return;
-    }
-
-    fetch("/api/reorder/recommendations")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!data) {
-          return;
-        }
-
-        setCounts({
-          urgent: data.urgent ?? 0,
-          high: data.high ?? 0,
-          total: data.count ?? (data.urgent ?? 0) + (data.high ?? 0),
-        });
-      })
-      .catch(() => {});
-  }, [pathname]);
+  const counts = useReorderCounts(!isAuthPath(pathname), pathname);
 
   if (isAuthPath(pathname)) {
     return null;
@@ -60,7 +33,7 @@ export function AppHeader() {
     >
       <div className="mx-auto max-w-[1400px]">
         <div className="md:hidden">
-          <div className="dashboard-rise rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,15,29,0.9),rgba(9,15,29,0.74))] px-4 py-3.5 shadow-[0_18px_42px_rgba(2,6,23,0.38),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+          <div className="dashboard-rise rounded-[1.45rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,15,29,0.92),rgba(9,15,29,0.8))] px-4 py-3 shadow-[0_14px_32px_rgba(2,6,23,0.32),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-md">
             <div className="flex items-center justify-between gap-3">
               <Link href="/" prefetch={false} className="flex min-w-0 items-center gap-3">
                 <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] shadow-[0_16px_28px_rgba(59,130,246,0.26)]">
@@ -89,7 +62,7 @@ export function AppHeader() {
               </Link>
             </div>
 
-            <div className="mt-3.5 flex items-center justify-between gap-3 rounded-[1.2rem] border border-white/8 bg-white/[0.045] px-3.5 py-2.5">
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[1.1rem] border border-white/8 bg-white/[0.04] px-3.5 py-2.5">
               <div className="flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-300/85">
                 <Sparkles className="h-3.5 w-3.5 text-sky-200" />
                 Field Command Center
@@ -104,7 +77,7 @@ export function AppHeader() {
         </div>
 
         <div className="hidden md:block">
-          <div className="dashboard-rise rounded-[1.65rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,20,0.88),rgba(7,11,20,0.74))] px-5 py-3.5 shadow-[0_20px_52px_rgba(2,6,23,0.42),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-2xl">
+          <div className="dashboard-rise rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,20,0.9),rgba(7,11,20,0.78))] px-5 py-3 shadow-[0_16px_40px_rgba(2,6,23,0.34),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-6">
               <Link href="/" prefetch={false} className="flex shrink-0 items-center gap-3.5">
                 <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] shadow-[0_18px_30px_rgba(59,130,246,0.24)]">

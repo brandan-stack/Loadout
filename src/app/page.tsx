@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
@@ -46,11 +47,36 @@ type DashboardLowStockItem = {
   severity: Severity;
 };
 
+type DashboardInventorySnapshotRow = {
+  totalItems: number | bigint;
+  totalUnits: number | bigint | null;
+  supplierCoverage: number | bigint;
+  criticalCount: number | bigint;
+  warningCount: number | bigint;
+};
+
+type DashboardLowStockQueryRow = {
+  id: string;
+  name: string;
+  quantityOnHand: number | bigint;
+  threshold: number | bigint;
+  supplierName: string | null;
+  updatedAt: Date;
+  severity: string;
+};
+
 type DashboardMetric = {
   label: string;
   value: string;
   hint: string;
   icon: LucideIcon;
+  tone: Tone;
+};
+
+type HeroFact = {
+  label: string;
+  value: string;
+  detail: string;
   tone: Tone;
 };
 
@@ -91,28 +117,31 @@ export default async function Home() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [
-    items,
+    inventorySnapshotRows,
     locationsCount,
     suppliersCount,
     openJobsCount,
     recentJobs,
     recentTransactions,
     stockMovementsThisWeek,
+    lowStockRows,
     reorderRecommendations,
   ] = await Promise.all([
-    prisma.item.findMany({
-      where: { organizationId: session.organizationId },
-      select: {
-        id: true,
-        name: true,
-        quantityOnHand: true,
-        lowStockAmberThreshold: true,
-        lowStockRedThreshold: true,
-        updatedAt: true,
-        preferredSupplier: { select: { name: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
+    prisma.$queryRaw<DashboardInventorySnapshotRow[]>(Prisma.sql`
+      SELECT
+        COUNT(*)::int AS "totalItems",
+        COALESCE(SUM(item."quantityOnHand"), 0)::int AS "totalUnits",
+        COUNT(*) FILTER (WHERE item."preferredSupplierId" IS NOT NULL)::int AS "supplierCoverage",
+        COUNT(*) FILTER (
+          WHERE item."quantityOnHand" <= item."lowStockRedThreshold"
+        )::int AS "criticalCount",
+        COUNT(*) FILTER (
+          WHERE item."quantityOnHand" > item."lowStockRedThreshold"
+            AND item."quantityOnHand" <= item."lowStockAmberThreshold"
+        )::int AS "warningCount"
+      FROM "Item" item
+      WHERE item."organizationId" = ${session.organizationId}
+    `),
     prisma.location.count({
       where: { organizationId: session.organizationId, archived: false },
     }),
@@ -153,49 +182,64 @@ export default async function Home() {
         createdAt: { gte: sevenDaysAgo },
       },
     }),
+    prisma.$queryRaw<DashboardLowStockQueryRow[]>(Prisma.sql`
+      SELECT
+        item.id,
+        item.name,
+        item."quantityOnHand",
+        CASE
+          WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN item."lowStockRedThreshold"
+          ELSE item."lowStockAmberThreshold"
+        END::int AS threshold,
+        supplier.name AS "supplierName",
+        item."updatedAt",
+        CASE
+          WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN 'critical'
+          ELSE 'warning'
+        END AS severity
+      FROM "Item" item
+      LEFT JOIN "Supplier" supplier ON supplier.id = item."preferredSupplierId"
+      WHERE item."organizationId" = ${session.organizationId}
+        AND (
+          item."quantityOnHand" <= item."lowStockRedThreshold"
+          OR (
+            item."quantityOnHand" > item."lowStockRedThreshold"
+            AND item."quantityOnHand" <= item."lowStockAmberThreshold"
+          )
+        )
+      ORDER BY
+        CASE WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN 0 ELSE 1 END,
+        item."quantityOnHand" ASC,
+        item."updatedAt" DESC
+      LIMIT 4
+    `),
     getReorderRecommendations(session.organizationId),
   ]);
 
-  const totalItems = items.length;
-  const totalUnits = items.reduce((sum, item) => sum + item.quantityOnHand, 0);
-  const criticalLowStock = items.filter(
-    (item) => item.quantityOnHand <= item.lowStockRedThreshold
-  );
-  const warningLowStock = items.filter(
-    (item) =>
-      item.quantityOnHand > item.lowStockRedThreshold &&
-      item.quantityOnHand <= item.lowStockAmberThreshold
-  );
-  const lowStockCount = criticalLowStock.length + warningLowStock.length;
+  const inventorySnapshot = inventorySnapshotRows[0];
+  const totalItems = Number(inventorySnapshot?.totalItems ?? 0);
+  const totalUnits = Number(inventorySnapshot?.totalUnits ?? 0);
+  const supplierCoverage = Number(inventorySnapshot?.supplierCoverage ?? 0);
+  const criticalLowStockCount = Number(inventorySnapshot?.criticalCount ?? 0);
+  const warningLowStockCount = Number(inventorySnapshot?.warningCount ?? 0);
+  const lowStockCount = criticalLowStockCount + warningLowStockCount;
   const inventoryHealth =
     totalItems === 0
       ? 100
       : Math.max(12, Math.round(((totalItems - lowStockCount) / totalItems) * 100));
-  const supplierCoverage = items.filter((item) => item.preferredSupplier?.name).length;
   const urgentReorders = reorderRecommendations.filter((item) => item.priority === "urgent").length;
   const highReorders = reorderRecommendations.filter((item) => item.priority === "high").length;
-  const actionQueueCount = urgentReorders + highReorders + criticalLowStock.length;
+  const actionQueueCount = urgentReorders + highReorders + criticalLowStockCount;
 
-  const lowStockItems: DashboardLowStockItem[] = [...criticalLowStock, ...warningLowStock]
-    .map((item) => ({
-      id: item.id,
-      name: item.name,
-      quantityOnHand: item.quantityOnHand,
-      threshold:
-        item.quantityOnHand <= item.lowStockRedThreshold
-          ? item.lowStockRedThreshold
-          : item.lowStockAmberThreshold,
-      supplierName: item.preferredSupplier?.name,
-      updatedAt: item.updatedAt,
-      severity: (item.quantityOnHand <= item.lowStockRedThreshold ? "critical" : "warning") as Severity,
-    }))
-    .sort((left, right) => {
-      if (left.severity !== right.severity) {
-        return left.severity === "critical" ? -1 : 1;
-      }
-
-      return left.quantityOnHand - right.quantityOnHand;
-    });
+  const lowStockItems: DashboardLowStockItem[] = lowStockRows.map((item) => ({
+    id: item.id,
+    name: item.name,
+    quantityOnHand: Number(item.quantityOnHand),
+    threshold: Number(item.threshold),
+    supplierName: item.supplierName,
+    updatedAt: item.updatedAt,
+    severity: item.severity === "critical" ? "critical" : "warning",
+  }));
 
   const activity: DashboardActivity[] = [
     ...recentTransactions.map<DashboardActivity>((transaction) => ({
@@ -231,9 +275,12 @@ export default async function Home() {
     .sort((left, right) => right.timestamp.getTime() - left.timestamp.getTime())
     .slice(0, 6);
 
+  const mobileActivity = activity.slice(0, 3);
+  const desktopActivity = activity.slice(0, 4);
+
   const primaryAction = getPrimaryAction({
     urgentReorders,
-    criticalCount: criticalLowStock.length,
+    criticalCount: criticalLowStockCount,
     openJobsCount,
   });
 
@@ -248,7 +295,7 @@ export default async function Home() {
     {
       label: "Low Stock",
       value: formatCompact(lowStockCount),
-      hint: `${formatCompact(criticalLowStock.length)} critical now`,
+      hint: `${formatCompact(criticalLowStockCount)} critical now`,
       icon: AlertTriangle,
       tone: lowStockCount > 0 ? "amber" : "emerald",
     },
@@ -274,8 +321,6 @@ export default async function Home() {
       tone: actionQueueCount > 0 ? "rose" : "sky",
     },
   ];
-
-  const mobileMetrics = desktopMetrics.slice(0, 4);
 
   const quickActions: QuickAction[] = [
     { href: "/items", label: "Add Item", icon: PackagePlus, tone: "sky" },
@@ -352,15 +397,64 @@ export default async function Home() {
   ];
 
   const heroTitle =
-    urgentReorders > 0 || criticalLowStock.length > 0
+    urgentReorders > 0 || criticalLowStockCount > 0
       ? "Stock pressure is rising"
       : openJobsCount > 0
         ? "Field operations are active"
         : "Operations are steady";
 
+  const heroMode =
+    urgentReorders > 0 || criticalLowStockCount > 0
+      ? {
+          tag: "Redline",
+          lead: "Stock pressure is",
+          accent: "building",
+          tone: "rose" as Tone,
+        }
+      : openJobsCount > 0
+        ? {
+            tag: "Live field ops",
+            lead: "The field is",
+            accent: "fully active",
+            tone: "indigo" as Tone,
+          }
+        : {
+            tag: "Cruise control",
+            lead: "Operations are",
+            accent: "dialed in",
+            tone: "emerald" as Tone,
+          };
+
+  const heroFacts: HeroFact[] = [
+    {
+      label: "Health",
+      value: `${inventoryHealth}%`,
+      detail: "Inventory health",
+      tone: lowStockCount > 0 ? "amber" : "emerald",
+    },
+    {
+      label: "Queue",
+      value: formatCompact(actionQueueCount),
+      detail: "Decisions waiting",
+      tone: actionQueueCount > 0 ? "rose" : "sky",
+    },
+    {
+      label: "Jobs",
+      value: formatCompact(openJobsCount),
+      detail: session.role === "TECH" ? "Assigned to you" : "Live field work",
+      tone: "indigo",
+    },
+    {
+      label: "Flow",
+      value: formatCompact(stockMovementsThisWeek),
+      detail: "Stock moves this week",
+      tone: "sky",
+    },
+  ];
+
   return (
-    <main className="relative mx-auto w-full max-w-[1400px] px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[28rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_24%),radial-gradient(circle_at_50%_35%,rgba(14,165,233,0.1),transparent_38%)]" />
+    <main className="relative mx-auto w-full max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_22%),radial-gradient(circle_at_50%_28%,rgba(14,165,233,0.08),transparent_34%)]" />
 
       {!passwordRecoveryConfigured && (
         <div className="mb-5 rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
@@ -369,20 +463,29 @@ export default async function Home() {
       )}
 
       <div className="md:hidden">
-        <section className="panel-interactive dashboard-rise relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(165deg,rgba(10,21,39,0.96),rgba(3,7,18,0.99))] px-5 py-5 shadow-[0_34px_90px_rgba(2,6,23,0.62),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.12),transparent_24%),radial-gradient(circle_at_80%_16%,rgba(129,140,248,0.14),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
+        <section className="dashboard-stage panel-interactive dashboard-rise relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(165deg,rgba(10,21,39,0.97),rgba(4,9,20,0.99))] px-4 py-4 shadow-[0_22px_58px_rgba(2,6,23,0.48),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-lg">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.1),transparent_22%),radial-gradient(circle_at_82%_14%,rgba(129,140,248,0.12),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
           <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/18 bg-sky-300/10 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-sky-50 shadow-[0_0_16px_rgba(56,189,248,0.08)]">
+            <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] shadow-[0_0_16px_rgba(56,189,248,0.08)] ${tonePill(heroMode.tone)}`}>
               <Sparkles className="h-3.5 w-3.5" />
-              Field Overview
+              {heroMode.tag}
             </div>
+            <p className="mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-400/88">
+              {session.organizationName}
+            </p>
 
-            <div className="mt-4 flex items-start justify-between gap-4">
+            <div className="mt-3.5 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h1 className="dashboard-balance max-w-[8ch] text-[2.05rem] font-bold leading-[0.98] tracking-[-0.055em] text-white">
-                  {heroTitle}
+                <h1 className="dashboard-balance max-w-[9ch] text-[1.88rem] font-bold leading-[0.93] tracking-[-0.06em] text-white">
+                  <span className="block">{heroMode.lead}</span>
+                  <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
+                    {heroMode.accent}
+                  </span>
                 </h1>
-                <p className="dashboard-balance mt-3 max-w-[21rem] text-[0.93rem] leading-[1.72] text-slate-200/84">
+                <p className="mt-2 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-400/82">
+                  {heroTitle}
+                </p>
+                <p className="dashboard-balance mt-2.5 max-w-[20rem] text-[0.9rem] leading-[1.62] text-slate-200/84">
                   {buildHeroSummary({
                     organizationName: session.organizationName,
                     inventoryHealth,
@@ -392,11 +495,11 @@ export default async function Home() {
                 </p>
               </div>
 
-              <div className="shrink-0 rounded-[1.35rem] border border-white/12 bg-white/[0.08] px-3.5 py-3.5 text-right shadow-[0_18px_34px_rgba(2,6,23,0.34)] backdrop-blur-md">
+              <div className="dashboard-panel-shell shrink-0 rounded-[1.2rem] border border-white/12 bg-white/[0.07] px-3 py-3 text-right shadow-[0_12px_24px_rgba(2,6,23,0.26)] backdrop-blur-sm">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-300/80">
                   Inventory Health
                 </p>
-                <p className="mt-1.5 text-[1.9rem] font-bold tracking-[-0.05em] text-white">
+                <p className="mt-1 text-[1.7rem] font-bold tracking-[-0.05em] text-white">
                   {inventoryHealth}%
                 </p>
                 <p className="mt-1 text-[0.72rem] font-medium text-slate-300/70">
@@ -405,11 +508,11 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center gap-2.5">
+            <div className="mt-4 flex items-center gap-2.5">
               <Link
                 href={primaryAction.href}
                 prefetch={false}
-                className="inline-flex min-h-[2.85rem] items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(59,130,246,0.28),0_0_22px_rgba(56,189,248,0.16)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(59,130,246,0.34),0_0_28px_rgba(56,189,248,0.22)] active:scale-[0.97]"
+                className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-[0.95rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_14px_28px_rgba(8,145,178,0.26),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_18px_34px_rgba(8,145,178,0.3),0_0_24px_rgba(56,189,248,0.18)] active:scale-[0.97]"
               >
                 {primaryAction.label}
                 <ArrowRight className="h-4 w-4" />
@@ -417,22 +520,22 @@ export default async function Home() {
               <Link
                 href="/scan"
                 prefetch={false}
-                className="inline-flex min-h-[2.85rem] items-center justify-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.06] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.1] active:scale-[0.97]"
+                className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-[0.95rem] border border-white/12 bg-white/[0.05] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08] active:scale-[0.97]"
               >
                 <ScanLine className="h-4 w-4" />
                 Scan
               </Link>
             </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {heroFacts.slice(0, 3).map((fact) => (
+                <HeroFactPill key={fact.label} fact={fact} compact />
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-1 mt-4 grid grid-cols-4 gap-2.5">
-          {mobileMetrics.map((metric) => (
-            <CompactMetricCard key={metric.label} metric={metric} />
-          ))}
-        </section>
-
-        <section className="dashboard-rise dashboard-delay-2 mt-4">
+        <section className="dashboard-rise dashboard-delay-1 dashboard-lazy-section mt-4">
           <SectionHeading title="Quick Actions" detail="Fast paths for field work" />
           <div className="horizontal-scroll-row mt-3 flex gap-2 overflow-x-auto pb-1">
             {quickActions.map((action) => (
@@ -441,25 +544,25 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-3 mt-4">
+        <section className="dashboard-rise dashboard-delay-2 dashboard-lazy-section mt-4">
           <AttentionPanel
-            lowStockItems={lowStockItems.slice(0, 4)}
+            lowStockItems={lowStockItems}
             reorderRecommendations={reorderRecommendations.slice(0, 3)}
-            criticalCount={criticalLowStock.length}
-            warningCount={warningLowStock.length}
+            criticalCount={criticalLowStockCount}
+            warningCount={warningLowStockCount}
             compact
           />
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 mt-4">
-          <ActivityPanel activity={activity} compact />
+        <section className="dashboard-rise dashboard-delay-3 dashboard-lazy-section mt-4">
+          <ActivityPanel activity={mobileActivity} compact />
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 mt-4">
-          <SectionHeading title="Core Workspaces" detail="Dive deeper only when you need it" />
-          <div className="mt-3 grid grid-cols-2 gap-3">
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-4">
+          <SectionHeading title="Launchpad" detail="Your main workspaces, without the wall of cards" />
+          <div className="horizontal-scroll-row mt-3 flex gap-3 overflow-x-auto pb-1">
             {workspaceCards.map((card) => (
-              <WorkspaceTile key={card.title} card={card} compact />
+              <WorkspaceTile key={card.title} card={card} compact rail />
             ))}
           </div>
         </section>
@@ -472,20 +575,29 @@ export default async function Home() {
           ))}
         </section>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.84fr)]">
-          <div className="panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[2.1rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-8 py-8 shadow-[0_42px_110px_rgba(2,6,23,0.68),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.14),transparent_24%),radial-gradient(circle_at_82%_16%,rgba(129,140,248,0.16),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
+        <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.88fr)]">
+          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-6 py-6 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
-            <div className="relative flex items-start justify-between gap-8">
+            <div className="relative flex items-start justify-between gap-6">
               <div className="max-w-[44rem]">
-                <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/18 bg-sky-300/10 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-50 shadow-[0_0_18px_rgba(56,189,248,0.08)]">
+                <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(45,212,191,0.08)] ${tonePill(heroMode.tone)}`}>
                   <Sparkles className="h-3.5 w-3.5" />
-                  Operational Pulse
+                  {heroMode.tag}
                 </div>
-                <h1 className="dashboard-balance mt-5 max-w-[11ch] text-[3.7rem] font-bold leading-[0.88] tracking-[-0.065em] text-white xl:text-[4.15rem]">
-                  {heroTitle}
+                <p className="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-slate-400/88">
+                  {session.organizationName}
+                </p>
+                <h1 className="dashboard-balance mt-4 max-w-[12ch] text-[3.08rem] font-bold leading-[0.88] tracking-[-0.07em] text-white xl:text-[3.6rem]">
+                  <span className="block">{heroMode.lead}</span>
+                  <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
+                    {heroMode.accent}
+                  </span>
                 </h1>
-                <p className="dashboard-balance mt-5 max-w-[44rem] text-[1.03rem] leading-[1.95] text-slate-200/84">
+                <p className="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/80">
+                  {heroTitle}
+                </p>
+                <p className="dashboard-balance mt-4 max-w-[42rem] text-[0.98rem] leading-[1.72] text-slate-200/84">
                   {buildHeroSummary({
                     organizationName: session.organizationName,
                     inventoryHealth,
@@ -494,11 +606,11 @@ export default async function Home() {
                   })}
                 </p>
 
-                <div className="mt-7 flex flex-wrap items-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center gap-3">
                   <Link
                     href={primaryAction.href}
                     prefetch={false}
-                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#4f46e5_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_18px_36px_rgba(59,130,246,0.3),0_0_24px_rgba(56,189,248,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_48px_rgba(59,130,246,0.36),0_0_28px_rgba(56,189,248,0.24)]"
+                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
                   >
                     {primaryAction.label}
                     <ArrowRight className="h-4 w-4" />
@@ -506,36 +618,22 @@ export default async function Home() {
                   <Link
                     href="/scan"
                     prefetch={false}
-                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.06] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.1]"
+                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08]"
                   >
                     <ScanLine className="h-4 w-4" />
                     Open scanner
                   </Link>
                 </div>
 
-                <div className="mt-8 grid gap-4 lg:grid-cols-3">
-                  <HeroSignal
-                    title="Inventory Health"
-                    value={`${inventoryHealth}%`}
-                    detail={lowStockCount > 0 ? `${lowStockCount} stock alerts active` : "No low stock blockers"}
-                    tone={lowStockCount > 0 ? "amber" : "emerald"}
-                  />
-                  <HeroSignal
-                    title="Weekly Flow"
-                    value={formatCompact(stockMovementsThisWeek)}
-                    detail={stockMovementsThisWeek > 0 ? "Stock activity captured this week" : "No stock activity logged this week"}
-                    tone="sky"
-                  />
-                  <HeroSignal
-                    title="Supplier Links"
-                    value={formatCompact(supplierCoverage)}
-                    detail={suppliersCount > 0 ? `${suppliersCount} active suppliers configured` : "Supplier setup still open"}
-                    tone="indigo"
-                  />
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  {heroFacts.map((fact) => (
+                    <HeroFactPill key={fact.label} fact={fact} />
+                  ))}
                 </div>
               </div>
 
-              <div className="panel-interactive w-full max-w-[18rem] rounded-[1.7rem] border border-white/12 bg-white/[0.07] p-5 shadow-[0_24px_48px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
+              <div className="dashboard-panel-shell panel-interactive w-full max-w-[17rem] rounded-[1.5rem] border border-white/12 bg-white/[0.06] p-4 shadow-[0_18px_36px_rgba(2,6,23,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm">
+                <div className="mb-3 h-1 w-16 rounded-full bg-[linear-gradient(90deg,rgba(251,113,133,0.95),rgba(56,189,248,0.42))]" />
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300/78">
                   Priority Queue
                 </p>
@@ -544,12 +642,12 @@ export default async function Home() {
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-200/76">
                   {actionQueueCount > 0
-                    ? `${criticalLowStock.length} critical stock issues and ${urgentReorders + highReorders} reorder decisions need review.`
+                    ? `${criticalLowStockCount} critical stock issues and ${urgentReorders + highReorders} reorder decisions need review.`
                     : "No urgent blockers. The workspace is ready for normal flow."}
                 </p>
 
-                <div className="mt-5 space-y-3">
-                  <FocusRow label="Critical stock" value={formatCompact(criticalLowStock.length)} tone="rose" />
+                <div className="mt-4 space-y-2.5">
+                  <FocusRow label="Critical stock" value={formatCompact(criticalLowStockCount)} tone="rose" />
                   <FocusRow label="Reorder queue" value={formatCompact(urgentReorders + highReorders)} tone="amber" />
                   <FocusRow label="Open jobs" value={formatCompact(openJobsCount)} tone="indigo" />
                 </div>
@@ -557,31 +655,33 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="dashboard-rise dashboard-delay-3 grid gap-5">
+          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section grid gap-4">
             <AttentionPanel
-              lowStockItems={lowStockItems.slice(0, 4)}
+              lowStockItems={lowStockItems}
               reorderRecommendations={reorderRecommendations.slice(0, 3)}
-              criticalCount={criticalLowStock.length}
-              warningCount={warningLowStock.length}
+              criticalCount={criticalLowStockCount}
+              warningCount={warningLowStockCount}
             />
-            <ActivityPanel activity={activity} />
+            <ActivityPanel activity={desktopActivity} />
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 mt-6">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Core Workspaces</h2>
-              <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-                Keep the live operating picture front and center, then move into the right workspace.
-              </p>
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-5">
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-5 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
+                <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
+                  The main workspaces stay one swipe away instead of taking over the page.
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-            {workspaceCards.map((card) => (
-              <WorkspaceTile key={card.title} card={card} />
-            ))}
+            <div className="horizontal-scroll-row mt-4 flex gap-4 overflow-x-auto pb-1">
+              {workspaceCards.map((card) => (
+                <WorkspaceTile key={card.title} card={card} rail />
+              ))}
+            </div>
           </div>
         </section>
       </div>
@@ -589,36 +689,41 @@ export default async function Home() {
   );
 }
 
-function CompactMetricCard({ metric }: { metric: DashboardMetric }) {
+function DesktopMetricCard({ metric }: { metric: DashboardMetric }) {
   return (
-    <div className="panel-interactive rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.66))] px-3 py-3 shadow-[0_14px_30px_rgba(2,6,23,0.26)] backdrop-blur">
-      <div className="mb-2 h-1 w-10 rounded-full" style={{ background: toneGradient(metric.tone) }} />
-      <div className="flex items-center justify-between gap-2">
-        <metric.icon className={`h-3.5 w-3.5 ${toneText(metric.tone)}`} />
-        <span className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
-          {metric.label}
-        </span>
+    <div className="dashboard-panel-shell panel-interactive relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.72))] p-4 shadow-[0_18px_40px_rgba(2,6,23,0.3)] backdrop-blur-sm hover:shadow-[0_24px_48px_rgba(2,6,23,0.4)]">
+      <div className="pointer-events-none absolute inset-0 opacity-80" style={{ background: tileOverlay(metric.tone) }} />
+      <div className="relative">
+        <div className="mb-3 h-1.5 w-14 rounded-full" style={{ background: toneGradient(metric.tone) }} />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-slate-400">{metric.label}</p>
+            <p className="mt-3 text-3xl font-bold tracking-[-0.05em] text-white">{metric.value}</p>
+          </div>
+          <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[0.68rem] font-semibold ${tonePill(metric.tone)}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            <metric.icon className="h-3.5 w-3.5" />
+          </span>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-300/72">{metric.hint}</p>
       </div>
-      <p className="mt-2 text-[1.25rem] font-bold tracking-[-0.04em] text-white">{metric.value}</p>
     </div>
   );
 }
 
-function DesktopMetricCard({ metric }: { metric: DashboardMetric }) {
+function HeroFactPill({ fact, compact = false }: { fact: HeroFact; compact?: boolean }) {
   return (
-    <div className="panel-interactive rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.68))] p-4 shadow-[0_18px_40px_rgba(2,6,23,0.3)] backdrop-blur hover:shadow-[0_24px_48px_rgba(2,6,23,0.4)]">
-      <div className="mb-3 h-1.5 w-14 rounded-full" style={{ background: toneGradient(metric.tone) }} />
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-slate-200/88">{metric.label}</p>
-          <p className="mt-3 text-3xl font-bold tracking-[-0.05em] text-white">{metric.value}</p>
-        </div>
-        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[0.68rem] font-semibold ${tonePill(metric.tone)}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          <metric.icon className="h-3.5 w-3.5" />
-        </span>
+    <div
+      className={`dashboard-panel-shell panel-interactive overflow-hidden rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] ${compact ? "px-3 py-2.5" : "min-w-[10.5rem] px-3.5 py-3"} shadow-[0_14px_28px_rgba(2,6,23,0.2)] backdrop-blur-sm`}
+    >
+      <div className="relative">
+        <div className="mb-2 h-1 w-10 rounded-full" style={{ background: toneGradient(fact.tone) }} />
+        <p className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{fact.label}</p>
+        <p className={`mt-1.5 font-bold tracking-[-0.05em] ${compact ? "text-[1.2rem]" : "text-[1.55rem]"} text-white`}>
+          {fact.value}
+        </p>
+        {!compact && <p className="mt-1 text-[0.78rem] text-slate-300/72">{fact.detail}</p>}
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-300/72">{metric.hint}</p>
     </div>
   );
 }
@@ -628,12 +733,13 @@ function QuickActionChip({ action }: { action: QuickAction }) {
     <Link
       href={action.href}
       prefetch={false}
-      className={`panel-interactive group inline-flex min-h-[3rem] shrink-0 items-center gap-2 rounded-[1rem] border px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] ${quickActionClasses(action.tone)}`}
+      className={`dashboard-panel-shell panel-interactive group inline-flex min-h-[3rem] shrink-0 items-center gap-2 rounded-[1rem] border px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] ${quickActionClasses(action.tone)}`}
     >
       <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border ${quickActionIconClasses(action.tone)}`}>
         <action.icon className="h-4 w-4" />
       </span>
       <span>{action.label}</span>
+      <ArrowRight className="h-3.5 w-3.5 text-current/70 transition-transform duration-300 group-hover:translate-x-0.5" />
     </Link>
   );
 }
@@ -652,14 +758,14 @@ function AttentionPanel({
   compact?: boolean;
 }) {
   return (
-    <section className={`panel-interactive rounded-[1.8rem] border border-rose-300/16 bg-[linear-gradient(180deg,rgba(50,11,24,0.72),rgba(15,23,42,0.84))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_42px_rgba(2,6,23,0.34),0_0_28px_rgba(251,113,133,0.08)] backdrop-blur`}>
+    <section className={`dashboard-panel-shell panel-interactive rounded-[1.8rem] border border-rose-300/16 bg-[linear-gradient(180deg,rgba(50,11,24,0.72),rgba(15,23,42,0.84))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_42px_rgba(2,6,23,0.34),0_0_28px_rgba(251,113,133,0.08)] backdrop-blur-sm`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-rose-300/18 bg-rose-300/10 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-rose-50">
             <AlertTriangle className="h-3.5 w-3.5" />
             Priority Queue
           </div>
-          <h2 className="mt-3 text-lg font-semibold tracking-[-0.02em] text-white">Inventory pressure</h2>
+          <h2 className="mt-3 text-lg font-semibold tracking-[-0.02em] text-white">Pressure deck</h2>
           <p className="mt-1.5 text-sm leading-6 text-slate-200/82">
             Surface the items that need review first so the next move is obvious.
           </p>
@@ -718,10 +824,10 @@ function ActivityPanel({
   compact?: boolean;
 }) {
   return (
-    <section className={`panel-interactive rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_40px_rgba(2,6,23,0.32)] backdrop-blur`}>
+    <section className={`dashboard-panel-shell panel-interactive rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_40px_rgba(2,6,23,0.32)] backdrop-blur-sm`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">Recent log</h2>
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">Recent signal</h2>
           <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
             Latest stock events and field work changes.
           </p>
@@ -740,51 +846,42 @@ function ActivityPanel({
   );
 }
 
-function WorkspaceTile({ card, compact = false }: { card: WorkspaceCard; compact?: boolean }) {
+function WorkspaceTile({
+  card,
+  compact = false,
+  rail = false,
+}: {
+  card: WorkspaceCard;
+  compact?: boolean;
+  rail?: boolean;
+}) {
   return (
     <Link
       href={card.href}
       prefetch={false}
-      className={`panel-interactive group relative overflow-hidden rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_38px_rgba(2,6,23,0.3)] backdrop-blur hover:shadow-[0_24px_48px_rgba(2,6,23,0.38)] active:scale-[0.99]`}
+      className={`dashboard-panel-shell panel-interactive group relative overflow-hidden rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} ${rail ? "w-[15.5rem] shrink-0" : ""} shadow-[0_18px_38px_rgba(2,6,23,0.3)] backdrop-blur-sm hover:shadow-[0_24px_48px_rgba(2,6,23,0.38)] active:scale-[0.99]`}
     >
       <div className="pointer-events-none absolute inset-0 opacity-80" style={{ background: tileOverlay(card.tone) }} />
       <div className="relative flex items-start justify-between gap-3">
-        <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border shadow-[0_12px_22px_rgba(2,6,23,0.16)] ${toneIconSurface(card.tone)}`}>
+        <span className={`inline-flex ${compact ? "h-10 w-10 rounded-[1rem]" : "h-11 w-11 rounded-2xl"} items-center justify-center border shadow-[0_12px_22px_rgba(2,6,23,0.16)] ${toneIconSurface(card.tone)}`}>
           <card.icon className="h-[1.125rem] w-[1.125rem]" />
         </span>
-        <ArrowRight className="h-4 w-4 text-slate-500 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-slate-200" />
+        <div className="text-right">
+          <span className="block text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-slate-500/82">Open</span>
+          <ArrowRight className="ml-auto mt-1 h-4 w-4 text-slate-500 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-slate-200" />
+        </div>
       </div>
-      <p className={`relative ${compact ? "mt-4" : "mt-5"} text-sm font-medium text-slate-200/88`}>{card.title}</p>
-      <p className="relative mt-2 text-3xl font-bold tracking-[-0.05em] text-white">{card.value}</p>
-      <p className="relative mt-2 text-sm leading-6 text-slate-300/74">{card.detail}</p>
+      <p className="relative mt-3 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-slate-400/82">Workspace</p>
+      <p className={`relative ${compact ? "mt-2 text-[0.82rem]" : "mt-4 text-sm"} font-medium text-slate-200/88`}>{card.title}</p>
+      <p className={`relative ${compact ? "mt-1.5 text-[1.75rem]" : "mt-2 text-3xl"} font-bold tracking-[-0.05em] text-white`}>{card.value}</p>
+      <p className={`relative ${compact ? "mt-1.5 text-[0.82rem] leading-5" : "mt-2 text-sm leading-6"} text-slate-300/74`}>{card.detail}</p>
     </Link>
-  );
-}
-
-function HeroSignal({
-  title,
-  value,
-  detail,
-  tone,
-}: {
-  title: string;
-  value: string;
-  detail: string;
-  tone: Tone;
-}) {
-  return (
-    <div className="panel-interactive rounded-[1.45rem] border border-white/10 bg-white/[0.05] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.22)] backdrop-blur">
-      <div className="mb-3 h-1.5 w-12 rounded-full" style={{ background: toneGradient(tone) }} />
-      <p className="text-[0.74rem] font-semibold uppercase tracking-[0.18em] text-slate-300/72">{title}</p>
-      <p className="mt-2 text-3xl font-bold tracking-[-0.05em] text-white">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-300/74">{detail}</p>
-    </div>
   );
 }
 
 function FocusRow({ label, value, tone }: { label: string; value: string; tone: Tone }) {
   return (
-    <div className="panel-interactive flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] px-3.5 py-3">
+    <div className="dashboard-panel-shell panel-interactive flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] px-3.5 py-3">
       <span className="text-sm font-medium text-slate-300/84">{label}</span>
       <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[0.72rem] font-semibold ${tonePill(tone)}`}>
         <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -796,7 +893,7 @@ function FocusRow({ label, value, tone }: { label: string; value: string; tone: 
 
 function SummaryFlag({ label, value, tone }: { label: string; value: string; tone: Tone }) {
   return (
-    <div className="rounded-[1.15rem] border border-white/10 bg-black/10 px-3.5 py-3 backdrop-blur-sm">
+    <div className="dashboard-panel-shell rounded-[1.15rem] border border-white/10 bg-black/10 px-3.5 py-3 backdrop-blur-sm">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-300/72">{label}</p>
       <p className={`mt-1 text-2xl font-bold tracking-[-0.04em] ${toneText(tone)}`}>{value}</p>
     </div>
@@ -908,6 +1005,7 @@ function SectionHeading({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="flex items-end justify-between gap-3">
       <div>
+        <div className="mb-2 h-px w-14 bg-[linear-gradient(90deg,rgba(56,189,248,0.9),rgba(251,113,133,0.2))]" />
         <h2 className="text-[0.92rem] font-semibold uppercase tracking-[0.18em] text-slate-300/82">{title}</h2>
         <p className="mt-1 text-sm leading-6 text-slate-400/82">{detail}</p>
       </div>
