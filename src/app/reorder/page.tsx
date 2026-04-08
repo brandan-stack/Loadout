@@ -1,6 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,6 +8,9 @@ import {
   Sparkles,
   Truck,
 } from "lucide-react";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
 import type { ReorderRecommendation } from "@/lib/reorder/types";
 
 type ReorderStats = {
@@ -29,36 +29,20 @@ type SummaryCard = {
   icon: typeof ShoppingCart;
 };
 
-export default function ReorderPage() {
-  const [recommendations, setRecommendations] = useState<ReorderRecommendation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<ReorderStats>({
-    urgent: 0,
-    high: 0,
-    total: 0,
-  });
+export default async function ReorderPage() {
+  const session = await getSession();
 
-  useEffect(() => {
-    fetchRecommendations();
-  }, []);
-
-  async function fetchRecommendations() {
-    try {
-      const res = await fetch("/api/reorder/recommendations", { cache: "no-store" });
-      const data = await res.json();
-
-      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : []);
-      setStats({
-        urgent: data.urgent || 0,
-        high: data.high || 0,
-        total: data.count || 0,
-      });
-    } catch (error) {
-      console.error("Failed to fetch recommendations:", error);
-    } finally {
-      setLoading(false);
-    }
+  if (!session) {
+    redirect("/login");
   }
+
+  const snapshot = await getReorderRecommendationSnapshot(session.organizationId);
+  const recommendations = snapshot.recommendations;
+  const stats: ReorderStats = {
+    urgent: snapshot.summary.urgent,
+    high: snapshot.summary.high,
+    total: snapshot.summary.total,
+  };
 
   const nextRecommendation = recommendations[0] ?? null;
   const riskLabel =
@@ -95,7 +79,7 @@ export default function ReorderPage() {
     },
     {
       label: "Suppliers",
-      value: formatCompact(recommendations.filter((item) => item.preferredSupplier).length),
+      value: formatCompact(snapshot.linkedSupplierCount),
       detail: "Routed with vendors",
       tone: "indigo",
       icon: Truck,
@@ -103,7 +87,7 @@ export default function ReorderPage() {
   ];
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+    <main className="performance-dashboard mx-auto w-full max-w-[1400px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.1),transparent_22%),radial-gradient(circle_at_50%_26%,rgba(244,63,94,0.08),transparent_32%)]" />
 
       <section className="dashboard-stage panel-interactive relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl sm:px-6 sm:py-6 lg:px-7">
@@ -218,23 +202,7 @@ export default function ReorderPage() {
             </p>
           </div>
 
-          {loading ? (
-            <div className="grid gap-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="dashboard-panel-shell overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.68))] p-5 shadow-[0_18px_38px_rgba(2,6,23,0.24)]"
-                >
-                  <div className="h-4 w-32 animate-pulse rounded bg-white/10" />
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {Array.from({ length: 4 }).map((__, metricIndex) => (
-                      <div key={metricIndex} className="h-14 animate-pulse rounded-[1rem] bg-white/5" />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : recommendations.length === 0 ? (
+          {recommendations.length === 0 ? (
             <EmptyQueueState />
           ) : (
             <div className="grid gap-3">
@@ -267,7 +235,7 @@ export default function ReorderPage() {
             <div className="mt-4 space-y-3">
               <QueueStat label="Critical items" value={formatCompact(stats.urgent)} tone="rose" />
               <QueueStat label="Watchlist items" value={formatCompact(stats.high)} tone="amber" />
-              <QueueStat label="Linked suppliers" value={formatCompact(recommendations.filter((item) => item.preferredSupplier).length)} tone="indigo" />
+              <QueueStat label="Linked suppliers" value={formatCompact(snapshot.linkedSupplierCount)} tone="indigo" />
             </div>
           </div>
         </aside>
@@ -294,7 +262,7 @@ function RecommendationCard({ recommendation }: { recommendation: ReorderRecomme
   const tone = priorityTone(recommendation.priority);
 
   return (
-    <article className="dashboard-panel-shell panel-interactive relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.7))] p-5 shadow-[0_18px_38px_rgba(2,6,23,0.24)] backdrop-blur-sm">
+    <article className="reorder-card-lazy dashboard-panel-shell panel-interactive relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.7))] p-5 shadow-[0_18px_38px_rgba(2,6,23,0.24)] backdrop-blur-sm">
       <div className="pointer-events-none absolute inset-0 opacity-75" style={{ background: tileOverlay(tone) }} />
 
       <div className="relative">

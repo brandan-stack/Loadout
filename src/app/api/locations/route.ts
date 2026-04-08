@@ -15,15 +15,28 @@ export async function GET(request: NextRequest) {
       return auth.response;
     }
 
-    const locations = await prisma.location.findMany({
-      where: { archived: false, organizationId: auth.context.organizationId },
-      orderBy: { name: "asc" },
-      include: {
-        stock: {
-          include: { item: { select: { id: true, name: true } } },
-        },
-      },
-    });
+    const includeStock = request.nextUrl.searchParams.get("includeStock") === "1";
+
+    const locations = includeStock
+      ? await prisma.location.findMany({
+          where: { archived: false, organizationId: auth.context.organizationId },
+          orderBy: { name: "asc" },
+          include: {
+            stock: {
+              include: { item: { select: { id: true, name: true } } },
+            },
+          },
+        })
+      : await prisma.location.findMany({
+          where: { archived: false, organizationId: auth.context.organizationId },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        });
+
     return NextResponse.json(locations);
   } catch (error) {
     console.error("Locations GET error:", error);

@@ -46,11 +46,26 @@ export async function GET(request: NextRequest) {
       return auth.response;
     }
 
-    const items = await dbAny.item.findMany({
+    const items = await prisma.item.findMany({
       where: { organizationId: auth.context.organizationId },
-      include: {
-        photos: true,
-        preferredSupplier: true,
+      select: {
+        id: true,
+        name: true,
+        manufacturer: true,
+        partNumber: true,
+        modelNumber: true,
+        serialNumber: true,
+        barcode: true,
+        description: true,
+        photoUrl: true,
+        quantityOnHand: true,
+        quantityUsedTotal: true,
+        lowStockAmberThreshold: true,
+        lowStockRedThreshold: true,
+        preferredSupplierId: true,
+        lastUnitCost: true,
+        unitOfMeasure: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "desc" },
     });

@@ -61,7 +61,6 @@ export default function ReportsPage() {
           <Link
             key={report.slug}
             href={`/reports/${report.slug}`}
-            prefetch={false}
             className="group flex items-start gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03]"
             style={{
               background: "rgba(12,17,36,0.85)",

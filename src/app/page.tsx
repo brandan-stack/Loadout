@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getReorderRecommendations } from "@/lib/reorder/suggestion-service";
+import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
 import type { ReorderRecommendation } from "@/lib/reorder/types";
 
 type Severity = "critical" | "warning";
@@ -125,7 +125,7 @@ export default async function Home() {
     recentTransactions,
     stockMovementsThisWeek,
     lowStockRows,
-    reorderRecommendations,
+    reorderSnapshot,
   ] = await Promise.all([
     prisma.$queryRaw<DashboardInventorySnapshotRow[]>(Prisma.sql`
       SELECT
@@ -213,9 +213,10 @@ export default async function Home() {
         item."updatedAt" DESC
       LIMIT 4
     `),
-    getReorderRecommendations(session.organizationId),
+    getReorderRecommendationSnapshot(session.organizationId, 3),
   ]);
 
+  const reorderRecommendations = reorderSnapshot.recommendations;
   const inventorySnapshot = inventorySnapshotRows[0];
   const totalItems = Number(inventorySnapshot?.totalItems ?? 0);
   const totalUnits = Number(inventorySnapshot?.totalUnits ?? 0);
@@ -227,8 +228,8 @@ export default async function Home() {
     totalItems === 0
       ? 100
       : Math.max(12, Math.round(((totalItems - lowStockCount) / totalItems) * 100));
-  const urgentReorders = reorderRecommendations.filter((item) => item.priority === "urgent").length;
-  const highReorders = reorderRecommendations.filter((item) => item.priority === "high").length;
+  const urgentReorders = reorderSnapshot.summary.urgent;
+  const highReorders = reorderSnapshot.summary.high;
   const actionQueueCount = urgentReorders + highReorders + criticalLowStockCount;
 
   const lowStockItems: DashboardLowStockItem[] = lowStockRows.map((item) => ({
@@ -453,7 +454,7 @@ export default async function Home() {
   ];
 
   return (
-    <main className="relative mx-auto w-full max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+    <main className="performance-dashboard relative mx-auto w-full max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_22%),radial-gradient(circle_at_50%_28%,rgba(14,165,233,0.08),transparent_34%)]" />
 
       {!passwordRecoveryConfigured && (
@@ -511,7 +512,6 @@ export default async function Home() {
             <div className="mt-4 flex items-center gap-2.5">
               <Link
                 href={primaryAction.href}
-                prefetch={false}
                 className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-[0.95rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_14px_28px_rgba(8,145,178,0.26),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_18px_34px_rgba(8,145,178,0.3),0_0_24px_rgba(56,189,248,0.18)] active:scale-[0.97]"
               >
                 {primaryAction.label}
@@ -519,7 +519,6 @@ export default async function Home() {
               </Link>
               <Link
                 href="/scan"
-                prefetch={false}
                 className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-[0.95rem] border border-white/12 bg-white/[0.05] px-4 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08] active:scale-[0.97]"
               >
                 <ScanLine className="h-4 w-4" />
@@ -609,7 +608,6 @@ export default async function Home() {
                 <div className="mt-6 flex flex-wrap items-center gap-3">
                   <Link
                     href={primaryAction.href}
-                    prefetch={false}
                     className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
                   >
                     {primaryAction.label}
@@ -617,7 +615,6 @@ export default async function Home() {
                   </Link>
                   <Link
                     href="/scan"
-                    prefetch={false}
                     className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08]"
                   >
                     <ScanLine className="h-4 w-4" />
@@ -732,7 +729,6 @@ function QuickActionChip({ action }: { action: QuickAction }) {
   return (
     <Link
       href={action.href}
-      prefetch={false}
       className={`dashboard-panel-shell panel-interactive group inline-flex min-h-[3rem] shrink-0 items-center gap-2 rounded-[1rem] border px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] ${quickActionClasses(action.tone)}`}
     >
       <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border ${quickActionIconClasses(action.tone)}`}>
@@ -772,7 +768,6 @@ function AttentionPanel({
         </div>
         <Link
           href="/reorder"
-          prefetch={false}
           className="inline-flex min-h-[2.7rem] items-center rounded-[1rem] border border-rose-300/15 bg-rose-300/10 px-3.5 py-2 text-sm font-semibold text-rose-50 transition-all duration-300 hover:bg-rose-300/16"
         >
           Review queue
@@ -858,7 +853,6 @@ function WorkspaceTile({
   return (
     <Link
       href={card.href}
-      prefetch={false}
       className={`dashboard-panel-shell panel-interactive group relative overflow-hidden rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} ${rail ? "w-[15.5rem] shrink-0" : ""} shadow-[0_18px_38px_rgba(2,6,23,0.3)] backdrop-blur-sm hover:shadow-[0_24px_48px_rgba(2,6,23,0.38)] active:scale-[0.99]`}
     >
       <div className="pointer-events-none absolute inset-0 opacity-80" style={{ background: tileOverlay(card.tone) }} />
@@ -904,7 +898,6 @@ function LowStockRow({ item }: { item: DashboardLowStockItem }) {
   return (
     <Link
       href="/items"
-      prefetch={false}
       className={`panel-interactive group block rounded-[1.25rem] border px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.2)] ${
         item.severity === "critical"
             ? "border-rose-300/18 bg-rose-300/10 hover:bg-rose-300/12"
@@ -939,7 +932,6 @@ function ReorderRow({ item }: { item: ReorderRecommendation }) {
   return (
     <Link
       href="/reorder"
-      prefetch={false}
       className={`panel-interactive group block rounded-[1.25rem] border px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.2)] ${
         item.priority === "urgent"
             ? "border-rose-300/18 bg-rose-300/10 hover:bg-rose-300/12"
@@ -973,7 +965,6 @@ function ActivityRow({ entry }: { entry: DashboardActivity }) {
   return (
     <Link
       href={entry.href}
-      prefetch={false}
       className="panel-interactive group flex items-start gap-4 rounded-[1.35rem] border border-white/10 bg-white/[0.04] px-4 py-4 shadow-[0_12px_28px_rgba(2,6,23,0.18)] hover:border-white/14 hover:bg-white/[0.06]"
     >
       <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneIconSurface(entry.tone)}`}>

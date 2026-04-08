@@ -35,7 +35,6 @@ export function BottomNav() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  prefetch={false}
                   className={`mobile-bottom-nav-item panel-interactive group relative flex min-w-[4.85rem] shrink-0 snap-center flex-col items-center justify-center rounded-[1.2rem] px-2.5 py-2.5 text-center active:scale-[0.98] ${
                     active
                       ? "bg-white/[0.09] text-white shadow-[0_14px_28px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.08)]"

@@ -3,8 +3,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getItemReorderRecommendation,
+  getReorderRecommendationSnapshot,
   getReorderRecommendationSummary,
-  getReorderRecommendations,
 } from "@/lib/reorder/suggestion-service";
 import { requireRequestContext } from "@/lib/request-context";
 
@@ -35,26 +35,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(summary);
     }
 
-    // All items recommendations
-    const recommendations = await getReorderRecommendations(auth.context.organizationId);
-    let urgent = 0;
-    let high = 0;
-
-    for (const recommendation of recommendations) {
-      if (recommendation.priority === "urgent") {
-        urgent += 1;
-      }
-
-      if (recommendation.priority === "high") {
-        high += 1;
-      }
-    }
+    const snapshot = await getReorderRecommendationSnapshot(auth.context.organizationId);
 
     return NextResponse.json({
-      recommendations,
-      count: recommendations.length,
-      urgent,
-      high,
+      recommendations: snapshot.recommendations,
+      count: snapshot.summary.total,
+      urgent: snapshot.summary.urgent,
+      high: snapshot.summary.high,
+      linkedSupplierCount: snapshot.linkedSupplierCount,
     });
   } catch (error) {
     console.error("Reorder recommendations error:", error);

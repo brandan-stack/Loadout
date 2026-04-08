@@ -138,6 +138,31 @@ main {
   contain-intrinsic-size: 1px 420px;
 }
 
+.reorder-card-lazy {
+  content-visibility: auto;
+  contain: layout paint style;
+  contain-intrinsic-size: 320px;
+}
+
+.list-row-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: 72px;
+}
+
+.performance-dashboard .dashboard-stage,
+.performance-dashboard .dashboard-panel-shell {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.performance-dashboard .dashboard-stage {
+  box-shadow: 0 20px 48px rgba(2, 6, 23, 0.34) !important;
+}
+
+.performance-dashboard .dashboard-panel-shell {
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.22) !important;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .panel-interactive {
     transition:

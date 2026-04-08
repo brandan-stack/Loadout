@@ -39,7 +39,6 @@ export default function ScanPage() {
           </div>
           <Link
             href="/items"
-            prefetch={false}
             className="soft-button rounded-xl px-4 py-2 text-sm font-semibold"
           >
             Open Item Catalog

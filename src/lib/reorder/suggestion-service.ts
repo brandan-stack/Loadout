@@ -4,6 +4,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ReorderRecommendation, ReorderRecommendationSummary } from "./types";
 
+type ReorderRecommendationSnapshot = {
+  recommendations: ReorderRecommendation[];
+  summary: ReorderRecommendationSummary;
+  linkedSupplierCount: number;
+};
+
 type ReorderSourceItem = {
   id: string;
   name: string;
@@ -19,6 +25,13 @@ type ReorderSourceItem = {
 type UsageTotalRow = {
   itemId: string;
   usedQuantity: number | bigint | null;
+};
+
+const PRIORITY_ORDER: Record<ReorderRecommendation["priority"], number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
 };
 
 function resolvePriority(quantityOnHand: number, minQuantity: number) {
@@ -124,58 +137,100 @@ async function loadReorderInputs(organizationId: string) {
   };
 }
 
-export async function getReorderRecommendations(
-  organizationId: string
-): Promise<ReorderRecommendation[]> {
+async function getReorderRecommendationSnapshotInternal(
+  organizationId: string,
+  limit?: number,
+  includeRecommendations = true
+): Promise<ReorderRecommendationSnapshot> {
   const { items, usageByItem } = await loadReorderInputs(organizationId);
 
-  const recommendations: ReorderRecommendation[] = items
-    .map((item) => buildRecommendation(item, usageByItem.get(item.id) ?? 0))
-    .filter((r) => r.priority !== "low") // Only show medium+ priority
-    .sort((a, b) => {
-      // Sort by priority
-      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-      const priorityDiff =
-        priorityOrder[a.priority] - priorityOrder[b.priority];
-      if (priorityDiff !== 0) return priorityDiff;
-      // Then by usage per day (high volume first)
-      return b.usagePerDay - a.usagePerDay;
-    });
-
-  return recommendations;
-}
-
-export async function getReorderRecommendationSummary(
-  organizationId: string
-): Promise<ReorderRecommendationSummary> {
-  const { items, usageByItem } = await loadReorderInputs(organizationId);
-
+  const recommendations: ReorderRecommendation[] = [];
   let urgent = 0;
   let high = 0;
   let total = 0;
+  let linkedSupplierCount = 0;
 
   for (const item of items) {
-    const usagePerDay = (usageByItem.get(item.id) ?? 0) / 30;
-    const leadTimeDays = item.preferredSupplier?.leadTimeD || 7;
-    const minQuantity = Math.ceil(leadTimeDays * usagePerDay);
-    const priority = resolvePriority(item.quantityOnHand, minQuantity);
+    const recommendation = buildRecommendation(item, usageByItem.get(item.id) ?? 0);
 
-    if (priority === "low") {
+    if (recommendation.priority === "low") {
       continue;
     }
 
     total += 1;
 
-    if (priority === "urgent") {
+    if (recommendation.priority === "urgent") {
       urgent += 1;
     }
 
-    if (priority === "high") {
+    if (recommendation.priority === "high") {
       high += 1;
+    }
+
+    if (recommendation.preferredSupplier) {
+      linkedSupplierCount += 1;
+    }
+
+    if (includeRecommendations) {
+      recommendations.push(recommendation);
     }
   }
 
-  return { urgent, high, total };
+  if (includeRecommendations) {
+    recommendations.sort((left, right) => {
+      const priorityDiff = PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority];
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      return right.usagePerDay - left.usagePerDay;
+    });
+  }
+
+  return {
+    recommendations:
+      includeRecommendations && typeof limit === "number"
+        ? recommendations.slice(0, limit)
+        : recommendations,
+    summary: {
+      urgent,
+      high,
+      total,
+    },
+    linkedSupplierCount,
+  };
+}
+
+export async function getReorderRecommendations(
+  organizationId: string,
+  options?: { limit?: number }
+): Promise<ReorderRecommendation[]> {
+  const snapshot = await getReorderRecommendationSnapshotInternal(
+    organizationId,
+    options?.limit,
+    true
+  );
+
+  return snapshot.recommendations;
+}
+
+export async function getReorderRecommendationSnapshot(
+  organizationId: string,
+  limit?: number
+): Promise<ReorderRecommendationSnapshot> {
+  return getReorderRecommendationSnapshotInternal(organizationId, limit, true);
+}
+
+export async function getReorderRecommendationSummary(
+  organizationId: string
+): Promise<ReorderRecommendationSummary> {
+  const snapshot = await getReorderRecommendationSnapshotInternal(
+    organizationId,
+    undefined,
+    false
+  );
+
+  return snapshot.summary;
 }
 
 /**

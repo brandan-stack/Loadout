@@ -3,6 +3,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { PersistenceWarning } from "@/components/ui/persistence-warning";
 import { AppHeader } from "@/components/navigation/app-header";
+import { TabDataWarmup } from "@/components/navigation/tab-data-warmup";
 import { Manrope, Space_Grotesk } from "next/font/google";
 
 const bodyFont = Manrope({
@@ -42,6 +43,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${bodyFont.variable} ${headingFont.variable}`}>
         <AppHeader />
+        <TabDataWarmup />
         <PersistenceWarning />
         {children}
         <BottomNav />

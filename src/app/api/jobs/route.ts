@@ -27,25 +27,43 @@ export async function GET(request: NextRequest) {
       ...(auth.context.role === "TECH" ? { technicianId: auth.context.userId } : {}),
     };
 
-    const includeClause = includeParts
-      ? {
-          technician: { select: { id: true, name: true } },
-          parts: {
-            include: {
-              item: { select: { id: true, name: true, partNumber: true, unitOfMeasure: true } },
+    const jobs = includeParts
+      ? await prisma.job.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            jobNumber: true,
+            customer: true,
+            date: true,
+            status: true,
+            notes: true,
+            technician: { select: { id: true, name: true } },
+            parts: {
+              select: {
+                id: true,
+                quantity: true,
+                unitCost: true,
+                notes: true,
+                item: { select: { id: true, name: true, partNumber: true, unitOfMeasure: true } },
+              },
             },
           },
-        }
-      : {
-          technician: { select: { id: true, name: true } },
-          _count: { select: { parts: true } },
-        };
+        })
+      : await prisma.job.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            jobNumber: true,
+            customer: true,
+            date: true,
+            status: true,
+            technician: { select: { id: true, name: true } },
+            _count: { select: { parts: true } },
+          },
+        });
 
-    const jobs = await dbAny.job.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: includeClause,
-    });
     return NextResponse.json(jobs);
   } catch (err) {
     console.error("Jobs GET error:", err);
