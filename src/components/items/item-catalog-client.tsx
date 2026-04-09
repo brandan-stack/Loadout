@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Boxes, CircleAlert, ScanLine, Warehouse } from "lucide-react";
 import type { UserRole } from "@/lib/auth";
 import {
   TAB_DATA_CACHE_KEYS,
@@ -9,6 +9,15 @@ import {
   invalidateCachedData,
   primeCachedData,
 } from "@/lib/client-data-cache";
+import { StatCard } from "@/components/cards/StatCard";
+import { PageSection, PageShell } from "@/components/layout/page-shell";
+import { SidePanel } from "@/components/panels/SidePanel";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { FilterTabs } from "@/components/ui/FilterTabs";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SearchBar } from "@/components/ui/SearchBar";
 
 const INVENTORY_ROW_HEIGHT = 68;
 const INVENTORY_ROW_OVERSCAN = 8;
@@ -117,7 +126,7 @@ export function ItemCatalogClient({
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState("");
-  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [formData, setFormData] = useState({
@@ -364,105 +373,85 @@ export function ItemCatalogClient({
 
   const lowCount = items.filter((i) => i.quantityOnHand <= i.lowStockAmberThreshold && i.quantityOnHand > i.lowStockRedThreshold).length;
   const criticalCount = items.filter((i) => i.quantityOnHand <= i.lowStockRedThreshold).length;
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  const supplierNamesById = useMemo(
+    () => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])),
+    [suppliers]
+  );
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+      <PageShell>
         <p className="text-sm text-slate-400 animate-pulse">Loading inventory...</p>
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+    <PageShell className="form-screen">
+      <PageHeader
+        eyebrow={<Badge tone="blue">Inventory Workspace</Badge>}
+        title="See stock pressure before it slows the team"
+        description="Track the current count, isolate low-stock risk quickly, and add new items without leaving the list."
+        actions={
+          <>
+            <Button variant="secondary" href="/scan">
+              <ScanLine className="h-4 w-4" />
+              Scan
+            </Button>
+            <Button variant="primary" onClick={() => { setShowForm(true); setError(""); }}>
+              Add item
+            </Button>
+          </>
+        }
+      />
 
-      {/* ─── Page Header ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1
-            className="font-bold text-white leading-none"
-            style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
-          >
-            Inventory
-          </h1>
-          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
-            {items.length} item{items.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
-          <Link
-            href="/scan"
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white sm:flex-none"
-            style={{ border: "1px solid rgba(148,163,184,0.15)" }}
-          >
-            <span style={{ fontSize: "13px" }}>⬡</span>
-            Scan
-          </Link>
-          <button
-            onClick={() => { setShowForm(!showForm); setError(""); }}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] sm:flex-none"
-            style={{
-              background: showForm
-                ? "rgba(71,85,105,0.7)"
-                : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-              boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.35)",
-            }}
-          >
-            {showForm ? "✕ Cancel" : "+ Add Item"}
-          </button>
-        </div>
-      </div>
+      {error ? (
+        <PageSection>
+          <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{error}</Card>
+        </PageSection>
+      ) : null}
 
-      {error && (
-        <div className="mb-5 rounded-xl border border-red-400/30 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
+      <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Items" value={String(items.length)} hint="Tracked inventory records" tone="blue" icon={Boxes} />
+        <StatCard label="Low stock" value={String(lowCount)} hint="Below low threshold" trend={lowCount > 0 ? "Watch" : "Clear"} tone={lowCount > 0 ? "orange" : "green"} icon={AlertTriangle} />
+        <StatCard label="Critical" value={String(criticalCount)} hint="Needs attention first" trend={criticalCount > 0 ? "Act now" : "Stable"} tone={criticalCount > 0 ? "red" : "green"} icon={CircleAlert} />
+        <StatCard label="Locations" value={String(locations.length)} hint="Storage points in rotation" tone="teal" icon={Warehouse} />
+      </PageSection>
 
-      {/* ─── Filter chips + Search ─── */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="horizontal-scroll-row flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 sm:flex-wrap sm:overflow-visible sm:pb-0">
-          {(["all", "low", "critical"] as const).map((f) => {
-            const labels = { all: "All Parts", low: `Low Stock${lowCount > 0 ? ` (${lowCount})` : ""}`, critical: `Critical${criticalCount > 0 ? ` (${criticalCount})` : ""}` };
-            const active = stockFilter === f;
-            return (
-              <button
-                key={f}
-                onClick={() => setStockFilter(f)}
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-                style={{
-                  background: active
-                    ? f === "critical" ? "rgba(239,68,68,0.18)" : f === "low" ? "rgba(245,158,11,0.16)" : "rgba(255,255,255,0.08)"
-                    : "transparent",
-                  border: active
-                    ? f === "critical" ? "1px solid rgba(239,68,68,0.35)" : f === "low" ? "1px solid rgba(245,158,11,0.30)" : "1px solid rgba(255,255,255,0.12)"
-                    : "1px solid rgba(148,163,184,0.12)",
-                  color: active
-                    ? f === "critical" ? "#fca5a5" : f === "low" ? "#fcd34d" : "#e2e8f0"
-                    : "rgba(148,163,184,0.6)",
-                }}
-              >
-                {labels[f]}
-              </button>
-            );
-          })}
-        </div>
-        <input
-          className="flex-1 rounded-xl text-slate-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-          style={{
-            background: "rgba(15,23,42,0.6)",
-            border: "1px solid rgba(148,163,184,0.12)",
-          }}
-          placeholder="Search name, manufacturer, part number…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <PageSection>
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Stock controls</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300/78">Search by part details, then isolate the queue to all parts, low stock, or critical shortages.</p>
+            </div>
+            <Badge tone="slate">{filteredItems.length} showing</Badge>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+            <SearchBar value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, manufacturer, part number..." />
+            <FilterTabs
+              value={stockFilter}
+              onChange={(value) => setStockFilter(value as "all" | "low" | "critical")}
+              options={[
+                { value: "all", label: "All parts", count: String(items.length) },
+                { value: "low", label: "Low stock", count: String(lowCount) },
+                { value: "critical", label: "Critical", count: String(criticalCount) },
+              ]}
+            />
+          </div>
+        </Card>
+      </PageSection>
 
-      {showForm && (
+      <SidePanel
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Add inventory item"
+        description="Capture the important part metadata, thresholds, and supplier details without leaving the catalog."
+      >
         <div
-          className="mb-6 rounded-2xl p-5"
-          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
+          className="rounded-2xl p-0"
+          style={{ background: "rgba(12,17,36,0.95)" }}
         >
           {/* AI Scan panel */}
           <div className="mb-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
@@ -586,8 +575,7 @@ export function ItemCatalogClient({
                       <img
                         src={photoPreview}
                         alt="Preview"
-                        className="w-16 h-16 object-cover rounded-lg border border-slate-600 cursor-pointer"
-                        onClick={() => setEnlargedPhoto(photoPreview)}
+                        className="w-16 h-16 object-cover rounded-lg border border-slate-600"
                       />
                       <button
                         type="button"
@@ -774,11 +762,11 @@ export function ItemCatalogClient({
             </div>
           </form>
         </div>
-      )}
+      </SidePanel>
 
       {/* ─── Item list (row layout) ─── */}
       {filteredItems.length > 0 && (
-        <InventoryItemList items={filteredItems} onEnlargePhoto={setEnlargedPhoto} />
+        <InventoryItemList items={filteredItems} onSelectItem={setSelectedItemId} />
       )}
 
       {filteredItems.length === 0 && (
@@ -822,38 +810,47 @@ export function ItemCatalogClient({
         </div>
       )}
 
-      {/* Photo enlarge modal */}
-      {enlargedPhoto && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setEnlargedPhoto(null)}
-        >
-          <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={enlargedPhoto}
-              alt="Item photo"
-              className="w-full rounded-2xl border border-slate-700 shadow-2xl"
-            />
-            <button
-              onClick={() => setEnlargedPhoto(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 border border-slate-600 text-slate-200 text-lg flex items-center justify-center hover:bg-slate-700"
-            >
-              ✕
-            </button>
+      <SidePanel
+        open={selectedItem !== null}
+        onClose={() => setSelectedItemId(null)}
+        title={selectedItem?.name ?? "Item detail"}
+        description={selectedItem?.manufacturer || selectedItem?.partNumber || "Inventory detail"}
+        footer={selectedItem ? <Button className="w-full" variant="secondary" href="/reorder">Open reorder queue</Button> : null}
+      >
+        {selectedItem ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={selectedItem.quantityOnHand <= selectedItem.lowStockRedThreshold ? "red" : selectedItem.quantityOnHand <= selectedItem.lowStockAmberThreshold ? "orange" : "green"}>
+                {selectedItem.quantityOnHand <= selectedItem.lowStockRedThreshold ? "Critical stock" : selectedItem.quantityOnHand <= selectedItem.lowStockAmberThreshold ? "Low stock" : "In range"}
+              </Badge>
+              <Badge tone="slate">{selectedItem.quantityOnHand} {selectedItem.unitOfMeasure}</Badge>
+            </div>
+            {selectedItem.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selectedItem.photoUrl} alt={selectedItem.name} className="w-full rounded-3xl border border-white/10 object-cover" />
+            ) : null}
+            <Card className="space-y-4 bg-white/[0.04]">
+              <DetailRow label="Manufacturer" value={selectedItem.manufacturer || "Not set"} />
+              <DetailRow label="Part number" value={selectedItem.partNumber || "Not set"} />
+              <DetailRow label="Model" value={selectedItem.modelNumber || "Not set"} />
+              <DetailRow label="Serial" value={selectedItem.serialNumber || "Not set"} />
+              <DetailRow label="Barcode" value={selectedItem.barcode || "Not set"} />
+              <DetailRow label="Supplier" value={selectedItem.preferredSupplierId ? supplierNamesById.get(selectedItem.preferredSupplierId) || "Linked" : "Not linked"} />
+            </Card>
+            {selectedItem.description ? <p className="text-sm leading-6 text-slate-300/78">{selectedItem.description}</p> : null}
           </div>
-        </div>
-      )}
-    </main>
+        ) : null}
+      </SidePanel>
+    </PageShell>
   );
 }
 
 function InventoryItemList({
   items,
-  onEnlargePhoto,
+  onSelectItem,
 }: {
   items: InventoryPageItem[];
-  onEnlargePhoto: (photoUrl: string) => void;
+  onSelectItem: (itemId: string) => void;
 }) {
   if (items.length < INVENTORY_VIRTUALIZATION_THRESHOLD) {
     return (
@@ -866,22 +863,22 @@ function InventoryItemList({
             key={item.id}
             item={item}
             isLast={idx === items.length - 1}
-            onEnlargePhoto={onEnlargePhoto}
+            onSelectItem={onSelectItem}
           />
         ))}
       </div>
     );
   }
 
-  return <VirtualizedInventoryRows items={items} onEnlargePhoto={onEnlargePhoto} />;
+  return <VirtualizedInventoryRows items={items} onSelectItem={onSelectItem} />;
 }
 
 function VirtualizedInventoryRows({
   items,
-  onEnlargePhoto,
+  onSelectItem,
 }: {
   items: InventoryPageItem[];
-  onEnlargePhoto: (photoUrl: string) => void;
+  onSelectItem: (itemId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState({
@@ -980,7 +977,7 @@ function VirtualizedInventoryRows({
               key={item.id}
               item={item}
               isLast={absoluteIndex === items.length - 1}
-              onEnlargePhoto={onEnlargePhoto}
+              onSelectItem={onSelectItem}
               top={absoluteIndex * INVENTORY_ROW_HEIGHT}
             />
           );
@@ -993,12 +990,12 @@ function VirtualizedInventoryRows({
 function InventoryRow({
   item,
   isLast,
-  onEnlargePhoto,
+  onSelectItem,
   top,
 }: {
   item: InventoryPageItem;
   isLast: boolean;
-  onEnlargePhoto: (photoUrl: string) => void;
+  onSelectItem: (itemId: string) => void;
   top?: number;
 }) {
   const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
@@ -1006,7 +1003,7 @@ function InventoryRow({
 
   return (
     <div
-      className={`list-row-lazy flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.025] ${top !== undefined ? "absolute inset-x-0" : ""}`}
+      className={`list-row-lazy flex cursor-pointer items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.025] ${top !== undefined ? "absolute inset-x-0" : ""}`}
       style={{
         top,
         height: INVENTORY_ROW_HEIGHT,
@@ -1017,6 +1014,7 @@ function InventoryRow({
             : "rgba(12,17,36,0.85)",
         borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
       }}
+      onClick={() => onSelectItem(item.id)}
     >
       <div className="shrink-0">
         {item.photoUrl ? (
@@ -1028,8 +1026,11 @@ function InventoryRow({
             decoding="async"
             className="object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
             style={{ width: "40px", height: "40px" }}
-            onClick={() => onEnlargePhoto(item.photoUrl!)}
-            title="Click to enlarge"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectItem(item.id);
+            }}
+            title="Open item details"
           />
         ) : (
           <div
@@ -1080,6 +1081,15 @@ function InventoryRow({
           <p className="text-[10px] text-slate-600 text-right">{item.unitOfMeasure}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <span className="text-right text-sm font-medium text-white">{value}</span>
     </div>
   );
 }

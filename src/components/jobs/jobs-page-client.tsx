@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BriefcaseBusiness, CalendarDays, CircleCheck, Clock3, PackagePlus } from "lucide-react";
 import type { UserRole } from "@/lib/auth";
 import { TAB_DATA_CACHE_KEYS, invalidateCachedData, primeCachedData } from "@/lib/client-data-cache";
+import { StatCard } from "@/components/cards/StatCard";
+import { PageSection, PageShell } from "@/components/layout/page-shell";
+import { SidePanel } from "@/components/panels/SidePanel";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { FilterTabs } from "@/components/ui/FilterTabs";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SearchBar } from "@/components/ui/SearchBar";
 
 export interface Job {
   id: string;
@@ -23,235 +32,261 @@ interface JobsPageClientProps {
 
 export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientProps) {
   const router = useRouter();
-  const [jobs] = useState<Job[]>(initialJobs);
   const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ jobNumber: "", customer: "", date: new Date().toISOString().slice(0, 10), notes: "" });
-  const [formError, setFormError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [form, setForm] = useState({
+    jobNumber: "",
+    customer: "",
+    date: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
 
   useEffect(() => {
     primeCachedData(TAB_DATA_CACHE_KEYS.jobs, initialJobs);
   }, [initialJobs]);
 
+  const filteredJobs = useMemo(() => {
+    return initialJobs.filter((job) => {
+      if (statusFilter !== "all" && job.status !== statusFilter) {
+        return false;
+      }
+
+      if (!search.trim()) {
+        return true;
+      }
+
+      const query = search.trim().toLowerCase();
+      return [job.jobNumber, job.customer, job.technician.name].some((value) =>
+        value.toLowerCase().includes(query)
+      );
+    });
+  }, [initialJobs, search, statusFilter]);
+
+  const summary = useMemo(
+    () => ({
+      open: initialJobs.filter((job) => job.status === "OPEN").length,
+      completed: initialJobs.filter((job) => job.status === "COMPLETED").length,
+      invoiced: initialJobs.filter((job) => job.status === "INVOICED").length,
+      parts: initialJobs.reduce((total, job) => total + job._count.parts, 0),
+    }),
+    [initialJobs]
+  );
+
+  const selectedJob = initialJobs.find((job) => job.id === selectedJobId) ?? null;
+
   async function handleCreate() {
-    if (!form.jobNumber.trim()) { setFormError("Job number is required"); return; }
-    if (!form.customer.trim()) { setFormError("Customer name is required"); return; }
-    setSaving(true); setFormError("");
+    if (!form.jobNumber.trim()) {
+      setFormError("Job number is required");
+      return;
+    }
+
+    if (!form.customer.trim()) {
+      setFormError("Customer name is required");
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
     try {
-      const res = await fetch("/api/jobs", {
+      const response = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        const job = await res.json();
+
+      if (response.ok) {
+        const createdJob = await response.json();
         invalidateCachedData(TAB_DATA_CACHE_KEYS.jobs);
-        setShowForm(false);
-        setForm({ jobNumber: "", customer: "", date: new Date().toISOString().slice(0, 10), notes: "" });
-        // Use router.push for client-side navigation (keeps session state)
-        router.push(`/jobs/${job.id}`);
-      } else {
-        const d = await res.json();
-        setFormError(d.error || "Failed to create job");
-        setSaving(false);
+        router.push(`/jobs/${createdJob.id}`);
+        return;
       }
-    } catch { setFormError("Failed to create job"); setSaving(false); }
+
+      const payload = await response.json().catch(() => null);
+      const error = payload && typeof payload === "object" && "error" in payload ? payload.error : null;
+      setFormError(typeof error === "string" ? error : "Failed to create job");
+    } catch {
+      setFormError("Failed to create job");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const filtered = jobs.filter(
-    (j) =>
-      j.jobNumber.toLowerCase().includes(search.toLowerCase()) ||
-      j.customer.toLowerCase().includes(search.toLowerCase()) ||
-      j.technician.name.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-
-      {/* ─── Header ─── */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1
-            className="font-bold text-white leading-none"
-            style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
-          >
-            Jobs
-          </h1>
-          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
-            {currentUserRole === "TECH" ? "Your work orders" : "All work orders"}
-          </p>
-        </div>
-        {currentUserRole !== "OFFICE" && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center justify-center gap-1.5 self-start rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] sm:self-auto"
-            style={{
-              background: showForm
-                ? "rgba(71,85,105,0.7)"
-                : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-              boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.32)",
-            }}
-          >
-            {showForm ? "✕ Cancel" : "+ New Job"}
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div
-          className="rounded-2xl p-5 mb-6 space-y-4"
-          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <h2 className="font-semibold text-sm text-slate-200">New Job</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Job Number *</label>
-              <input
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                placeholder="e.g. JOB-2026-001"
-                value={form.jobNumber}
-                onChange={(e) => setForm({ ...form, jobNumber: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Customer *</label>
-              <input
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                placeholder="Customer name"
-                value={form.customer}
-                onChange={(e) => setForm({ ...form, customer: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Date</label>
-              <input
-                type="date"
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Notes</label>
-              <input
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                placeholder="Optional notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-          </div>
-          {formError && <p className="text-red-400 text-xs">{formError}</p>}
-          <div className="flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={saving}
-              className="rounded-xl text-white px-5 py-2 text-sm font-semibold disabled:opacity-50 transition-all"
-              style={{
-                background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-                boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
-              }}
-            >
-              {saving ? "Creating…" : "Create & Open Job"}
-            </button>
-            <button
-              onClick={() => { setShowForm(false); setFormError(""); }}
-              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <input
-        className="w-full rounded-xl text-slate-100 px-4 py-2 text-sm mb-6 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-        style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-        placeholder="Search job #, customer, or technician…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+    <PageShell>
+      <PageHeader
+        eyebrow={<Badge tone="blue">Jobs Workspace</Badge>}
+        title="Keep work orders moving"
+        description="Technicians need the next job to be obvious. Search fast, scan status at a glance, and jump straight into the record that needs attention."
+        actions={
+          currentUserRole !== "OFFICE" ? (
+            <Button variant="primary" onClick={() => setShowCreatePanel(true)}>
+              New job
+            </Button>
+          ) : null
+        }
       />
 
-      {filtered.length === 0 ? (
-        <div
-          className="rounded-2xl py-16 flex flex-col items-center text-center"
-          style={{
-            background: "rgba(12,17,36,0.85)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.07)",
-            }}
-          >
-            🔧
+      <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Open" value={String(summary.open)} hint="Live field work orders" trend={summary.open > 0 ? "Active" : "Clear"} tone={summary.open > 0 ? "orange" : "green"} icon={Clock3} />
+        <StatCard label="Completed" value={String(summary.completed)} hint="Work finished and ready to close" trend="Ready" tone="green" icon={CircleCheck} />
+        <StatCard label="Invoiced" value={String(summary.invoiced)} hint="Work that has moved to billing" trend="Closed" tone="blue" icon={CalendarDays} />
+        <StatCard label="Parts logged" value={String(summary.parts)} hint="Total parts across visible jobs" trend={`${filteredJobs.length} jobs`} tone="teal" icon={PackagePlus} />
+      </PageSection>
+
+      <PageSection>
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Job controls</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300/78">Filter by status, search by customer or job number, and get to the next field action without extra clicks.</p>
+            </div>
+            <Badge tone="slate">{filteredJobs.length} showing</Badge>
           </div>
-          {search ? (
-            <>
-              <p className="font-semibold text-slate-300 mb-1">No jobs match &ldquo;{search}&rdquo;</p>
-              <p className="text-sm text-slate-500">Try a different search</p>
-            </>
-          ) : (
-            <>
-              <p className="font-semibold text-slate-200 mb-1.5">No jobs yet</p>
-              <p className="text-sm text-slate-500">Create your first job to start logging parts</p>
-            </>
-          )}
-        </div>
-      ) : (
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          {filtered.map((job, idx) => (
-            <Link
-              key={job.id}
-              href={`/jobs/${job.id}`}
-              className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03] group"
-              style={{
-                background: "rgba(12,17,36,0.85)",
-                borderBottom: idx < filtered.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
-              }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors">{job.jobNumber}</span>
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
-                      job.status === "OPEN"
-                        ? "bg-amber-500/12 text-amber-400 border border-amber-500/20"
-                        : job.status === "COMPLETED"
-                        ? "bg-slate-700/60 text-slate-400 border border-slate-600/30"
-                        : "bg-slate-700/60 text-slate-400 border border-slate-600/30"
-                    }`}
-                  >
-                    {job.status}
-                  </span>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+            <SearchBar value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search jobs" />
+            <FilterTabs
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "All", count: String(initialJobs.length) },
+                { value: "OPEN", label: "Open", count: String(summary.open) },
+                { value: "COMPLETED", label: "Completed", count: String(summary.completed) },
+                { value: "INVOICED", label: "Invoiced", count: String(summary.invoiced) },
+              ]}
+            />
+          </div>
+        </Card>
+      </PageSection>
+
+      <PageSection className="grid gap-4 lg:grid-cols-2">
+        {filteredJobs.length > 0 ? (
+          filteredJobs.map((job) => (
+            <Card key={job.id} className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">{job.jobNumber}</h2>
+                    <JobStatusBadge status={job.status} />
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-300/78">{job.customer}</p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{job.technician.name} • {new Date(job.date).toLocaleDateString()}</p>
                 </div>
-                <p className="text-sm text-slate-400 truncate">{job.customer}</p>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {job.technician.name} · {new Date(job.date).toLocaleDateString()}
-                </p>
+                <span className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-100">
+                  {job._count.parts} parts
+                </span>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold text-slate-300">{job._count.parts}</p>
-                <p className="text-[10px] text-slate-600">parts</p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Customer</p>
+                  <p className="mt-3 text-sm font-medium text-white">{job.customer}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Date</p>
+                  <p className="mt-3 text-sm font-medium text-white">{new Date(job.date).toLocaleDateString()}</p>
+                </div>
               </div>
-              <svg className="shrink-0 text-slate-700 group-hover:text-slate-500 transition-colors" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
-            </Link>
-          ))}
+
+              <div className="flex flex-wrap gap-4">
+                <Button variant="primary" href={`/jobs/${job.id}`}>Open job</Button>
+                <Button variant="secondary" href={`/jobs/${job.id}`}>Quick add parts</Button>
+                <Button variant="ghost" onClick={() => setSelectedJobId(job.id)}>View summary</Button>
+              </div>
+            </Card>
+          ))
+        ) : (
+          <Card className="text-center lg:col-span-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-200">
+              <BriefcaseBusiness className="h-5 w-5" />
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-white">No jobs match the current view</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300/78">Adjust the filters or search terms to surface a different work order.</p>
+          </Card>
+        )}
+      </PageSection>
+
+      <SidePanel
+        open={showCreatePanel}
+        onClose={() => setShowCreatePanel(false)}
+        title="Create a new job"
+        description="Keep setup tight so technicians can move straight into the work order."
+        footer={
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={handleCreate} disabled={saving}>
+              {saving ? "Creating..." : "Create job"}
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setShowCreatePanel(false)}>
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Job number</span>
+            <input value={form.jobNumber} onChange={(event) => setForm({ ...form, jobNumber: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Customer</span>
+            <input value={form.customer} onChange={(event) => setForm({ ...form, customer: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Date</span>
+            <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Notes</span>
+            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          {formError ? <p className="text-sm text-rose-300">{formError}</p> : null}
         </div>
-      )}
-    </main>
+      </SidePanel>
+
+      <SidePanel
+        open={selectedJob !== null}
+        onClose={() => setSelectedJobId(null)}
+        title={selectedJob?.jobNumber ?? "Job summary"}
+        description={selectedJob?.customer}
+        footer={
+          selectedJob ? (
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <Button className="flex-1" variant="primary" href={`/jobs/${selectedJob.id}`}>Open job</Button>
+              <Button className="flex-1" variant="secondary" href={`/jobs/${selectedJob.id}`}>Add parts</Button>
+            </div>
+          ) : null
+        }
+      >
+        {selectedJob ? (
+          <div className="space-y-4">
+            <JobStatusBadge status={selectedJob.status} />
+            <Card className="space-y-4 bg-white/[0.04]">
+              <DetailRow label="Technician" value={selectedJob.technician.name} />
+              <DetailRow label="Date" value={new Date(selectedJob.date).toLocaleDateString()} />
+              <DetailRow label="Parts logged" value={String(selectedJob._count.parts)} />
+            </Card>
+          </div>
+        ) : null}
+      </SidePanel>
+    </PageShell>
+  );
+}
+
+function JobStatusBadge({ status }: { status: string }) {
+  const tone = status === "OPEN" ? "orange" : status === "COMPLETED" ? "green" : "blue";
+  return <Badge tone={tone}>{status.toLowerCase()}</Badge>;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <span className="text-sm font-medium text-white">{value}</span>
+    </div>
   );
 }
 

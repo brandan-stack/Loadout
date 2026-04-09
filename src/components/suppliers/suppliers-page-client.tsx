@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  TAB_DATA_CACHE_KEYS,
-  fetchJsonWithCache,
-  invalidateCachedData,
-  primeCachedData,
-} from "@/lib/client-data-cache";
+import { useEffect, useMemo, useState } from "react";
+import { Globe, Mail, Star, TimerReset, Truck } from "lucide-react";
+import { TAB_DATA_CACHE_KEYS, invalidateCachedData, primeCachedData } from "@/lib/client-data-cache";
+import { StatCard } from "@/components/cards/StatCard";
+import { PageSection, PageShell } from "@/components/layout/page-shell";
+import { SidePanel } from "@/components/panels/SidePanel";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { FilterTabs } from "@/components/ui/FilterTabs";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SearchBar } from "@/components/ui/SearchBar";
 
 export interface Supplier {
   id: string;
@@ -16,6 +21,10 @@ export interface Supplier {
   leadTimeD: number;
   notes?: string;
   archived: boolean;
+  linkedItemCount: number;
+  preferred: boolean;
+  fastest: boolean;
+  rating: number;
 }
 
 interface SuppliersPageClientProps {
@@ -23,20 +32,32 @@ interface SuppliersPageClientProps {
 }
 
 function readApiError(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
   const candidate = (payload as { error?: unknown }).error;
-  if (typeof candidate === "string") return candidate;
+  if (typeof candidate === "string") {
+    return candidate;
+  }
+
   if (Array.isArray(candidate)) {
     const first = candidate[0] as { message?: unknown } | undefined;
-    if (first && typeof first.message === "string") return first.message;
+    if (first && typeof first.message === "string") {
+      return first.message;
+    }
   }
+
   return null;
 }
 
 export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientProps) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [suppliers, setSuppliers] = useState(initialSuppliers);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
@@ -48,32 +69,36 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
 
   useEffect(() => {
     primeCachedData(TAB_DATA_CACHE_KEYS.suppliers, initialSuppliers);
+    setSuppliers(initialSuppliers);
   }, [initialSuppliers]);
 
-  async function fetchSuppliers(showSpinner = false, force = false) {
-    if (showSpinner) {
-      setLoading(true);
-    }
-
-    try {
-      if (force) {
-        invalidateCachedData(TAB_DATA_CACHE_KEYS.suppliers);
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter((supplier) => {
+      if (filter === "preferred" && !supplier.preferred) {
+        return false;
       }
 
-      const data = await fetchJsonWithCache<Supplier[]>(TAB_DATA_CACHE_KEYS.suppliers, "/api/suppliers");
-      setSuppliers(Array.isArray(data) ? data : []);
-      setError("");
-    } catch (error) {
-      console.error("Failed to fetch suppliers:", error);
-      setSuppliers([]);
-      setError("Failed to load suppliers. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+      if (filter === "fastest" && !supplier.fastest) {
+        return false;
+      }
 
-  async function handleAddSupplier(e: React.FormEvent) {
-    e.preventDefault();
+      if (!search.trim()) {
+        return true;
+      }
+
+      const query = search.trim().toLowerCase();
+      return [supplier.name, supplier.contact, supplier.website, supplier.notes]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [filter, search, suppliers]);
+
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
+  const averageLeadTime = Math.round(
+    suppliers.reduce((total, supplier) => total + supplier.leadTimeD, 0) / Math.max(suppliers.length, 1)
+  );
+
+  async function handleCreate() {
     setError("");
 
     if (!formData.name.trim()) {
@@ -81,27 +106,19 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
       return;
     }
 
-    if (!Number.isFinite(formData.leadTimeD) || formData.leadTimeD < 0) {
-      setError("Lead time must be 0 or greater.");
-      return;
-    }
-
-    if (!Number.isInteger(formData.leadTimeD)) {
-      setError("Lead time must be a whole number.");
-      return;
-    }
-
-    if (formData.website && formData.website.trim()) {
+    if (formData.website.trim()) {
       try {
         new URL(formData.website.trim());
       } catch {
-        setError("Please enter a valid website URL (e.g. https://example.com).");
+        setError("Please enter a valid website URL.");
         return;
       }
     }
 
+    setSaving(true);
+
     try {
-      const res = await fetch("/api/suppliers", {
+      const response = await fetch("/api/suppliers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,255 +130,205 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
         }),
       });
 
-      if (res.ok) {
-        setFormData({ name: "", contact: "", website: "", leadTimeD: 7, notes: "" });
-        setShowForm(false);
-        await fetchSuppliers(false, true);
-      } else {
-        const payload = await res.json().catch(() => null);
-        setError(readApiError(payload) || "Failed to save supplier.");
+      if (response.ok) {
+        invalidateCachedData(TAB_DATA_CACHE_KEYS.suppliers);
+        window.location.reload();
+        return;
       }
-    } catch (error) {
-      console.error("Failed to add supplier:", error);
-      setError("Failed to save supplier. Please try again.");
+
+      const payload = await response.json().catch(() => null);
+      setError(readApiError(payload) || "Failed to create supplier.");
+    } catch {
+      setError("Failed to create supplier.");
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleArchiveSupplier(id: string) {
+  async function archiveSupplier(id: string) {
+    setError("");
+
     try {
-      const res = await fetch(`/api/suppliers/${id}`, {
+      const response = await fetch(`/api/suppliers/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived: true }),
       });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => null);
-        setError(readApiError(payload) || "Failed to archive supplier.");
+
+      if (response.ok) {
+        invalidateCachedData(TAB_DATA_CACHE_KEYS.suppliers);
+        window.location.reload();
         return;
       }
-      await fetchSuppliers(false, true);
-    } catch (error) {
-      console.error("Failed to archive supplier:", error);
-      setError("Failed to archive supplier. Please try again.");
+
+      const payload = await response.json().catch(() => null);
+      setError(readApiError(payload) || "Failed to archive supplier.");
+    } catch {
+      setError("Failed to archive supplier.");
     }
   }
 
-  if (loading) {
-    return (
-      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-        <p className="text-sm text-slate-400 animate-pulse">Loading suppliers...</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
+    <PageShell>
+      <PageHeader
+        eyebrow={<Badge tone="teal">Vendor Workspace</Badge>}
+        title="Keep supplier decisions clean and fast"
+        description="Show the field team which vendors are quickest, which ones are already preferred, and where the next purchase path is already wired."
+        actions={<Button variant="primary" onClick={() => setShowCreatePanel(true)}>Add supplier</Button>}
+      />
 
-      {/* ─── Header ─── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-        <div>
-          <h1
-            className="font-bold text-white leading-none"
-            style={{ fontSize: "24px", letterSpacing: "-0.02em" }}
-          >
-            Suppliers
-          </h1>
-          <p className="text-xs text-slate-500 mt-1.5 uppercase tracking-widest font-medium">
-            {suppliers.length} vendor{suppliers.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <button
-          onClick={() => { setShowForm(!showForm); setError(""); }}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
-          style={{
-            background: showForm
-              ? "rgba(71,85,105,0.7)"
-              : "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-            boxShadow: showForm ? "none" : "0 3px 14px rgba(91,94,244,0.32)",
-          }}
-        >
-          {showForm ? "✕ Cancel" : "+ Add Supplier"}
-        </button>
-      </div>
+      {error ? (
+        <PageSection>
+          <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{error}</Card>
+        </PageSection>
+      ) : null}
 
-      {error && (
-        <div className="mb-5 rounded-xl border border-red-400/30 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
+      <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Suppliers" value={String(suppliers.length)} hint="Active vendors in the workspace" tone="blue" icon={Truck} />
+        <StatCard label="Preferred" value={String(suppliers.filter((supplier) => supplier.preferred).length)} hint="Already linked to stocked items" tone="teal" icon={Star} />
+        <StatCard label="Fastest" value={String(suppliers.filter((supplier) => supplier.fastest).length)} hint="Shortest lead-time vendors" tone="green" icon={TimerReset} />
+        <StatCard label="Avg lead" value={`${averageLeadTime}d`} hint="Average delivery lead time" tone="orange" icon={Mail} />
+      </PageSection>
 
-      {showForm && (
-        <div
-          className="rounded-2xl p-5 mb-6"
-          style={{ background: "rgba(12,17,36,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <form onSubmit={handleAddSupplier}>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Supplier Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Acme Parts Co."
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Contact Email</label>
-                <input
-                  type="email"
-                  placeholder="orders@supplier.com"
-                  value={formData.contact}
-                  onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Website URL
-                  <span className="ml-1 text-slate-500 font-normal">(direct link to supplier catalog or ordering page)</span>
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://www.supplier.com/catalog"
-                  value={formData.website}
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Lead Time (days)
-                  <span className="ml-1 text-slate-500 font-normal">— typical delivery time after placing an order. Default is 7 days.</span>
-                </label>
-                <input
-                  type="number"
-                  placeholder="7"
-                  value={formData.leadTimeD}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      leadTimeD:
-                        e.target.value === "" ? 0 : Number.parseInt(e.target.value, 10),
-                    })
-                  }
-                  min={0}
-                  step={1}
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Notes</label>
-                <textarea
-                  placeholder="Additional notes about this supplier…"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                  rows={3}
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-xl text-white font-semibold py-2.5 text-sm transition-all hover:brightness-110 active:scale-[0.98]"
-                style={{
-                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-                  boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
-                }}
-              >
-                Save Supplier
-              </button>
+      <PageSection>
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Supplier controls</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300/78">Filter by preference or speed, then open the supplier panel without leaving the list.</p>
             </div>
-          </form>
-        </div>
-      )}
-
-      {suppliers.length > 0 && (
-        <div
-          className="rounded-2xl overflow-hidden mb-4"
-          style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          {suppliers.map((supplier, idx) => (
-            <div
-              key={supplier.id}
-              className="flex items-start gap-4 px-5 py-4"
-              style={{
-                background: "rgba(12,17,36,0.85)",
-                borderBottom: idx < suppliers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
-              }}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-100">{supplier.name}</p>
-                {supplier.contact && (
-                  <p className="text-xs text-slate-400 mt-0.5">{supplier.contact}</p>
-                )}
-                {supplier.website && (
-                  <a
-                    href={supplier.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-indigo-400 hover:text-indigo-300 underline truncate block mt-0.5"
-                  >
-                    {supplier.website}
-                  </a>
-                )}
-                <p className="text-xs text-slate-500 mt-1">
-                  Lead time: <span className="text-slate-300 font-medium">{supplier.leadTimeD} day{supplier.leadTimeD !== 1 ? "s" : ""}</span>
-                </p>
-                {supplier.notes && (
-                  <p className="text-xs text-slate-500 mt-1">{supplier.notes}</p>
-                )}
-              </div>
-              <button
-                onClick={() => handleArchiveSupplier(supplier.id)}
-                className="shrink-0 px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:text-red-400 transition-colors"
-                style={{ border: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                Archive
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {suppliers.length === 0 && !showForm && (
-        <div
-          className="rounded-2xl py-16 flex flex-col items-center text-center"
-          style={{
-            background: "rgba(12,17,36,0.85)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.07)",
-            }}
-          >
-            🏭
+            <Badge tone="slate">{filteredSuppliers.length} showing</Badge>
           </div>
-          <p className="font-semibold text-slate-200 mb-1.5">No suppliers yet</p>
-          <p className="text-sm text-slate-500 mb-6">Add a vendor to link items and track lead times</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-            style={{
-              background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-              boxShadow: "0 3px 16px rgba(91,94,244,0.30)",
-            }}
-          >
-            + Add Supplier
-          </button>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+            <SearchBar value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search suppliers" />
+            <FilterTabs
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: "all", label: "All", count: String(suppliers.length) },
+                { value: "preferred", label: "Preferred", count: String(suppliers.filter((supplier) => supplier.preferred).length) },
+                { value: "fastest", label: "Fastest", count: String(suppliers.filter((supplier) => supplier.fastest).length) },
+              ]}
+            />
+          </div>
+        </Card>
+      </PageSection>
+
+      <PageSection className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {filteredSuppliers.length > 0 ? (
+          filteredSuppliers.map((supplier) => (
+            <Card key={supplier.id} className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">{supplier.name}</h2>
+                    {supplier.preferred ? <Badge tone="teal">Preferred</Badge> : null}
+                    {supplier.fastest ? <Badge tone="green">Fastest</Badge> : null}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-300/78">{supplier.linkedItemCount} linked items • {supplier.leadTimeD} day lead time</p>
+                </div>
+                <Badge tone="blue">{supplier.rating}/5</Badge>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Contact</p>
+                  <p className="mt-3 text-sm text-white">{supplier.contact || "No contact"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Website</p>
+                  <p className="mt-3 truncate text-sm text-white">{supplier.website || "No website"}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <Button variant="secondary" onClick={() => setSelectedSupplierId(supplier.id)}>Open details</Button>
+                {supplier.website ? <Button variant="ghost" href={supplier.website} target="_blank" rel="noreferrer">Open site</Button> : null}
+              </div>
+            </Card>
+          ))
+        ) : (
+          <Card className="text-center lg:col-span-2 xl:col-span-3">
+            <h2 className="text-lg font-semibold text-white">No suppliers match the current view</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300/78">Adjust the filters or search terms to surface a different vendor.</p>
+          </Card>
+        )}
+      </PageSection>
+
+      <SidePanel
+        open={showCreatePanel}
+        onClose={() => setShowCreatePanel(false)}
+        title="Add supplier"
+        description="Create a vendor record without interrupting the list view."
+        footer={
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={handleCreate} disabled={saving}>{saving ? "Saving..." : "Save supplier"}</Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setShowCreatePanel(false)}>Cancel</Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Name</span>
+            <input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Contact</span>
+            <input value={formData.contact} onChange={(event) => setFormData({ ...formData, contact: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Website</span>
+            <input value={formData.website} onChange={(event) => setFormData({ ...formData, website: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Lead time</span>
+            <input type="number" min={0} value={formData.leadTimeD} onChange={(event) => setFormData({ ...formData, leadTimeD: Number(event.target.value) || 0 })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Notes</span>
+            <textarea value={formData.notes} onChange={(event) => setFormData({ ...formData, notes: event.target.value })} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
         </div>
-      )}
-    </main>
+      </SidePanel>
+
+      <SidePanel
+        open={selectedSupplier !== null}
+        onClose={() => setSelectedSupplierId(null)}
+        title={selectedSupplier?.name ?? "Supplier detail"}
+        description={selectedSupplier ? `${selectedSupplier.leadTimeD} day lead time` : undefined}
+        footer={selectedSupplier ? <Button className="w-full" variant="danger" onClick={() => archiveSupplier(selectedSupplier.id)}>Archive supplier</Button> : null}
+      >
+        {selectedSupplier ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {selectedSupplier.preferred ? <Badge tone="teal">Preferred supplier</Badge> : null}
+              {selectedSupplier.fastest ? <Badge tone="green">Fastest route</Badge> : null}
+              <Badge tone="blue">{selectedSupplier.rating}/5 rating</Badge>
+            </div>
+            <Card className="space-y-4 bg-white/[0.04]">
+              <SupplierDetail label="Contact" value={selectedSupplier.contact || "No contact"} icon={Mail} />
+              <SupplierDetail label="Website" value={selectedSupplier.website || "No website"} icon={Globe} />
+              <SupplierDetail label="Linked items" value={String(selectedSupplier.linkedItemCount)} icon={Truck} />
+            </Card>
+            {selectedSupplier.notes ? <p className="text-sm leading-6 text-slate-300/78">{selectedSupplier.notes}</p> : null}
+          </div>
+        ) : null}
+      </SidePanel>
+    </PageShell>
+  );
+}
+
+function SupplierDetail({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Mail }) {
+  return (
+    <div className="flex items-center gap-4">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-200">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+        <p className="mt-2 text-sm text-white">{value}</p>
+      </div>
+    </div>
   );
 }
 

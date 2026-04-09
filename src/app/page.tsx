@@ -19,6 +19,10 @@ import {
   Truck,
   type LucideIcon,
 } from "lucide-react";
+import { PageShell } from "@/components/layout/page-shell";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
@@ -454,8 +458,26 @@ export default async function Home() {
   ];
 
   return (
-    <main className="performance-dashboard relative mx-auto w-full max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+    <PageShell className="performance-dashboard relative">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_22%),radial-gradient(circle_at_50%_28%,rgba(14,165,233,0.08),transparent_34%)]" />
+
+      <PageHeader
+        eyebrow={<Badge tone={heroMode.tone === "rose" ? "red" : heroMode.tone === "emerald" ? "green" : heroMode.tone === "amber" ? "orange" : "blue"}>Operations Overview</Badge>}
+        title={session.organizationName}
+        description="Track inventory health, job load, and reorder pressure from one workspace before jumping into the next action."
+        actions={
+          <>
+            <Button variant="secondary" href="/scan">
+              <ScanLine className="h-4 w-4" />
+              Open scanner
+            </Button>
+            <Button variant="primary" href={primaryAction.href}>
+              {primaryAction.label}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </>
+        }
+      />
 
       {!passwordRecoveryConfigured && (
         <div className="mb-5 rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
@@ -531,22 +553,19 @@ export default async function Home() {
                 <HeroFactPill key={fact.label} fact={fact} compact />
               ))}
             </div>
-          </div>
-        </section>
 
-        <section className="dashboard-rise dashboard-delay-1 dashboard-lazy-section mt-4">
-          <SectionHeading title="Quick Actions" detail="Fast paths for field work" />
-          <div className="horizontal-scroll-row mt-3 flex gap-2 overflow-x-auto pb-1">
-            {quickActions.map((action) => (
-              <QuickActionChip key={action.label} action={action} />
-            ))}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {quickActions.slice(0, 4).map((action) => (
+                <QuickActionChip key={action.label} action={action} compact />
+              ))}
+            </div>
           </div>
         </section>
 
         <section className="dashboard-rise dashboard-delay-2 dashboard-lazy-section mt-4">
           <AttentionPanel
-            lowStockItems={lowStockItems}
-            reorderRecommendations={reorderRecommendations.slice(0, 3)}
+            lowStockItems={lowStockItems.slice(0, 2)}
+            reorderRecommendations={reorderRecommendations.slice(0, 2)}
             criticalCount={criticalLowStockCount}
             warningCount={warningLowStockCount}
             compact
@@ -554,16 +573,22 @@ export default async function Home() {
         </section>
 
         <section className="dashboard-rise dashboard-delay-3 dashboard-lazy-section mt-4">
-          <ActivityPanel activity={mobileActivity} compact />
+          <CompactDisclosure
+            title="Recent signal"
+            detail={`${mobileActivity.length} latest updates`}
+          >
+            <ActivityPanel activity={mobileActivity} compact hideHeader />
+          </CompactDisclosure>
         </section>
 
         <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-4">
-          <SectionHeading title="Launchpad" detail="Your main workspaces, without the wall of cards" />
-          <div className="horizontal-scroll-row mt-3 flex gap-3 overflow-x-auto pb-1">
-            {workspaceCards.map((card) => (
-              <WorkspaceTile key={card.title} card={card} compact rail />
-            ))}
-          </div>
+          <CompactDisclosure title="Launchpad" detail="All workspaces in a tighter grid">
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {workspaceCards.map((card) => (
+                <WorkspaceTile key={card.title} card={card} compact dense />
+              ))}
+            </div>
+          </CompactDisclosure>
         </section>
       </div>
 
@@ -663,26 +688,41 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-5">
-          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-5 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
                 <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-                  The main workspaces stay one swipe away instead of taking over the page.
+                  Every workspace stays visible without turning into a long card rail.
                 </p>
               </div>
             </div>
 
-            <div className="horizontal-scroll-row mt-4 flex gap-4 overflow-x-auto pb-1">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {workspaceCards.map((card) => (
-                <WorkspaceTile key={card.title} card={card} rail />
+                <WorkspaceTile key={card.title} card={card} compact dense />
+              ))}
+            </div>
+          </div>
+
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+            <div>
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Fast Actions</h2>
+              <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
+                Shortcuts stay in one compact block instead of forcing another full-height section.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+              {quickActions.map((action) => (
+                <QuickActionChip key={action.label} action={action} compact />
               ))}
             </div>
           </div>
         </section>
       </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -725,11 +765,11 @@ function HeroFactPill({ fact, compact = false }: { fact: HeroFact; compact?: boo
   );
 }
 
-function QuickActionChip({ action }: { action: QuickAction }) {
+function QuickActionChip({ action, compact = false }: { action: QuickAction; compact?: boolean }) {
   return (
     <Link
       href={action.href}
-      className={`dashboard-panel-shell panel-interactive group inline-flex min-h-[3rem] shrink-0 items-center gap-2 rounded-[1rem] border px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] ${quickActionClasses(action.tone)}`}
+      className={`dashboard-panel-shell panel-interactive group inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border px-3.5 py-2.5 text-sm font-semibold tracking-[-0.01em] ${compact ? "w-full justify-between" : "shrink-0"} ${quickActionClasses(action.tone)}`}
     >
       <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border ${quickActionIconClasses(action.tone)}`}>
         <action.icon className="h-4 w-4" />
@@ -814,23 +854,27 @@ function AttentionPanel({
 function ActivityPanel({
   activity,
   compact = false,
+  hideHeader = false,
 }: {
   activity: DashboardActivity[];
   compact?: boolean;
+  hideHeader?: boolean;
 }) {
   return (
     <section className={`dashboard-panel-shell panel-interactive rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.8),rgba(15,23,42,0.66))] ${compact ? "p-4" : "p-5"} shadow-[0_18px_40px_rgba(2,6,23,0.32)] backdrop-blur-sm`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">Recent signal</h2>
-          <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-            Latest stock events and field work changes.
-          </p>
+      {!hideHeader && (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">Recent signal</h2>
+            <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
+              Latest stock events and field work changes.
+            </p>
+          </div>
+          <Clock3 className="h-5 w-5 text-slate-400/78" />
         </div>
-        <Clock3 className="h-5 w-5 text-slate-400/78" />
-      </div>
+      )}
 
-      <div className="mt-4 space-y-3">
+      <div className={`${hideHeader ? "space-y-3" : "mt-4 space-y-3"}`}>
         {activity.length > 0 ? (
           activity.map((entry) => <ActivityRow key={entry.id} entry={entry} />)
         ) : (
@@ -845,10 +889,12 @@ function WorkspaceTile({
   card,
   compact = false,
   rail = false,
+  dense = false,
 }: {
   card: WorkspaceCard;
   compact?: boolean;
   rail?: boolean;
+  dense?: boolean;
 }) {
   return (
     <Link
@@ -857,7 +903,7 @@ function WorkspaceTile({
     >
       <div className="pointer-events-none absolute inset-0 opacity-80" style={{ background: tileOverlay(card.tone) }} />
       <div className="relative flex items-start justify-between gap-3">
-        <span className={`inline-flex ${compact ? "h-10 w-10 rounded-[1rem]" : "h-11 w-11 rounded-2xl"} items-center justify-center border shadow-[0_12px_22px_rgba(2,6,23,0.16)] ${toneIconSurface(card.tone)}`}>
+        <span className={`inline-flex ${compact || dense ? "h-10 w-10 rounded-[1rem]" : "h-11 w-11 rounded-2xl"} items-center justify-center border shadow-[0_12px_22px_rgba(2,6,23,0.16)] ${toneIconSurface(card.tone)}`}>
           <card.icon className="h-[1.125rem] w-[1.125rem]" />
         </span>
         <div className="text-right">
@@ -865,11 +911,54 @@ function WorkspaceTile({
           <ArrowRight className="ml-auto mt-1 h-4 w-4 text-slate-500 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-slate-200" />
         </div>
       </div>
-      <p className="relative mt-3 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-slate-400/82">Workspace</p>
-      <p className={`relative ${compact ? "mt-2 text-[0.82rem]" : "mt-4 text-sm"} font-medium text-slate-200/88`}>{card.title}</p>
-      <p className={`relative ${compact ? "mt-1.5 text-[1.75rem]" : "mt-2 text-3xl"} font-bold tracking-[-0.05em] text-white`}>{card.value}</p>
-      <p className={`relative ${compact ? "mt-1.5 text-[0.82rem] leading-5" : "mt-2 text-sm leading-6"} text-slate-300/74`}>{card.detail}</p>
+      {!dense && <p className="relative mt-3 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-slate-400/82">Workspace</p>}
+      <p className={`relative ${dense ? "mt-3 text-[0.88rem]" : compact ? "mt-2 text-[0.82rem]" : "mt-4 text-sm"} font-medium text-slate-200/88`}>{card.title}</p>
+      <p className={`relative ${dense ? "mt-1.5 text-[1.45rem]" : compact ? "mt-1.5 text-[1.75rem]" : "mt-2 text-3xl"} font-bold tracking-[-0.05em] text-white`}>{card.value}</p>
+      <p
+        className={`relative ${dense ? "mt-1 text-[0.76rem] leading-5" : compact ? "mt-1.5 text-[0.82rem] leading-5" : "mt-2 text-sm leading-6"} text-slate-300/74`}
+        style={
+          dense
+            ? {
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }
+            : undefined
+        }
+      >
+        {card.detail}
+      </p>
     </Link>
+  );
+}
+
+function CompactDisclosure({
+  title,
+  detail,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  detail: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details open={defaultOpen} className="compact-disclosure dashboard-panel-shell overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.68))] shadow-[0_18px_38px_rgba(2,6,23,0.24)]">
+      <summary className="cursor-pointer px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-slate-300/82">{title}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400/82">{detail}</p>
+          </div>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-300/76">
+            Expand
+          </span>
+        </div>
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
   );
 }
 

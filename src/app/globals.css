@@ -149,6 +149,14 @@ main {
   contain-intrinsic-size: 72px;
 }
 
+.compact-disclosure > summary {
+  list-style: none;
+}
+
+.compact-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
 .performance-dashboard .dashboard-stage,
 .performance-dashboard .dashboard-panel-shell {
   -webkit-backdrop-filter: none !important;
@@ -397,8 +405,14 @@ textarea::placeholder {
   -ms-overflow-style: none;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
 }
 
 .horizontal-scroll-row::-webkit-scrollbar {
   display: none;
+}
+
+.horizontal-scroll-row > * {
+  scroll-snap-align: start;
 }
