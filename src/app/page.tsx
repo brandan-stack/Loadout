@@ -485,7 +485,7 @@ export default async function Home() {
       </section>
 
       {!passwordRecoveryConfigured && (
-        <div className="rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
+        <div className="rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
           Password recovery email setup is still required before forgot-password can be used in production.
         </div>
       )}
@@ -567,7 +567,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-2 dashboard-lazy-section mt-4">
+        <section className="dashboard-rise dashboard-delay-2 dashboard-lazy-section mt-3">
           <AttentionPanel
             lowStockItems={lowStockItems.slice(0, 2)}
             reorderRecommendations={reorderRecommendations.slice(0, 2)}
@@ -577,7 +577,7 @@ export default async function Home() {
           />
         </section>
 
-        <section className="dashboard-rise dashboard-delay-3 dashboard-lazy-section mt-4">
+        <section className="dashboard-rise dashboard-delay-3 dashboard-lazy-section mt-3">
           <CompactDisclosure
             title="Recent signal"
             detail={`${mobileActivity.length} latest updates`}
@@ -586,7 +586,7 @@ export default async function Home() {
           </CompactDisclosure>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-4">
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3">
           <CompactDisclosure title="Launchpad" detail="All workspaces in a tighter grid">
             <div className="mt-3 grid grid-cols-2 gap-3">
               {workspaceCards.map((card) => (
@@ -598,35 +598,35 @@ export default async function Home() {
       </div>
 
       <div className="hidden md:block">
-        <section className="dashboard-rise dashboard-delay-1 grid gap-3 xl:grid-cols-5">
+        <section className="dashboard-rise dashboard-delay-1 grid gap-2.5 xl:grid-cols-5">
           {desktopMetrics.map((metric) => (
             <DesktopMetricCard key={metric.label} metric={metric} />
           ))}
         </section>
 
-        <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.88fr)]">
-          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-6 py-6 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+        <section className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.38fr)_minmax(18rem,0.82fr)]">
+          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
-            <div className="relative flex items-start justify-between gap-6">
-              <div className="max-w-[44rem]">
+            <div className="relative flex items-start justify-between gap-4 xl:gap-5">
+              <div className="max-w-[36rem] xl:max-w-[38rem]">
                 <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(45,212,191,0.08)] ${tonePill(heroMode.tone)}`}>
                   <Sparkles className="h-3.5 w-3.5" />
                   {heroMode.tag}
                 </div>
-                <p className="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-slate-400/88">
+                <p className="mt-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-slate-400/88">
                   {session.organizationName}
                 </p>
-                <h1 className="dashboard-balance mt-4 max-w-[12ch] text-[3.08rem] font-bold leading-[0.88] tracking-[-0.07em] text-white xl:text-[3.6rem]">
+                <h1 className="dashboard-balance mt-3 max-w-[10.5ch] text-[2.7rem] font-bold leading-[0.9] tracking-[-0.07em] text-white xl:text-[3.15rem]">
                   <span className="block">{heroMode.lead}</span>
                   <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
                     {heroMode.accent}
                   </span>
                 </h1>
-                <p className="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/80">
+                <p className="mt-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/80">
                   {heroTitle}
                 </p>
-                <p className="dashboard-balance mt-4 max-w-[42rem] text-[0.98rem] leading-[1.72] text-slate-200/84">
+                <p className="dashboard-balance mt-3 max-w-[34rem] text-[0.94rem] leading-[1.64] text-slate-200/84 xl:max-w-[36rem]">
                   {buildHeroSummary({
                     organizationName: session.organizationName,
                     inventoryHealth,
@@ -635,7 +635,7 @@ export default async function Home() {
                   })}
                 </p>
 
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="mt-4 flex flex-wrap items-center gap-2.5">
                   <Link
                     href={primaryAction.href}
                     className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
@@ -652,28 +652,28 @@ export default async function Home() {
                   </Link>
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-2.5">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {heroFacts.map((fact) => (
                     <HeroFactPill key={fact.label} fact={fact} />
                   ))}
                 </div>
               </div>
 
-              <div className="dashboard-panel-shell panel-interactive w-full max-w-[17rem] rounded-[1.5rem] border border-white/12 bg-white/[0.06] p-4 shadow-[0_18px_36px_rgba(2,6,23,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm">
-                <div className="mb-3 h-1 w-16 rounded-full bg-[linear-gradient(90deg,rgba(251,113,133,0.95),rgba(56,189,248,0.42))]" />
+              <div className="dashboard-panel-shell panel-interactive w-full max-w-[14.5rem] rounded-[1.4rem] border border-white/12 bg-white/[0.06] p-3.5 shadow-[0_18px_36px_rgba(2,6,23,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm xl:max-w-[15rem]">
+                <div className="mb-2.5 h-1 w-14 rounded-full bg-[linear-gradient(90deg,rgba(251,113,133,0.95),rgba(56,189,248,0.42))]" />
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300/78">
                   Priority Queue
                 </p>
-                <p className="mt-4 text-4xl font-bold tracking-[-0.05em] text-white">
+                <p className="mt-3 text-[2rem] font-bold tracking-[-0.05em] text-white xl:text-[2.25rem]">
                   {formatCompact(actionQueueCount)}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-200/76">
+                <p className="mt-2 text-[0.88rem] leading-6 text-slate-200/76">
                   {actionQueueCount > 0
                     ? `${criticalLowStockCount} critical stock issues and ${urgentReorders + highReorders} reorder decisions need review.`
                     : "No urgent blockers. The workspace is ready for normal flow."}
                 </p>
 
-                <div className="mt-4 space-y-2.5">
+                <div className="mt-3 space-y-2">
                   <FocusRow label="Critical stock" value={formatCompact(criticalLowStockCount)} tone="rose" />
                   <FocusRow label="Reorder queue" value={formatCompact(urgentReorders + highReorders)} tone="amber" />
                   <FocusRow label="Open jobs" value={formatCompact(openJobsCount)} tone="indigo" />
@@ -682,7 +682,7 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section grid gap-4">
+          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section grid gap-3">
             <AttentionPanel
               lowStockItems={lowStockItems}
               reorderRecommendations={reorderRecommendations.slice(0, 3)}
@@ -693,7 +693,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3.5 grid gap-3 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
           <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
