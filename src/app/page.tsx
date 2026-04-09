@@ -609,24 +609,23 @@ export default async function Home() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
             <div className="relative flex items-start justify-between gap-4 xl:gap-5">
-              <div className="max-w-[36rem] xl:max-w-[38rem]">
+              <div className="min-w-0 flex-1 xl:pr-1">
                 <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(45,212,191,0.08)] ${tonePill(heroMode.tone)}`}>
                   <Sparkles className="h-3.5 w-3.5" />
                   {heroMode.tag}
                 </div>
-                <p className="mt-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-slate-400/88">
-                  {session.organizationName}
-                </p>
-                <h1 className="dashboard-balance mt-3 max-w-[10.5ch] text-[2.7rem] font-bold leading-[0.9] tracking-[-0.07em] text-white xl:text-[3.15rem]">
+                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/86">
+                  <span>{session.organizationName}</span>
+                  <span className="h-1 w-1 rounded-full bg-slate-500/80" />
+                  <span className="text-slate-300/72">{heroTitle}</span>
+                </div>
+                <h1 className="dashboard-balance mt-2.5 max-w-[17ch] text-[2.45rem] font-bold leading-[0.92] tracking-[-0.07em] text-white xl:text-[2.9rem]">
                   <span className="block">{heroMode.lead}</span>
                   <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
                     {heroMode.accent}
                   </span>
                 </h1>
-                <p className="mt-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/80">
-                  {heroTitle}
-                </p>
-                <p className="dashboard-balance mt-3 max-w-[34rem] text-[0.94rem] leading-[1.64] text-slate-200/84 xl:max-w-[36rem]">
+                <p className="dashboard-balance mt-2.5 max-w-[38rem] text-[0.92rem] leading-[1.58] text-slate-200/84 xl:max-w-[40rem]">
                   {buildHeroSummary({
                     organizationName: session.organizationName,
                     inventoryHealth,
@@ -635,7 +634,7 @@ export default async function Home() {
                   })}
                 </p>
 
-                <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
                   <Link
                     href={primaryAction.href}
                     className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
@@ -652,9 +651,9 @@ export default async function Home() {
                   </Link>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-3.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   {heroFacts.map((fact) => (
-                    <HeroFactPill key={fact.label} fact={fact} />
+                    <HeroFactPill key={fact.label} fact={fact} compact />
                   ))}
                 </div>
               </div>
