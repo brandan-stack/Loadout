@@ -58,22 +58,13 @@ type DashboardInventorySnapshotRow = {
   warningCount: number | bigint;
 };
 
-type DashboardLowStockQueryRow = {
-  id: string;
-  name: string;
-  quantityOnHand: number | bigint;
-  threshold: number | bigint;
-  supplierName: string | null;
-  updatedAt: Date;
-  severity: string;
-};
-
 type DashboardMetric = {
   label: string;
   value: string;
   hint: string;
   icon: LucideIcon;
   tone: Tone;
+  href: string;
 };
 
 type HeroFact = {
@@ -81,6 +72,7 @@ type HeroFact = {
   value: string;
   detail: string;
   tone: Tone;
+  href: string;
 };
 
 type QuickAction = {
@@ -127,7 +119,6 @@ export default async function Home() {
     recentJobs,
     recentTransactions,
     stockMovementsThisWeek,
-    lowStockRows,
     reorderSnapshot,
   ] = await Promise.all([
     prisma.$queryRaw<DashboardInventorySnapshotRow[]>(Prisma.sql`
@@ -185,37 +176,6 @@ export default async function Home() {
         createdAt: { gte: sevenDaysAgo },
       },
     }),
-    prisma.$queryRaw<DashboardLowStockQueryRow[]>(Prisma.sql`
-      SELECT
-        item.id,
-        item.name,
-        item."quantityOnHand",
-        CASE
-          WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN item."lowStockRedThreshold"
-          ELSE item."lowStockAmberThreshold"
-        END::int AS threshold,
-        supplier.name AS "supplierName",
-        item."updatedAt",
-        CASE
-          WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN 'critical'
-          ELSE 'warning'
-        END AS severity
-      FROM "Item" item
-      LEFT JOIN "Supplier" supplier ON supplier.id = item."preferredSupplierId"
-      WHERE item."organizationId" = ${session.organizationId}
-        AND (
-          item."quantityOnHand" <= item."lowStockRedThreshold"
-          OR (
-            item."quantityOnHand" > item."lowStockRedThreshold"
-            AND item."quantityOnHand" <= item."lowStockAmberThreshold"
-          )
-        )
-      ORDER BY
-        CASE WHEN item."quantityOnHand" <= item."lowStockRedThreshold" THEN 0 ELSE 1 END,
-        item."quantityOnHand" ASC,
-        item."updatedAt" DESC
-      LIMIT 4
-    `),
     getReorderRecommendationSnapshot(session.organizationId, 3),
   ]);
 
@@ -234,16 +194,6 @@ export default async function Home() {
   const urgentReorders = reorderSnapshot.summary.urgent;
   const highReorders = reorderSnapshot.summary.high;
   const actionQueueCount = urgentReorders + highReorders + criticalLowStockCount;
-
-  const lowStockItems: DashboardLowStockItem[] = lowStockRows.map((item) => ({
-    id: item.id,
-    name: item.name,
-    quantityOnHand: Number(item.quantityOnHand),
-    threshold: Number(item.threshold),
-    supplierName: item.supplierName,
-    updatedAt: item.updatedAt,
-    severity: item.severity === "critical" ? "critical" : "warning",
-  }));
 
   const activity: DashboardActivity[] = [
     ...recentTransactions.map<DashboardActivity>((transaction) => ({
@@ -295,6 +245,7 @@ export default async function Home() {
       hint: `${formatCompact(totalUnits)} units on hand`,
       icon: Boxes,
       tone: "sky",
+      href: "/items",
     },
     {
       label: "Low Stock",
@@ -302,6 +253,7 @@ export default async function Home() {
       hint: `${formatCompact(criticalLowStockCount)} critical now`,
       icon: AlertTriangle,
       tone: lowStockCount > 0 ? "amber" : "emerald",
+      href: lowStockCount > 0 ? "/reorder?priority=high" : "/items",
     },
     {
       label: "Open Jobs",
@@ -309,6 +261,7 @@ export default async function Home() {
       hint: session.role === "TECH" ? "Assigned to you" : "Live work orders",
       icon: BriefcaseBusiness,
       tone: openJobsCount > 0 ? "indigo" : "sky",
+      href: "/jobs",
     },
     {
       label: "Locations",
@@ -316,6 +269,7 @@ export default async function Home() {
       hint: "Active stock points",
       icon: MapPin,
       tone: "emerald",
+      href: "/locations",
     },
     {
       label: "Priority Queue",
@@ -323,6 +277,7 @@ export default async function Home() {
       hint: `${formatCompact(urgentReorders + highReorders)} reorder decisions`,
       icon: ShoppingCart,
       tone: actionQueueCount > 0 ? "rose" : "sky",
+      href: "/reorder",
     },
   ];
 
@@ -431,28 +386,32 @@ export default async function Home() {
 
   const heroFacts: HeroFact[] = [
     {
-      label: "Health",
+      label: "Inventory",
       value: `${inventoryHealth}%`,
       detail: "Inventory health",
       tone: lowStockCount > 0 ? "amber" : "emerald",
+      href: "/items",
     },
     {
-      label: "Queue",
-      value: formatCompact(actionQueueCount),
-      detail: "Decisions waiting",
-      tone: actionQueueCount > 0 ? "rose" : "sky",
+      label: "Critical",
+      value: formatCompact(criticalLowStockCount),
+      detail: "Urgent reorder items",
+      tone: criticalLowStockCount > 0 ? "rose" : "emerald",
+      href: "/reorder?priority=urgent",
     },
     {
       label: "Jobs",
       value: formatCompact(openJobsCount),
       detail: session.role === "TECH" ? "Assigned to you" : "Live field work",
       tone: "indigo",
+      href: "/jobs",
     },
     {
-      label: "Flow",
-      value: formatCompact(stockMovementsThisWeek),
-      detail: "Stock moves this week",
-      tone: "sky",
+      label: "Queue",
+      value: formatCompact(actionQueueCount),
+      detail: "Active reorder decisions",
+      tone: actionQueueCount > 0 ? "sky" : "emerald",
+      href: "/reorder",
     },
   ];
 
@@ -567,16 +526,6 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-2 dashboard-lazy-section mt-3">
-          <AttentionPanel
-            lowStockItems={lowStockItems.slice(0, 2)}
-            reorderRecommendations={reorderRecommendations.slice(0, 2)}
-            criticalCount={criticalLowStockCount}
-            warningCount={warningLowStockCount}
-            compact
-          />
-        </section>
-
         <section className="dashboard-rise dashboard-delay-3 dashboard-lazy-section mt-3">
           <CompactDisclosure
             title="Recent signal"
@@ -604,101 +553,88 @@ export default async function Home() {
           ))}
         </section>
 
-        <section className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.42fr)_minmax(19rem,0.74fr)]">
-          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative self-start overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+        <section className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
-            <div className="relative flex items-start justify-between gap-4 xl:gap-5">
-              <div className="min-w-0 flex-1 xl:pr-1">
-                <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(45,212,191,0.08)] ${tonePill(heroMode.tone)}`}>
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {heroMode.tag}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/86">
-                  <span>{session.organizationName}</span>
-                  <span className="h-1 w-1 rounded-full bg-slate-500/80" />
-                  <span className="text-slate-300/72">{heroTitle}</span>
-                </div>
-                <h1 className="dashboard-balance mt-2.5 max-w-[17ch] text-[2.45rem] font-bold leading-[0.92] tracking-[-0.07em] text-white xl:text-[2.9rem]">
-                  <span className="block">{heroMode.lead}</span>
-                  <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
-                    {heroMode.accent}
-                  </span>
-                </h1>
-                <p className="dashboard-balance mt-2.5 max-w-[38rem] text-[0.92rem] leading-[1.58] text-slate-200/84 xl:max-w-[40rem]">
-                  {buildHeroSummary({
-                    organizationName: session.organizationName,
-                    inventoryHealth,
-                    lowStockCount,
-                    stockMovementsThisWeek,
-                  })}
-                </p>
+            <div className="relative">
+              <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] shadow-[0_0_18px_rgba(45,212,191,0.08)] ${tonePill(heroMode.tone)}`}>
+                <Sparkles className="h-3.5 w-3.5" />
+                {heroMode.tag}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400/86">
+                <span>{session.organizationName}</span>
+                <span className="h-1 w-1 rounded-full bg-slate-500/80" />
+                <span className="text-slate-300/72">{heroTitle}</span>
+              </div>
+              <h1 className="dashboard-balance mt-2.5 max-w-[16ch] text-[2.5rem] font-bold leading-[0.92] tracking-[-0.07em] text-white xl:text-[3rem]">
+                <span className="block">{heroMode.lead}</span>
+                <span className="mt-1 block bg-[linear-gradient(135deg,#d5f6ff_0%,#67e8f9_35%,#ffffff_100%)] bg-clip-text text-transparent">
+                  {heroMode.accent}
+                </span>
+              </h1>
+              <p className="dashboard-balance mt-2.5 max-w-[42rem] text-[0.92rem] leading-[1.58] text-slate-200/84">
+                {buildHeroSummary({
+                  organizationName: session.organizationName,
+                  inventoryHealth,
+                  lowStockCount,
+                  stockMovementsThisWeek,
+                })}
+              </p>
 
-                <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-                  <Link
-                    href={primaryAction.href}
-                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
-                  >
-                    {primaryAction.label}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link
-                    href="/scan"
-                    className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08]"
-                  >
-                    <ScanLine className="h-4 w-4" />
-                    Open scanner
-                  </Link>
-                </div>
-
-                <div className="mt-3.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {heroFacts.map((fact) => (
-                    <HeroFactPill key={fact.label} fact={fact} compact />
-                  ))}
-                </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                <Link
+                  href={primaryAction.href}
+                  className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0f766e_0%,#38bdf8_100%)] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-white shadow-[0_16px_32px_rgba(8,145,178,0.28),0_0_20px_rgba(56,189,248,0.14)] transition-all duration-300 hover:shadow-[0_22px_40px_rgba(8,145,178,0.34),0_0_26px_rgba(56,189,248,0.2)]"
+                >
+                  {primaryAction.label}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/scan"
+                  className="inline-flex min-h-[3rem] items-center gap-2 rounded-[1rem] border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-semibold tracking-[-0.01em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:bg-white/[0.08]"
+                >
+                  <ScanLine className="h-4 w-4" />
+                  Open scanner
+                </Link>
               </div>
 
-              <div className="dashboard-panel-shell panel-interactive w-full max-w-[14.5rem] rounded-[1.4rem] border border-white/12 bg-white/[0.06] p-3.5 shadow-[0_18px_36px_rgba(2,6,23,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm xl:max-w-[15rem]">
-                <div className="mb-2.5 h-1 w-14 rounded-full bg-[linear-gradient(90deg,rgba(251,113,133,0.95),rgba(56,189,248,0.42))]" />
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300/78">
-                  Priority Queue
-                </p>
-                <p className="mt-3 text-[2rem] font-bold tracking-[-0.05em] text-white xl:text-[2.25rem]">
-                  {formatCompact(actionQueueCount)}
-                </p>
-                <p className="mt-2 text-[0.88rem] leading-6 text-slate-200/76">
-                  {actionQueueCount > 0
-                    ? `${criticalLowStockCount} critical stock issues and ${urgentReorders + highReorders} reorder decisions need review.`
-                    : "No urgent blockers. The workspace is ready for normal flow."}
-                </p>
-
-                <div className="mt-3 space-y-2">
-                  <FocusRow label="Critical stock" value={formatCompact(criticalLowStockCount)} tone="rose" />
-                  <FocusRow label="Reorder queue" value={formatCompact(urgentReorders + highReorders)} tone="amber" />
-                  <FocusRow label="Open jobs" value={formatCompact(openJobsCount)} tone="indigo" />
-                </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {heroFacts.map((fact) => (
+                  <HeroFactPill key={fact.label} fact={fact} compact />
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section self-start">
+          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section">
             <ActivityPanel activity={desktopActivity} />
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.22fr)_minmax(18rem,0.78fr)]">
-          <AttentionPanel
-            lowStockItems={lowStockItems}
-            reorderRecommendations={reorderRecommendations.slice(0, 3)}
-            criticalCount={criticalLowStockCount}
-            warningCount={warningLowStockCount}
-          />
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3 grid gap-3 xl:grid-cols-2">
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
+                <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
+                  Jump into the core workspace without hunting through stacked panels.
+                </p>
+              </div>
+            </div>
 
-          <div className="panel-interactive self-start overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {workspaceCards.map((card) => (
+                <WorkspaceTile key={card.title} card={card} compact dense />
+              ))}
+            </div>
+          </div>
+
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div>
-              <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Fast Actions</h2>
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Action Routes</h2>
               <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-                Shortcuts stay in one compact block instead of forcing another full-height section.
+                Keep the common moves and the high-priority routes in one predictable place.
               </p>
             </div>
 
@@ -707,24 +643,15 @@ export default async function Home() {
                 <QuickActionChip key={action.label} action={action} compact />
               ))}
             </div>
-          </div>
-        </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3">
-          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
-                <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-                  Every workspace stays visible without turning into a long card rail.
-                </p>
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-slate-400/84">Priority routes</p>
+              <div className="mt-3 space-y-2">
+                <FocusRow label="Critical inventory" value={formatCompact(criticalLowStockCount)} tone="rose" href="/reorder?priority=urgent" />
+                <FocusRow label="Warning stock" value={formatCompact(warningLowStockCount + highReorders)} tone="amber" href="/reorder?priority=high" />
+                <FocusRow label="Open jobs" value={formatCompact(openJobsCount)} tone="indigo" href="/jobs" />
+                <FocusRow label="Inventory catalog" value={formatCompact(totalItems)} tone="sky" href="/items" />
               </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {workspaceCards.map((card) => (
-                <WorkspaceTile key={card.title} card={card} compact dense />
-              ))}
             </div>
           </div>
         </section>
@@ -735,7 +662,10 @@ export default async function Home() {
 
 function DesktopMetricCard({ metric }: { metric: DashboardMetric }) {
   return (
-    <div className="dashboard-panel-shell panel-interactive relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.72))] p-4 shadow-[0_18px_40px_rgba(2,6,23,0.3)] backdrop-blur-sm hover:shadow-[0_24px_48px_rgba(2,6,23,0.4)]">
+    <Link
+      href={metric.href}
+      className="dashboard-panel-shell panel-interactive relative block overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.72))] p-4 shadow-[0_18px_40px_rgba(2,6,23,0.3)] backdrop-blur-sm hover:shadow-[0_24px_48px_rgba(2,6,23,0.4)]"
+    >
       <div className="pointer-events-none absolute inset-0 opacity-80" style={{ background: tileOverlay(metric.tone) }} />
       <div className="relative">
         <div className="mb-3 h-1.5 w-14 rounded-full" style={{ background: toneGradient(metric.tone) }} />
@@ -751,14 +681,15 @@ function DesktopMetricCard({ metric }: { metric: DashboardMetric }) {
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-300/72">{metric.hint}</p>
       </div>
-    </div>
+    </Link>
   );
 }
 
 function HeroFactPill({ fact, compact = false }: { fact: HeroFact; compact?: boolean }) {
   return (
-    <div
-      className={`dashboard-panel-shell panel-interactive overflow-hidden rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] ${compact ? "px-3 py-2.5" : "min-w-[10.5rem] px-3.5 py-3"} shadow-[0_14px_28px_rgba(2,6,23,0.2)] backdrop-blur-sm`}
+    <Link
+      href={fact.href}
+      className={`dashboard-panel-shell panel-interactive block overflow-hidden rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] ${compact ? "px-3 py-2.5" : "min-w-[10.5rem] px-3.5 py-3"} shadow-[0_14px_28px_rgba(2,6,23,0.2)] backdrop-blur-sm`}
     >
       <div className="relative">
         <div className="mb-2 h-1 w-10 rounded-full" style={{ background: toneGradient(fact.tone) }} />
@@ -766,9 +697,9 @@ function HeroFactPill({ fact, compact = false }: { fact: HeroFact; compact?: boo
         <p className={`mt-1.5 font-bold tracking-[-0.05em] ${compact ? "text-[1.2rem]" : "text-[1.55rem]"} text-white`}>
           {fact.value}
         </p>
-        {!compact && <p className="mt-1 text-[0.78rem] text-slate-300/72">{fact.detail}</p>}
+        <p className={`text-slate-300/72 ${compact ? "mt-1 text-[0.72rem] leading-5" : "mt-1 text-[0.78rem]"}`}>{fact.detail}</p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -969,14 +900,30 @@ function CompactDisclosure({
   );
 }
 
-function FocusRow({ label, value, tone }: { label: string; value: string; tone: Tone }) {
-  return (
-    <div className="dashboard-panel-shell panel-interactive flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] px-3.5 py-3">
+function FocusRow({ label, value, tone, href }: { label: string; value: string; tone: Tone; href?: string }) {
+  const className = "dashboard-panel-shell panel-interactive flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] px-3.5 py-3";
+
+  const content = (
+    <>
       <span className="text-sm font-medium text-slate-300/84">{label}</span>
       <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[0.72rem] font-semibold ${tonePill(tone)}`}>
         <span className="h-1.5 w-1.5 rounded-full bg-current" />
         {value}
       </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={className}>
+      {content}
     </div>
   );
 }

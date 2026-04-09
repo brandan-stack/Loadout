@@ -3,8 +3,23 @@ import { ReorderPageClient } from "@/components/reorder/reorder-page-client";
 import { getSession } from "@/lib/auth";
 import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
 
-export default async function ReorderPage() {
+function getInitialPriorityFilter(value: string | string[] | undefined) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  if (candidate === "urgent" || candidate === "high" || candidate === "medium") {
+    return candidate;
+  }
+
+  return "all";
+}
+
+export default async function ReorderPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   if (!session) {
     redirect("/login");
@@ -20,6 +35,7 @@ export default async function ReorderPage() {
       }))}
       initialSummary={snapshot.summary}
       linkedSupplierCount={snapshot.linkedSupplierCount}
+      initialPriorityFilter={getInitialPriorityFilter(resolvedSearchParams?.priority)}
     />
   );
 }

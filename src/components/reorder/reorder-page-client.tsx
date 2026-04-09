@@ -48,16 +48,26 @@ interface ReorderPageClientProps {
   initialRecommendations: ClientReorderRecommendation[];
   initialSummary: ReorderRecommendationSummary;
   linkedSupplierCount: number;
+  initialPriorityFilter: "all" | "urgent" | "high" | "medium";
 }
+
+type PriorityFilter = "all" | "urgent" | "high" | "medium";
 
 export function ReorderPageClient({
   initialRecommendations,
   initialSummary,
   linkedSupplierCount,
+  initialPriorityFilter,
 }: ReorderPageClientProps) {
   const [search, setSearch] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>(initialPriorityFilter);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+  const handlePriorityFilterChange = (nextValue: string) => {
+    if (nextValue === "all" || nextValue === "urgent" || nextValue === "high" || nextValue === "medium") {
+      setPriorityFilter(nextValue);
+    }
+  };
 
   const filteredRecommendations = useMemo(() => {
     return initialRecommendations.filter((recommendation) => {
@@ -201,7 +211,7 @@ export function ReorderPageClient({
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search reorder queue"
             />
-            <FilterTabs options={filterOptions} value={priorityFilter} onChange={setPriorityFilter} />
+            <FilterTabs options={filterOptions} value={priorityFilter} onChange={handlePriorityFilterChange} />
           </div>
         </Card>
       </PageSection>
