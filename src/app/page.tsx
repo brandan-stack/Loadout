@@ -457,7 +457,7 @@ export default async function Home() {
   ];
 
   return (
-    <PageShell className="performance-dashboard relative px-3 py-3 sm:px-4 lg:px-6 lg:py-4" contentClassName="space-y-4 lg:space-y-5">
+    <PageShell className="performance-dashboard relative max-w-[1320px] px-3 py-3 sm:px-4 lg:px-5 lg:py-4" contentClassName="space-y-4 lg:space-y-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_22%),radial-gradient(circle_at_50%_28%,rgba(14,165,233,0.08),transparent_34%)]" />
 
       <section className="dashboard-panel-shell panel-interactive rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.68),rgba(15,23,42,0.54))] px-3.5 py-3 shadow-[0_14px_28px_rgba(2,6,23,0.22)] backdrop-blur-sm sm:px-4">
@@ -692,8 +692,8 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3.5 grid gap-3 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
-          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
+          <div className="panel-interactive self-start overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
@@ -710,7 +710,7 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+          <div className="panel-interactive self-start overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div>
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Fast Actions</h2>
               <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
