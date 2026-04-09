@@ -604,7 +604,7 @@ export default async function Home() {
           ))}
         </section>
 
-        <section className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.38fr)_minmax(18rem,0.82fr)]">
+        <section className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.42fr)_minmax(19rem,0.74fr)]">
           <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative self-start overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
@@ -681,34 +681,18 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section grid gap-3">
-            <AttentionPanel
-              lowStockItems={lowStockItems}
-              reorderRecommendations={reorderRecommendations.slice(0, 3)}
-              criticalCount={criticalLowStockCount}
-              warningCount={warningLowStockCount}
-            />
+          <div className="dashboard-rise dashboard-delay-3 dashboard-lazy-section self-start">
             <ActivityPanel activity={desktopActivity} />
           </div>
         </section>
 
-        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.28fr)_minmax(18rem,0.72fr)]">
-          <div className="panel-interactive self-start overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
-                <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
-                  Every workspace stays visible without turning into a long card rail.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {workspaceCards.map((card) => (
-                <WorkspaceTile key={card.title} card={card} compact dense />
-              ))}
-            </div>
-          </div>
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.22fr)_minmax(18rem,0.78fr)]">
+          <AttentionPanel
+            lowStockItems={lowStockItems}
+            reorderRecommendations={reorderRecommendations.slice(0, 3)}
+            criticalCount={criticalLowStockCount}
+            warningCount={warningLowStockCount}
+          />
 
           <div className="panel-interactive self-start overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
             <div>
@@ -721,6 +705,25 @@ export default async function Home() {
             <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
               {quickActions.map((action) => (
                 <QuickActionChip key={action.label} action={action} compact />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="dashboard-rise dashboard-delay-4 dashboard-lazy-section mt-3">
+          <div className="panel-interactive overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(15,23,42,0.7))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.34)] backdrop-blur-sm">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Launchpad</h2>
+                <p className="mt-1.5 text-sm leading-6 text-slate-300/78">
+                  Every workspace stays visible without turning into a long card rail.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {workspaceCards.map((card) => (
+                <WorkspaceTile key={card.title} card={card} compact dense />
               ))}
             </div>
           </div>
