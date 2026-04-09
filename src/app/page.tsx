@@ -604,8 +604,8 @@ export default async function Home() {
           ))}
         </section>
 
-        <section className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.38fr)_minmax(18rem,0.82fr)]">
-          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
+        <section className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.38fr)_minmax(18rem,0.82fr)]">
+          <div className="dashboard-stage panel-interactive dashboard-rise dashboard-delay-2 relative self-start overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(145deg,rgba(10,21,39,0.97),rgba(2,6,23,0.99))] px-5 py-5 shadow-[0_28px_70px_rgba(2,6,23,0.52),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-xl">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_22%),radial-gradient(circle_at_82%_16%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
 
             <div className="relative flex items-start justify-between gap-4 xl:gap-5">
