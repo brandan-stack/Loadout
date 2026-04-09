@@ -22,7 +22,6 @@ import {
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
@@ -458,15 +457,21 @@ export default async function Home() {
   ];
 
   return (
-    <PageShell className="performance-dashboard relative">
+    <PageShell className="performance-dashboard relative px-3 py-3 sm:px-4 lg:px-6 lg:py-4" contentClassName="space-y-4 lg:space-y-5">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_22%),radial-gradient(circle_at_50%_28%,rgba(14,165,233,0.08),transparent_34%)]" />
 
-      <PageHeader
-        eyebrow={<Badge tone={heroMode.tone === "rose" ? "red" : heroMode.tone === "emerald" ? "green" : heroMode.tone === "amber" ? "orange" : "blue"}>Operations Overview</Badge>}
-        title={session.organizationName}
-        description="Track inventory health, job load, and reorder pressure from one workspace before jumping into the next action."
-        actions={
-          <>
+      <section className="dashboard-panel-shell panel-interactive rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.68),rgba(15,23,42,0.54))] px-3.5 py-3 shadow-[0_14px_28px_rgba(2,6,23,0.22)] backdrop-blur-sm sm:px-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Badge tone={heroMode.tone === "rose" ? "red" : heroMode.tone === "emerald" ? "green" : heroMode.tone === "amber" ? "orange" : "blue"}>Operations Overview</Badge>
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-500/88">{session.organizationName}</span>
+            </div>
+            <p className="mt-2 max-w-[48rem] text-sm leading-6 text-slate-300/74">
+              Track inventory health, job load, and reorder pressure without wasting the first screen on empty framing.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <Button variant="secondary" href="/scan">
               <ScanLine className="h-4 w-4" />
               Open scanner
@@ -475,12 +480,12 @@ export default async function Home() {
               {primaryAction.label}
               <ArrowRight className="h-4 w-4" />
             </Button>
-          </>
-        }
-      />
+          </div>
+        </div>
+      </section>
 
       {!passwordRecoveryConfigured && (
-        <div className="mb-5 rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
+        <div className="rounded-[1.4rem] border border-amber-400/18 bg-amber-500/10 px-4 py-3.5 text-sm text-amber-50 shadow-[0_16px_40px_rgba(15,23,42,0.28)] backdrop-blur">
           Password recovery email setup is still required before forgot-password can be used in production.
         </div>
       )}

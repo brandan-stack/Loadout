@@ -1,10 +1,18 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export function PageShell({ children, className }: { children: ReactNode; className?: string }) {
+export function PageShell({
+  children,
+  className,
+  contentClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
   return (
     <main className={cn("mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8", className)}>
-      <div className="space-y-6">{children}</div>
+      <div className={cn("space-y-6", contentClassName)}>{children}</div>
     </main>
   );
 }
