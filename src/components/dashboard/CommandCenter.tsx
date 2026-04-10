@@ -51,7 +51,7 @@ export function CommandCenter({
               {supportingLine}
             </p>
             <p className="mt-3 max-w-[42rem] text-[0.96rem] leading-6 text-slate-300/76">
-              Reoder parts. keep jobs moving. Nothing else matter. Keep you crew cruisin'
+              Reoder parts. keep jobs moving. Nothing else matter. Keep you crew cruisin&apos;
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2.5">

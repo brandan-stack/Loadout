@@ -11,6 +11,7 @@ dist/
 *.db-journal
 .DS_Store
 coverage/
+test-results/
 *.tsbuildinfo
 .vscode/
 .idea/
