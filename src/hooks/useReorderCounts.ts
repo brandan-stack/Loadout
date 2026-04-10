@@ -48,9 +48,7 @@ async function loadCounts(force = false): Promise<ReorderRecommendationSummary |
 }
 
 export function useReorderCounts(enabled: boolean, refreshKey?: string) {
-  const [counts, setCounts] = useState<ReorderRecommendationSummary | null>(
-    enabled ? cachedCounts : null
-  );
+  const [counts, setCounts] = useState<ReorderRecommendationSummary | null>(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -59,6 +57,10 @@ export function useReorderCounts(enabled: boolean, refreshKey?: string) {
     }
 
     let cancelled = false;
+
+    if (cachedCounts) {
+      setCounts(cachedCounts);
+    }
 
     loadCounts().then((nextCounts) => {
       if (!cancelled && nextCounts) {

@@ -25,11 +25,12 @@ async function fetchCurrentUser(): Promise<CurrentUser | null> {
 }
 
 export function useCurrentUser(enabled = true) {
-  const [user, setUser] = useState<CurrentUser | null>(cached);
-  const [loading, setLoading] = useState(enabled && cached === null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
     if (!enabled) {
+      setUser(null);
       setLoading(false);
       return;
     }

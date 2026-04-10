@@ -13,6 +13,12 @@ function getInitialPriorityFilter(value: string | string[] | undefined) {
   return "all";
 }
 
+function getInitialItemId(value: string | string[] | undefined) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  return typeof candidate === "string" && candidate.trim() ? candidate : undefined;
+}
+
 export default async function ReorderPage({
   searchParams,
 }: {
@@ -36,6 +42,7 @@ export default async function ReorderPage({
       initialSummary={snapshot.summary}
       linkedSupplierCount={snapshot.linkedSupplierCount}
       initialPriorityFilter={getInitialPriorityFilter(resolvedSearchParams?.priority)}
+      initialSelectedItemId={getInitialItemId(resolvedSearchParams?.item)}
     />
   );
 }

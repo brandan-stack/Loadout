@@ -168,24 +168,227 @@ main {
 }
 
 .performance-dashboard .dashboard-panel-shell {
-  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.22) !important;
+  box-shadow:
+    0 12px 28px rgba(2, 6, 23, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+.performance-dashboard .next-action-card {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    0 20px 42px rgba(2, 6, 23, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 28px rgba(56, 189, 248, 0.08) !important;
+}
+
+.performance-dashboard .action-strip-button {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.performance-dashboard .command-center-card-critical {
+  border-color: rgba(251, 113, 133, 0.42) !important;
+  box-shadow:
+    0 26px 50px rgba(2, 6, 23, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 34px rgba(251, 113, 133, 0.2) !important;
+}
+
+.performance-dashboard .command-center-card-secondary {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.performance-dashboard .work-queue-card-featured {
+  border-color: rgba(129, 140, 248, 0.22) !important;
+  box-shadow:
+    0 24px 46px rgba(2, 6, 23, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 28px rgba(129, 140, 248, 0.18) !important;
+}
+
+.performance-dashboard .work-queue-card-secondary {
+  border-color: rgba(255, 255, 255, 0.13) !important;
+}
+
+.performance-dashboard .reorder-now-button {
+  box-shadow:
+    0 18px 34px rgba(255, 255, 255, 0.2),
+    0 0 18px rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+.performance-dashboard .critical-reorder-button {
+  animation: critical-action-pulse 2.6s ease-in-out infinite;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .panel-interactive {
     transition:
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 180ms ease,
-      background-color 180ms ease;
+      transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 150ms ease,
+      background-color 150ms ease;
   }
 
   .panel-interactive:hover {
     transform: translateY(-2px);
   }
 
+  .performance-dashboard .dashboard-panel-shell.panel-interactive:hover {
+    border-color: rgba(255, 255, 255, 0.14) !important;
+    box-shadow:
+      0 18px 38px rgba(2, 6, 23, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 18px rgba(56, 189, 248, 0.08) !important;
+  }
+
+  .performance-dashboard .next-action-card:hover {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    box-shadow:
+      0 22px 44px rgba(2, 6, 23, 0.34),
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 0 34px rgba(56, 189, 248, 0.12) !important;
+  }
+
+  .performance-dashboard .priority-queue-card:hover {
+    border-color: rgba(251, 113, 133, 0.24) !important;
+    box-shadow:
+      0 20px 42px rgba(2, 6, 23, 0.34),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 28px rgba(251, 113, 133, 0.1) !important;
+  }
+
+  .performance-dashboard .launchpad-tile:hover {
+    box-shadow:
+      0 20px 40px rgba(2, 6, 23, 0.32),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 22px rgba(56, 189, 248, 0.08) !important;
+  }
+
+  .performance-dashboard .action-strip-button:hover {
+    border-color: rgba(129, 140, 248, 0.24) !important;
+    box-shadow:
+      0 18px 34px rgba(2, 6, 23, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 18px rgba(129, 140, 248, 0.14) !important;
+  }
+
+  .performance-dashboard .command-action-card:hover,
+  .performance-dashboard .command-center-card:hover {
+    border-color: rgba(129, 140, 248, 0.22) !important;
+    box-shadow:
+      0 20px 40px rgba(2, 6, 23, 0.32),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 20px rgba(96, 165, 250, 0.1) !important;
+  }
+
+  .performance-dashboard .command-center-card-critical:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: rgba(251, 113, 133, 0.42) !important;
+    box-shadow:
+      0 28px 54px rgba(2, 6, 23, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 0 34px rgba(251, 113, 133, 0.3) !important;
+  }
+
+  .performance-dashboard .command-center-card-secondary:hover {
+    transform: translateY(-2px) scale(1.008);
+  }
+
+  .performance-dashboard .work-queue-card-featured:hover {
+    transform: translateY(-3px) scale(1.03);
+    border-color: rgba(129, 140, 248, 0.28) !important;
+    box-shadow:
+      0 28px 50px rgba(2, 6, 23, 0.38),
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 0 30px rgba(129, 140, 248, 0.22) !important;
+  }
+
+  .performance-dashboard .work-queue-card:hover {
+    border-color: rgba(129, 140, 248, 0.18) !important;
+    box-shadow:
+      0 18px 36px rgba(2, 6, 23, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 24px rgba(129, 140, 248, 0.09) !important;
+  }
+
+  .performance-dashboard .reorder-now-button:hover {
+    box-shadow:
+      0 24px 40px rgba(255, 255, 255, 0.24),
+      0 0 28px rgba(255, 255, 255, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  }
+
+  .performance-dashboard .work-queue-card-secondary:hover {
+    transform: translateY(-2px) scale(0.995);
+  }
+
+  .performance-dashboard .work-queue-card-critical:hover {
+    transform: translateY(-2px) scale(1.01);
+    border-color: rgba(251, 113, 133, 0.26) !important;
+    box-shadow:
+      0 22px 42px rgba(2, 6, 23, 0.34),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 22px rgba(251, 113, 133, 0.18) !important;
+  }
+
+  .performance-dashboard .context-list-row:hover,
+  .performance-dashboard .jobs-at-risk-row:hover {
+    border-color: rgba(255, 255, 255, 0.16) !important;
+    box-shadow:
+      0 18px 34px rgba(2, 6, 23, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 20px rgba(56, 189, 248, 0.08) !important;
+  }
+
+  .performance-dashboard .dashboard-stage .panel-interactive:hover {
+    box-shadow:
+      0 18px 36px rgba(2, 6, 23, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 0 18px rgba(56, 189, 248, 0.06) !important;
+  }
+
   .panel-interactive:active {
     transform: translateY(-1px) scale(0.996);
+  }
+}
+
+.performance-dashboard .work-queue-card-featured::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.06) 46%, transparent 58%);
+  background-size: 220% 100%;
+  animation: featured-card-shimmer 6s linear infinite;
+  opacity: 0.45;
+}
+
+@keyframes critical-action-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 18px 34px rgba(244, 63, 94, 0.28),
+      0 0 0 rgba(251, 113, 133, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 20px 38px rgba(244, 63, 94, 0.34),
+      0 0 18px rgba(251, 113, 133, 0.18);
+  }
+}
+
+@keyframes featured-card-shimmer {
+  from {
+    background-position: 220% 0;
+  }
+
+  to {
+    background-position: -40% 0;
   }
 }
 
@@ -244,6 +447,14 @@ main {
   .dashboard-delay-2,
   .dashboard-delay-3,
   .dashboard-delay-4 {
+    animation: none;
+  }
+
+  .critical-reorder-button {
+    animation: none;
+  }
+
+  .performance-dashboard .work-queue-card-featured::before {
     animation: none;
   }
 }

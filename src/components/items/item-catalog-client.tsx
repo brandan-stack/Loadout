@@ -70,6 +70,7 @@ interface ItemCatalogClientProps {
   initialItems: InventoryPageItem[];
   initialSuppliers: InventoryPageSupplier[];
   initialLocations: InventoryPageLocation[];
+  initialSelectedItemId?: string;
 }
 
 function normalizeOptionalText(value: string): string | undefined {
@@ -113,6 +114,7 @@ export function ItemCatalogClient({
   initialItems,
   initialSuppliers,
   initialLocations,
+  initialSelectedItemId,
 }: ItemCatalogClientProps) {
   const isAdmin = currentUserRole === "SUPER_ADMIN" || currentUserRole === "OFFICE";
   const [items, setItems] = useState<InventoryPageItem[]>(initialItems);
@@ -126,7 +128,7 @@ export function ItemCatalogClient({
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiError, setAiError] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(initialSelectedItemId ?? null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [formData, setFormData] = useState({

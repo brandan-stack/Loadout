@@ -49,6 +49,7 @@ interface ReorderPageClientProps {
   initialSummary: ReorderRecommendationSummary;
   linkedSupplierCount: number;
   initialPriorityFilter: "all" | "urgent" | "high" | "medium";
+  initialSelectedItemId?: string;
 }
 
 type PriorityFilter = "all" | "urgent" | "high" | "medium";
@@ -58,10 +59,11 @@ export function ReorderPageClient({
   initialSummary,
   linkedSupplierCount,
   initialPriorityFilter,
+  initialSelectedItemId,
 }: ReorderPageClientProps) {
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>(initialPriorityFilter);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(initialSelectedItemId ?? null);
 
   const handlePriorityFilterChange = (nextValue: string) => {
     if (nextValue === "all" || nextValue === "urgent" || nextValue === "high" || nextValue === "medium") {

@@ -3,8 +3,19 @@ import { ItemCatalogClient } from "@/components/items/item-catalog-client";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export default async function ItemsPage() {
+function getInitialItemId(value: string | string[] | undefined) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  return typeof candidate === "string" && candidate.trim() ? candidate : undefined;
+}
+
+export default async function ItemsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   if (!session) {
     redirect("/login");
@@ -82,6 +93,7 @@ export default async function ItemsPage() {
         name: location.name,
         description: location.description ?? undefined,
       }))}
+      initialSelectedItemId={getInitialItemId(resolvedSearchParams?.item)}
     />
   );
 }
