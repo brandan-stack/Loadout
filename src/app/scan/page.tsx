@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ScanView } from "@/components/camera/scan-view";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface ScanResult {
   barcode: string;
@@ -13,7 +14,18 @@ interface ScanResult {
 
 export default function ScanPage() {
   const router = useRouter();
+  const { user, loading } = useCurrentUser();
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
+
+  useEffect(() => {
+    if (!loading && user && !user.canViewInventory) {
+      router.replace("/");
+    }
+  }, [loading, router, user]);
+
+  if (loading || !user || !user.canViewInventory) {
+    return null;
+  }
 
   const handleScanSuccess = (barcode: string, itemId: string, action: string) => {
     setLastResult({ barcode, itemId, action });

@@ -1,15 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { UserRole } from "@/lib/auth";
+import type { UserAccessContext } from "@/lib/permissions";
 
-export interface CurrentUser {
-  userId: string;
-  name: string;
-  role: UserRole;
-  organizationId: string;
-  organizationName: string;
-}
+export type CurrentUser = UserAccessContext;
 
 let cached: CurrentUser | null = null;
 let fetchPromise: Promise<CurrentUser | null> | null = null;

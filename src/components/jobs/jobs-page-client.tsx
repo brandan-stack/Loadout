@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, CalendarDays, CircleCheck, Clock3, PackagePlus } from "lucide-react";
-import type { UserRole } from "@/lib/auth";
+import { BriefcaseBusiness, CalendarDays, CircleCheck, Clock3, PackagePlus, TriangleAlert } from "lucide-react";
 import { TAB_DATA_CACHE_KEYS, invalidateCachedData, primeCachedData } from "@/lib/client-data-cache";
 import { StatCard } from "@/components/cards/StatCard";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
@@ -18,19 +17,22 @@ import { SearchBar } from "@/components/ui/SearchBar";
 export interface Job {
   id: string;
   jobNumber: string;
+  description?: string;
   customer: string;
   date: string;
   status: string;
+  latestActivityAt: string;
+  needsPartsAttention: boolean;
   technician: { id: string; name: string };
   _count: { parts: number };
 }
 
 interface JobsPageClientProps {
-  currentUserRole: UserRole;
+  canCreateJobs: boolean;
   initialJobs: Job[];
 }
 
-export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientProps) {
+export function JobsPageClient({ canCreateJobs, initialJobs }: JobsPageClientProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -40,6 +42,7 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     jobNumber: "",
+    description: "",
     customer: "",
     date: new Date().toISOString().slice(0, 10),
     notes: "",
@@ -60,7 +63,7 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
       }
 
       const query = search.trim().toLowerCase();
-      return [job.jobNumber, job.customer, job.technician.name].some((value) =>
+      return [job.jobNumber, job.description ?? "", job.customer, job.technician.name].some((value) =>
         value.toLowerCase().includes(query)
       );
     });
@@ -121,9 +124,9 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
       <PageHeader
         eyebrow={<Badge tone="blue">Jobs Workspace</Badge>}
         title="Keep work orders moving"
-        description="Technicians need the next job to be obvious. Search fast, scan status at a glance, and jump straight into the record that needs attention."
+        description="Make the next field action obvious. Search quickly, spot jobs that need parts attention, and jump straight into the right work order."
         actions={
-          currentUserRole !== "OFFICE" ? (
+          canCreateJobs ? (
             <Button variant="primary" onClick={() => setShowCreatePanel(true)}>
               New job
             </Button>
@@ -172,7 +175,9 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">{job.jobNumber}</h2>
                     <JobStatusBadge status={job.status} />
+                    {job.needsPartsAttention ? <Badge tone="orange">needs parts attention</Badge> : null}
                   </div>
+                  <p className="mt-2 text-base font-medium text-white">{job.description || "No description yet"}</p>
                   <p className="mt-2 text-sm leading-6 text-slate-300/78">{job.customer}</p>
                   <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{job.technician.name} • {new Date(job.date).toLocaleDateString()}</p>
                 </div>
@@ -181,7 +186,7 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Customer</p>
                   <p className="mt-3 text-sm font-medium text-white">{job.customer}</p>
@@ -189,6 +194,10 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Date</p>
                   <p className="mt-3 text-sm font-medium text-white">{new Date(job.date).toLocaleDateString()}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Latest activity</p>
+                  <p className="mt-3 text-sm font-medium text-white">{new Date(job.latestActivityAt).toLocaleString()}</p>
                 </div>
               </div>
 
@@ -232,6 +241,10 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
             <input value={form.jobNumber} onChange={(event) => setForm({ ...form, jobNumber: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
           </label>
           <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Description</span>
+            <input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+          </label>
+          <label className="block space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Customer</span>
             <input value={form.customer} onChange={(event) => setForm({ ...form, customer: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
           </label>
@@ -264,9 +277,19 @@ export function JobsPageClient({ currentUserRole, initialJobs }: JobsPageClientP
         {selectedJob ? (
           <div className="space-y-4">
             <JobStatusBadge status={selectedJob.status} />
+            {selectedJob.needsPartsAttention ? (
+              <Card className="border-amber-300/20 bg-amber-500/[0.08] text-amber-100">
+                <div className="flex items-center gap-2">
+                  <TriangleAlert className="h-4 w-4" />
+                  Linked parts are at or below a critical threshold.
+                </div>
+              </Card>
+            ) : null}
             <Card className="space-y-4 bg-white/[0.04]">
+              <DetailRow label="Description" value={selectedJob.description || "No description"} />
               <DetailRow label="Technician" value={selectedJob.technician.name} />
               <DetailRow label="Date" value={new Date(selectedJob.date).toLocaleDateString()} />
+              <DetailRow label="Latest activity" value={new Date(selectedJob.latestActivityAt).toLocaleString()} />
               <DetailRow label="Parts logged" value={String(selectedJob._count.parts)} />
             </Card>
           </div>

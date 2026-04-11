@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
 import { ItemCatalogClient } from "@/components/items/item-catalog-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { requirePageAccess } from "@/lib/permissions";
 
 function getInitialItemId(value: string | string[] | undefined) {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -14,41 +13,39 @@ export default async function ItemsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getSession();
+  const access = await requirePageAccess("canViewInventory");
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const dbAny = prisma as any;
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  const [items, suppliers, locations] = await Promise.all([
-    prisma.item.findMany({
-      where: { organizationId: session.organizationId },
-      orderBy: { createdAt: "desc" },
+  const [items, suppliers, locations, jobs] = await Promise.all([
+    dbAny.item.findMany({
+      where: { organizationId: access.organizationId },
+      orderBy: { lastMovementAt: "desc" },
       select: {
         id: true,
         name: true,
         manufacturer: true,
         partNumber: true,
         modelNumber: true,
-        serialNumber: true,
-        barcode: true,
+        category: true,
         description: true,
         photoUrl: true,
         quantityOnHand: true,
-        quantityUsedTotal: true,
         lowStockAmberThreshold: true,
         lowStockRedThreshold: true,
-        preferredSupplierId: true,
+        preferredSupplier: { select: { id: true, name: true } },
+        defaultLocation: { select: { id: true, name: true } },
         lastUnitCost: true,
         unitOfMeasure: true,
-        createdAt: true,
+        lastMovementAt: true,
+        lastMovementType: true,
+        _count: { select: { jobParts: true } },
       },
     }),
     prisma.supplier.findMany({
       where: {
         archived: false,
-        organizationId: session.organizationId,
+        organizationId: access.organizationId,
       },
       orderBy: { name: "asc" },
       select: {
@@ -60,7 +57,7 @@ export default async function ItemsPage({
     prisma.location.findMany({
       where: {
         archived: false,
-        organizationId: session.organizationId,
+        organizationId: access.organizationId,
       },
       orderBy: { name: "asc" },
       select: {
@@ -69,29 +66,61 @@ export default async function ItemsPage({
         description: true,
       },
     }),
+    access.canUseInventoryOnJob || access.canReturnInventoryFromJob
+      ? dbAny.job.findMany({
+          where: { organizationId: access.organizationId },
+          orderBy: { latestActivityAt: "desc" },
+          select: {
+            id: true,
+            jobNumber: true,
+            description: true,
+            customer: true,
+            date: true,
+            status: true,
+          },
+          take: 50,
+        })
+      : [],
   ]);
 
   return (
     <ItemCatalogClient
-      currentUserRole={session.role}
-      initialItems={items.map((item) => ({
+      financialVisibilityMode={access.financialVisibilityMode}
+      permissions={{
+        canAddInventory: access.canAddInventory,
+        canEditInventory: access.canEditInventory,
+        canMoveInventory: access.canMoveInventory,
+        canRemoveInventory: access.canRemoveInventory,
+        canUseInventoryOnJob: access.canUseInventoryOnJob,
+        canReturnInventoryFromJob: access.canReturnInventoryFromJob,
+      }}
+      initialItems={items.map((item: any) => ({
         ...item,
         manufacturer: item.manufacturer ?? undefined,
         partNumber: item.partNumber ?? undefined,
         modelNumber: item.modelNumber ?? undefined,
-        serialNumber: item.serialNumber ?? undefined,
-        barcode: item.barcode ?? undefined,
+        category: item.category ?? undefined,
         description: item.description ?? undefined,
         photoUrl: item.photoUrl ?? undefined,
-        preferredSupplierId: item.preferredSupplierId ?? undefined,
+        preferredSupplierName: item.preferredSupplier?.name ?? undefined,
+        preferredSupplierId: item.preferredSupplier?.id ?? undefined,
+        defaultLocationName: item.defaultLocation?.name ?? undefined,
+        defaultLocationId: item.defaultLocation?.id ?? undefined,
         lastUnitCost: item.lastUnitCost ?? undefined,
-        createdAt: item.createdAt.toISOString(),
+        lastMovementAt: item.lastMovementAt?.toISOString(),
+        lastMovementType: item.lastMovementType ?? undefined,
+        linkedJobsCount: item._count.jobParts,
       }))}
       initialSuppliers={suppliers}
       initialLocations={locations.map((location) => ({
         id: location.id,
         name: location.name,
         description: location.description ?? undefined,
+      }))}
+      initialJobs={jobs.map((job: any) => ({
+        ...job,
+        description: job.description ?? undefined,
+        date: job.date.toISOString(),
       }))}
       initialSelectedItemId={getInitialItemId(resolvedSearchParams?.item)}
     />

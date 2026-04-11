@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { getUserAccessForSession } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   // Check header first (set by middleware)
@@ -10,7 +11,14 @@ export async function GET(request: NextRequest) {
   const organizationName = request.headers.get("x-organization-name");
 
   if (userId && role && name && organizationId && organizationName) {
-    return NextResponse.json({ userId, role, name, organizationId, organizationName });
+    const access = await getUserAccessForSession({
+      userId,
+      role: role as "SUPER_ADMIN" | "OFFICE" | "TECH",
+      name,
+      organizationId,
+      organizationName,
+    });
+    return NextResponse.json(access);
   }
 
   // Fallback: parse cookie directly (e.g. first request before middleware header)
@@ -18,11 +26,6 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  return NextResponse.json({
-    userId: session.userId,
-    role: session.role,
-    name: session.name,
-    organizationId: session.organizationId,
-    organizationName: session.organizationName,
-  });
+
+  return NextResponse.json(await getUserAccessForSession(session));
 }

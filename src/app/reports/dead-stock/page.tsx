@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useDeadStockReport } from "@/hooks/useReports";
 import { deadStockToCSV, downloadCSV } from "@/lib/reports/csv-export";
 
@@ -17,8 +19,20 @@ interface DeadStockRow {
 }
 
 export default function DeadStockReportPage() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useCurrentUser();
   const { data, loading, error, generateReport } = useDeadStockReport();
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  useEffect(() => {
+    if (!userLoading && user && !user.canViewReports) {
+      router.replace("/");
+    }
+  }, [router, user, userLoading]);
+
+  if (userLoading || !user || !user.canViewReports) {
+    return null;
+  }
 
   const typedData = (data || []) as DeadStockRow[];
 

@@ -5,6 +5,14 @@ import { prisma } from "@/lib/db";
 export interface AppSettings {
   premiumEnabled: boolean;
   simpleMode: boolean;
+  enableToolsModule: boolean;
+  requireToolReturnAcceptance: boolean;
+  allowOfflineMode: boolean;
+  allowOfflineQueue: boolean;
+  allowOfflineCompanyToolFlows: boolean;
+  offlineAutoSync: boolean;
+  offlineCacheDays: number;
+  defaultFinancialVisibilityMode: string;
   enableMultiLocation: boolean;
   enableVariants: boolean;
   enableImportWizard: boolean;
@@ -30,13 +38,21 @@ export async function getSettings(organizationId: string): Promise<AppSettings> 
 
   const settings = await prisma.settings.findUnique({
     where: { organizationId },
-  });
+  }) as any;
 
   if (!settings) {
     // Return defaults if no settings row exists
     return {
       premiumEnabled: false,
       simpleMode: true,
+      enableToolsModule: true,
+      requireToolReturnAcceptance: true,
+      allowOfflineMode: true,
+      allowOfflineQueue: true,
+      allowOfflineCompanyToolFlows: true,
+      offlineAutoSync: true,
+      offlineCacheDays: 30,
+      defaultFinancialVisibilityMode: "total_only",
       enableMultiLocation: false,
       enableVariants: false,
       enableImportWizard: false,
@@ -54,6 +70,14 @@ export async function getSettings(organizationId: string): Promise<AppSettings> 
   const result = {
     premiumEnabled: settings.premiumEnabled,
     simpleMode: settings.simpleMode,
+    enableToolsModule: settings.enableToolsModule,
+    requireToolReturnAcceptance: settings.requireToolReturnAcceptance,
+    allowOfflineMode: settings.allowOfflineMode,
+    allowOfflineQueue: settings.allowOfflineQueue,
+    allowOfflineCompanyToolFlows: settings.allowOfflineCompanyToolFlows,
+    offlineAutoSync: settings.offlineAutoSync,
+    offlineCacheDays: settings.offlineCacheDays,
+    defaultFinancialVisibilityMode: settings.defaultFinancialVisibilityMode,
     enableMultiLocation: settings.enableMultiLocation,
     enableVariants: settings.enableVariants,
     enableImportWizard: settings.enableImportWizard,
@@ -74,6 +98,14 @@ export async function getSettings(organizationId: string): Promise<AppSettings> 
 const DEFAULT_SETTINGS_CREATE = {
   premiumEnabled: false,
   simpleMode: true,
+  enableToolsModule: true,
+  requireToolReturnAcceptance: true,
+  allowOfflineMode: true,
+  allowOfflineQueue: true,
+  allowOfflineCompanyToolFlows: true,
+  offlineAutoSync: true,
+  offlineCacheDays: 30,
+  defaultFinancialVisibilityMode: "total_only",
   enableMultiLocation: false,
   enableVariants: false,
   enableImportWizard: false,
@@ -95,9 +127,9 @@ export async function updateSettings(
     where: { organizationId },
   });
 
-  const updated = existing
+  const updated = (existing
     ? await prisma.settings.update({ where: { id: existing.id }, data: updates })
-    : await prisma.settings.create({ data: { organizationId, ...DEFAULT_SETTINGS_CREATE, ...updates } });
+    : await prisma.settings.create({ data: { organizationId, ...DEFAULT_SETTINGS_CREATE, ...updates } })) as any;
 
   // Invalidate cache
   settingsCache.delete(organizationId);
@@ -105,6 +137,14 @@ export async function updateSettings(
   return {
     premiumEnabled: updated.premiumEnabled,
     simpleMode: updated.simpleMode,
+    enableToolsModule: updated.enableToolsModule,
+    requireToolReturnAcceptance: updated.requireToolReturnAcceptance,
+    allowOfflineMode: updated.allowOfflineMode,
+    allowOfflineQueue: updated.allowOfflineQueue,
+    allowOfflineCompanyToolFlows: updated.allowOfflineCompanyToolFlows,
+    offlineAutoSync: updated.offlineAutoSync,
+    offlineCacheDays: updated.offlineCacheDays,
+    defaultFinancialVisibilityMode: updated.defaultFinancialVisibilityMode,
     enableMultiLocation: updated.enableMultiLocation,
     enableVariants: updated.enableVariants,
     enableImportWizard: updated.enableImportWizard,

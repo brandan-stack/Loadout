@@ -1,35 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
-import { requireRequestContext } from "@/lib/request-context";
+import {
+  buildPermissionSnapshot,
+  FINANCIAL_VISIBILITY_VALUES,
+  getDefaultRolePreset,
+  PERMISSION_KEYS,
+  ROLE_PRESET_VALUES,
+  requireUserAccess,
+  USER_ACCESS_SELECT,
+} from "@/lib/permissions";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
 
+const permissionShape = Object.fromEntries(
+  PERMISSION_KEYS.map((key) => [key, z.boolean().optional()])
+) as Record<string, z.ZodBoolean | z.ZodOptional<z.ZodBoolean>>;
+
 const updateSchema = z.object({
   name: z.string().trim().min(1, "Name is required").optional(),
   email: emailSchema.optional(),
   role: z.enum(["SUPER_ADMIN", "OFFICE", "TECH"]).optional(),
+  rolePreset: z.enum(ROLE_PRESET_VALUES).optional(),
+  financialVisibilityMode: z.enum(FINANCIAL_VISIBILITY_VALUES).optional(),
   password: passwordSchema.optional(),
+  ...permissionShape,
 });
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireRequestContext(request);
-  if (!auth.ok) {
-    return auth.response;
+  const access = await requireUserAccess(request);
+  if (!access.ok) {
+    return access.response;
   }
-  if (auth.context.role !== "SUPER_ADMIN") {
+  if (!access.access.canManageUsers) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
     const { id } = await params;
     const existing = await dbAny.appUser.findFirst({
-      where: { id, organizationId: auth.context.organizationId },
-      select: { id: true },
+      where: { id, organizationId: access.access.organizationId },
+      select: { role: true, rolePreset: true, financialVisibilityMode: true, ...USER_ACCESS_SELECT },
     });
     if (!existing) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -40,11 +55,17 @@ export async function PATCH(
     if (data.name) update.name = data.name;
     if (data.email) update.email = data.email;
     if (data.role) update.role = data.role;
+    const rolePreset = data.rolePreset ?? existing.rolePreset ?? getDefaultRolePreset((data.role ?? existing.role) as "SUPER_ADMIN" | "OFFICE" | "TECH");
+    const financialVisibilityMode = data.financialVisibilityMode ?? existing.financialVisibilityMode;
+    const permissions = buildPermissionSnapshot({ ...existing, ...data }, rolePreset, financialVisibilityMode);
+    update.rolePreset = permissions.rolePreset;
+    update.financialVisibilityMode = permissions.financialVisibilityMode;
+    Object.assign(update, permissions);
     if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
     const user = await dbAny.appUser.update({
       where: { id },
       data: update,
-      select: { id: true, name: true, email: true, role: true },
+      select: USER_ACCESS_SELECT,
     });
     return NextResponse.json(user);
   } catch (err) {
@@ -63,12 +84,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireRequestContext(request);
-  if (!auth.ok) {
-    return auth.response;
+  const access = await requireUserAccess(request);
+  if (!access.ok) {
+    return access.response;
   }
-  const selfId = auth.context.userId;
-  if (auth.context.role !== "SUPER_ADMIN") {
+  const selfId = access.access.userId;
+  if (!access.access.canManageUsers) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
@@ -77,7 +98,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
     }
     const existing = await dbAny.appUser.findFirst({
-      where: { id, organizationId: auth.context.organizationId },
+      where: { id, organizationId: access.access.organizationId },
       select: { id: true },
     });
     if (!existing) {

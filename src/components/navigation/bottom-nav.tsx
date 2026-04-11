@@ -14,7 +14,7 @@ import { getNavIcon } from "@/components/navigation/nav-icons";
 export function BottomNav() {
   const pathname = usePathname();
   const { user } = useCurrentUser(!isAuthPath(pathname));
-  const navItems = getMobileNavItems(user?.role);
+  const navItems = getMobileNavItems(user);
   const counts = useReorderCounts(!isAuthPath(pathname), pathname);
 
   if (isAuthPath(pathname)) {

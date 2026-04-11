@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ScanLine, Sparkles } from "lucide-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   getCurrentSectionLabel,
   getDesktopNavItems,
@@ -15,15 +16,16 @@ import { getNavIcon } from "@/components/navigation/nav-icons";
 
 export function AppHeader() {
   const pathname = usePathname();
-  const mainItems = getDesktopNavItems();
-  const utilityItems = getDesktopUtilityNavItems();
+  const { user } = useCurrentUser(!isAuthPath(pathname));
+  const mainItems = getDesktopNavItems(user);
+  const utilityItems = getDesktopUtilityNavItems(user);
   const counts = useReorderCounts(!isAuthPath(pathname), pathname);
 
   if (isAuthPath(pathname)) {
     return null;
   }
 
-  const sectionLabel = getCurrentSectionLabel(pathname);
+  const sectionLabel = getCurrentSectionLabel(pathname, user);
   const hasAlerts = Boolean(counts && counts.total > 0);
 
   return (

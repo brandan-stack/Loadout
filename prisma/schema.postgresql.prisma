@@ -23,6 +23,8 @@ model Organization {
   suppliers         Supplier[]
   jobs              Job[]
   tools             Tool[]
+  inventoryTransactions InventoryTransaction[]
+  toolTransactions  ToolTransaction[]
   reportViews       ReportView[]
   shareLogs         ShareLog[]
   itemVariants      ItemVariant[]
@@ -40,11 +42,16 @@ model Item {
   manufacturer          String?
   partNumber            String?
   modelNumber           String?
+  category              String?
   serialNumber          String?
   barcode               String?
   description           String?
   quantityOnHand        Int      @default(0)
   quantityUsedTotal     Int      @default(0)
+  defaultLocationId     String?
+  defaultLocation       Location? @relation("DefaultItemLocation", fields: [defaultLocationId], references: [id])
+  lastMovementAt        DateTime?
+  lastMovementType      String?
   
   // Low stock thresholds
   lowStockAmberThreshold Int      @default(5)
@@ -86,6 +93,9 @@ model Item {
   @@index([organizationId])
   @@index([organizationId, barcode])
   @@index([organizationId, lowStockRedThreshold])
+  @@index([defaultLocationId])
+  @@index([organizationId, category])
+  @@index([organizationId, lastMovementAt])
 }
 
 model ItemPhoto {
@@ -104,11 +114,31 @@ model ItemPhoto {
 
 model InventoryTransaction {
   id        String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   itemId    String
   item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  actorUser AppUser? @relation("InventoryTransactionsActor", fields: [actorUserId], references: [id])
+  fromLocationId String?
+  fromLocation Location? @relation("InventoryTransactionsFromLocation", fields: [fromLocationId], references: [id])
+  toLocationId String?
+  toLocation Location? @relation("InventoryTransactionsToLocation", fields: [toLocationId], references: [id])
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  jobParts  JobPart[]
   
   type      String   // "add" | "use" | "adjust"
   quantity  Int
+  quantityDelta Int?
+  balanceAfter Int?
+  jobNumberSnapshot String?
+  jobDescriptionSnapshot String?
+  costSnapshot Float?
+  clientRequestId String? @unique
+  submittedOfflineAt DateTime?
+  syncedAt DateTime?
+  syncStatus String @default("synced")
   
   // Optional lot/expiry tracking
   lotNumber String?
@@ -120,6 +150,12 @@ model InventoryTransaction {
   @@index([itemId])
   @@index([createdAt])
   @@index([type])
+  @@index([organizationId])
+  @@index([actorUserId])
+  @@index([jobId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@index([organizationId, createdAt])
 }
 
 model Supplier {
@@ -147,6 +183,44 @@ model AppUser {
   name             String
   email            String    @unique
   role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
+  rolePreset       String    @default("STANDARD")
+  financialVisibilityMode String @default("total_only")
+  canViewDashboard Boolean @default(false)
+  canViewJobs Boolean @default(false)
+  canViewInventory Boolean @default(false)
+  canViewTools Boolean @default(false)
+  canViewReports Boolean @default(false)
+  canViewSuppliers Boolean @default(false)
+  canViewReorder Boolean @default(false)
+  canViewSettings Boolean @default(false)
+  canAddInventory Boolean @default(false)
+  canEditInventory Boolean @default(false)
+  canMoveInventory Boolean @default(false)
+  canRemoveInventory Boolean @default(false)
+  canUseInventoryOnJob Boolean @default(false)
+  canReturnInventoryFromJob Boolean @default(false)
+  canManageLocations Boolean @default(false)
+  canManageCategories Boolean @default(false)
+  canCreateJobs Boolean @default(false)
+  canEditJobs Boolean @default(false)
+  canCloseJobs Boolean @default(false)
+  canInvoiceJobs Boolean @default(false)
+  canViewJobSummaries Boolean @default(false)
+  canViewOwnTools Boolean @default(false)
+  canAddOwnTools Boolean @default(false)
+  canEditOwnTools Boolean @default(false)
+  canViewCompanyTools Boolean @default(false)
+  canRequestCompanyTools Boolean @default(false)
+  canCheckoutCompanyTools Boolean @default(false)
+  canReturnCompanyTools Boolean @default(false)
+  canAcceptToolReturns Boolean @default(false)
+  canManageCompanyTools Boolean @default(false)
+  canManageUsers Boolean @default(false)
+  canManageSettings Boolean @default(false)
+  canExportData Boolean @default(false)
+  canBackupRestore Boolean @default(false)
+  canClearCache Boolean @default(false)
+  canEnableModules Boolean @default(false)
   passwordHash     String
   resetToken       String?
   resetTokenExpiry DateTime?
@@ -155,9 +229,17 @@ model AppUser {
 
   jobs      Job[]          @relation("TechJobs")
   tools     Tool[]         @relation("PersonalTools")
+  assignedCompanyTools Tool[] @relation("AssignedCompanyTools")
   checkouts ToolCheckout[]
+  inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsActor")
+  jobMaterialUsages JobPart[] @relation("JobPartPerformedBy")
+  requestedToolTransactions ToolTransaction[] @relation("RequestedToolTransactions")
+  approvedToolTransactions ToolTransaction[] @relation("ApprovedToolTransactions")
+  acceptedToolTransactions ToolTransaction[] @relation("AcceptedToolTransactions")
+  heldToolTransactions ToolTransaction[] @relation("HeldToolTransactions")
 
   @@index([organizationId])
+  @@index([organizationId, rolePreset])
 }
 
 model Job {
@@ -165,13 +247,16 @@ model Job {
   organizationId String
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   jobNumber    String
+  description  String?
   customer     String
   technicianId String
   technician   AppUser   @relation("TechJobs", fields: [technicianId], references: [id])
   date         DateTime  @default(now())
   status       String    @default("OPEN") // "OPEN" | "COMPLETED" | "INVOICED"
   notes        String?
+  latestActivityAt DateTime @default(now())
   parts        JobPart[]
+  transactions InventoryTransaction[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -180,6 +265,7 @@ model Job {
   @@index([technicianId])
   @@index([status])
   @@index([organizationId, jobNumber])
+  @@index([organizationId, latestActivityAt])
 }
 
 model JobPart {
@@ -188,31 +274,54 @@ model JobPart {
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   itemId    String
   item      Item     @relation(fields: [itemId], references: [id])
+  inventoryTransactionId String?
+  inventoryTransaction InventoryTransaction? @relation(fields: [inventoryTransactionId], references: [id], onDelete: SetNull)
+  performedByUserId String?
+  performedByUser AppUser? @relation("JobPartPerformedBy", fields: [performedByUserId], references: [id])
   quantity  Int
   unitCost  Float    @default(0)
+  costSnapshot Float?
+  itemNameSnapshot String?
+  jobDescriptionSnapshot String?
+  returnedQuantity Int @default(0)
   notes     String?
+  lastActivityAt DateTime @default(now())
   createdAt DateTime @default(now())
 
   @@index([jobId])
   @@index([itemId])
+  @@index([inventoryTransactionId])
+  @@index([performedByUserId])
 }
 
 model Tool {
   id           String         @id @default(cuid())
   organizationId String
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetTag     String?
   name         String
   manufacturer String?
   partNumber   String?
   modelNumber  String?
+  serialNumber String?
+  category     String?
   supplier     String?
   cost         Float          @default(0)
+  replacementValue Float?
+  condition    String         @default("Good")
+  currentStatus String        @default("Available")
   notes        String?
   photoUrl     String?
-  type         String         @default("SHOP") // "SHOP" | "PERSONAL"
+  type         String         @default("COMPANY") // "COMPANY" | "PERSONAL"
   ownerId      String?
   owner        AppUser?       @relation("PersonalTools", fields: [ownerId], references: [id])
+  assignedUserId String?
+  assignedUser AppUser?       @relation("AssignedCompanyTools", fields: [assignedUserId], references: [id])
+  defaultLocation String?
   checkouts    ToolCheckout[]
+  transactions ToolTransaction[]
+  lastTransactionAt DateTime?
+  archived     Boolean        @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -220,6 +329,50 @@ model Tool {
   @@index([supplier])
   @@index([ownerId])
   @@index([organizationId])
+  @@index([assignedUserId])
+  @@index([organizationId, type])
+  @@index([organizationId, currentStatus])
+  @@unique([organizationId, assetTag])
+}
+
+model ToolTransaction {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  toolId           String
+  tool             Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  holderUserId     String?
+  holderUser       AppUser?     @relation("HeldToolTransactions", fields: [holderUserId], references: [id])
+  requestedByUserId String?
+  requestedByUser  AppUser?     @relation("RequestedToolTransactions", fields: [requestedByUserId], references: [id])
+  approvedByUserId String?
+  approvedByUser   AppUser?     @relation("ApprovedToolTransactions", fields: [approvedByUserId], references: [id])
+  acceptedByUserId String?
+  acceptedByUser   AppUser?     @relation("AcceptedToolTransactions", fields: [acceptedByUserId], references: [id])
+  status           String       @default("Requested")
+  transactionType  String       @default("request")
+  requestedAt      DateTime     @default(now())
+  checkedOutAt     DateTime?
+  dueBackAt        DateTime?
+  returnRequestedAt DateTime?
+  returnedAt       DateTime?
+  acceptedAt       DateTime?
+  notes            String?
+  issueReported    String?
+  clientRequestId  String?      @unique
+  submittedOfflineAt DateTime?
+  syncStatus       String       @default("synced")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([toolId])
+  @@index([holderUserId])
+  @@index([requestedByUserId])
+  @@index([approvedByUserId])
+  @@index([acceptedByUserId])
+  @@index([organizationId, status])
+  @@index([organizationId, requestedAt])
 }
 
 model ToolCheckout {
@@ -290,6 +443,9 @@ model Location {
   description String?
   archived    Boolean        @default(false)
   stock       LocationStock[]
+  defaultItems Item[]        @relation("DefaultItemLocation")
+  outboundInventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsFromLocation")
+  inboundInventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsToLocation")
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -351,6 +507,14 @@ model Settings {
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   premiumEnabled        Boolean   @default(false)
   simpleMode            Boolean   @default(true)
+  enableToolsModule     Boolean   @default(true)
+  requireToolReturnAcceptance Boolean @default(true)
+  allowOfflineMode      Boolean   @default(true)
+  allowOfflineQueue     Boolean   @default(true)
+  allowOfflineCompanyToolFlows Boolean @default(true)
+  offlineAutoSync       Boolean   @default(true)
+  offlineCacheDays      Int       @default(30)
+  defaultFinancialVisibilityMode String @default("total_only")
   
   // Feature toggles
   enableMultiLocation   Boolean   @default(false)

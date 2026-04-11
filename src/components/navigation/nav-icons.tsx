@@ -2,6 +2,7 @@ import {
   BarChart3,
   Boxes,
   BriefcaseBusiness,
+  Hammer,
   LayoutDashboard,
   Settings2,
   ShoppingCart,
@@ -14,6 +15,7 @@ export type AppNavIcon =
   | "dashboard"
   | "jobs"
   | "inventory"
+  | "tools"
   | "reports"
   | "suppliers"
   | "reorder"
@@ -24,6 +26,7 @@ const NAV_ICONS: Record<AppNavIcon, LucideIcon> = {
   dashboard: LayoutDashboard,
   jobs: BriefcaseBusiness,
   inventory: Boxes,
+  tools: Hammer,
   reports: BarChart3,
   suppliers: Truck,
   reorder: ShoppingCart,

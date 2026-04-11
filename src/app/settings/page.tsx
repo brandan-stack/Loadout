@@ -1,20 +1,16 @@
 import { redirect } from "next/navigation";
 import { SettingsPageClient } from "@/components/settings/settings-page-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/features/settings-service";
+import { requirePageAccess } from "@/lib/permissions";
 
 export default async function SettingsPage() {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
+  const access = await requirePageAccess("canViewSettings");
 
   const [settings, organization] = await Promise.all([
-    getSettings(session.organizationId),
+    getSettings(access.organizationId),
     prisma.organization.findUnique({
-      where: { id: session.organizationId },
+      where: { id: access.organizationId },
       select: { name: true, contactEmail: true },
     }),
   ]);
@@ -23,8 +19,11 @@ export default async function SettingsPage() {
     <SettingsPageClient
       initialSettings={{
         ...settings,
-        organizationName: organization?.name ?? session.organizationName,
+        organizationName: organization?.name ?? access.organizationName,
         organizationContactEmail: organization?.contactEmail ?? "",
+        canManageSettings: access.canManageSettings,
+        canManageUsers: access.canManageUsers,
+        canClearCache: access.canClearCache,
       }}
     />
   );

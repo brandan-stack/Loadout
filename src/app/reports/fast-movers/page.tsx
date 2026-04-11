@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useFastMoversReport } from "@/hooks/useReports";
 import { downloadCSV, fastMoversToCSV } from "@/lib/reports/csv-export";
 
@@ -16,8 +19,20 @@ interface FastMoverRow {
 }
 
 export default function FastMoversReportPage() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useCurrentUser();
   const { data, loading, error, generateReport } = useFastMoversReport();
   const typedData = (data || []) as FastMoverRow[];
+
+  useEffect(() => {
+    if (!userLoading && user && !user.canViewReports) {
+      router.replace("/");
+    }
+  }, [router, user, userLoading]);
+
+  if (userLoading || !user || !user.canViewReports) {
+    return null;
+  }
 
   const handleGenerateReport = () => {
     generateReport({

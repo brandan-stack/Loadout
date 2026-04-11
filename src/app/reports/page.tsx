@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BarChart3, Boxes, BriefcaseBusiness, Download, TrendingUp, TriangleAlert } from "lucide-react";
 import { ActionCard } from "@/components/cards/ActionCard";
 import { PageGrid, PageSection, PageShell } from "@/components/layout/page-shell";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const REPORTS = [
   {
@@ -54,15 +56,23 @@ const REPORTS = [
 ];
 
 export default function ReportsPage() {
+  const router = useRouter();
+  const { user, loading } = useCurrentUser();
   const [range, setRange] = useState("30d");
+  const reportSummary = {
+    reports: REPORTS.length,
+    highlighted: REPORTS.filter((report) => report.tone === "orange").length,
+  };
 
-  const reportSummary = useMemo(
-    () => ({
-      reports: REPORTS.length,
-      highlighted: REPORTS.filter((report) => report.tone === "orange").length,
-    }),
-    []
-  );
+  useEffect(() => {
+    if (!loading && user && !user.canViewReports) {
+      router.replace("/");
+    }
+  }, [loading, router, user]);
+
+  if (loading || !user || !user.canViewReports) {
+    return null;
+  }
 
   return (
     <PageShell>

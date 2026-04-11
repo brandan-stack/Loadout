@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type Step = "upload" | "map" | "preview" | "importing" | "done";
 
@@ -44,6 +46,8 @@ function parseCSV(text: string): { headers: string[]; rows: Record<string, strin
 }
 
 export default function ImportWizardPage() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useCurrentUser();
   const [step, setStep] = useState<Step>("upload");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -51,6 +55,16 @@ export default function ImportWizardPage() {
   const [preview, setPreview] = useState<ImportSummary | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!userLoading && user && !(user.canViewInventory && (user.canAddInventory || user.canEditInventory))) {
+      router.replace("/");
+    }
+  }, [router, user, userLoading]);
+
+  if (userLoading || !user || !(user.canViewInventory && (user.canAddInventory || user.canEditInventory))) {
+    return null;
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

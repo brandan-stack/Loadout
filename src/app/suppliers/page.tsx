@@ -1,20 +1,15 @@
-import { redirect } from "next/navigation";
 import { SuppliersPageClient } from "@/components/suppliers/suppliers-page-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { requirePageAccess } from "@/lib/permissions";
 
 export default async function SuppliersPage() {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
+  const access = await requirePageAccess("canViewSuppliers");
 
   const [suppliers, linkedCounts] = await Promise.all([
     prisma.supplier.findMany({
       where: {
         archived: false,
-        organizationId: session.organizationId,
+        organizationId: access.organizationId,
       },
       orderBy: { name: "asc" },
       select: {
@@ -30,7 +25,7 @@ export default async function SuppliersPage() {
     prisma.item.groupBy({
       by: ["preferredSupplierId"],
       where: {
-        organizationId: session.organizationId,
+        organizationId: access.organizationId,
         preferredSupplierId: { not: null },
       },
       _count: {

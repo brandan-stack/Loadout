@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
-import { requireRequestContext } from "@/lib/request-context";
+import {
+  buildPermissionSnapshot,
+  FINANCIAL_VISIBILITY_VALUES,
+  getDefaultRolePreset,
+  PERMISSION_KEYS,
+  ROLE_PRESET_VALUES,
+  requireUserAccess,
+  USER_ACCESS_SELECT,
+} from "@/lib/permissions";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
+
+const permissionShape = Object.fromEntries(
+  PERMISSION_KEYS.map((key) => [key, z.boolean().optional()])
+) as Record<string, z.ZodBoolean | z.ZodOptional<z.ZodBoolean>>;
 
 interface CreatedUser {
   id: string;
@@ -19,21 +31,24 @@ const createSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: emailSchema,
   role: z.enum(["SUPER_ADMIN", "OFFICE", "TECH"]),
+  rolePreset: z.enum(ROLE_PRESET_VALUES).optional(),
+  financialVisibilityMode: z.enum(FINANCIAL_VISIBILITY_VALUES).optional(),
   password: passwordSchema,
+  ...permissionShape,
 });
 
 export async function GET(request: NextRequest) {
-  const auth = requireRequestContext(request);
-  if (!auth.ok) {
-    return auth.response;
+  const access = await requireUserAccess(request);
+  if (!access.ok) {
+    return access.response;
   }
-  if (auth.context.role !== "SUPER_ADMIN") {
+  if (!access.access.canManageUsers) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
     const users = await dbAny.appUser.findMany({
-      where: { organizationId: auth.context.organizationId },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      where: { organizationId: access.access.organizationId },
+      select: { ...USER_ACCESS_SELECT, createdAt: true },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(users);
@@ -44,17 +59,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = requireRequestContext(request);
-  if (!auth.ok) {
-    return auth.response;
+  const access = await requireUserAccess(request);
+  if (!access.ok) {
+    return access.response;
   }
-  if (auth.context.role !== "SUPER_ADMIN") {
+  if (!access.access.canManageUsers) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
     const body = await request.json();
     const data = createSchema.parse(body);
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const rolePreset = data.rolePreset ?? getDefaultRolePreset(data.role);
+    const permissionSource = data as unknown as Record<string, boolean | undefined>;
+    const permissionInput = Object.fromEntries(
+      PERMISSION_KEYS.map((key) => [key, permissionSource[key]])
+    ) as Partial<Record<(typeof PERMISSION_KEYS)[number], boolean | undefined>>;
+    const permissions = buildPermissionSnapshot(permissionInput, rolePreset, data.financialVisibilityMode);
     let user: CreatedUser;
     try {
       user = await dbAny.appUser.create({
@@ -62,10 +83,11 @@ export async function POST(request: NextRequest) {
           name: data.name,
           email: data.email,
           role: data.role,
+          ...permissions,
           passwordHash,
-          organizationId: auth.context.organizationId,
+          organizationId: access.access.organizationId,
         },
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        select: { ...USER_ACCESS_SELECT, createdAt: true },
       });
     } catch (createErr: unknown) {
       const code = (createErr as { code?: string })?.code;

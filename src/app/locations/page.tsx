@@ -1,19 +1,19 @@
 import { redirect } from "next/navigation";
 import { LocationsPageClient } from "@/components/locations/locations-page-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getDefaultHomePath, requirePageAccess } from "@/lib/permissions";
 
 export default async function LocationsPage() {
-  const session = await getSession();
+  const access = await requirePageAccess("canViewInventory");
 
-  if (!session) {
-    redirect("/login");
+  if (!access.canMoveInventory && !access.canManageLocations) {
+    redirect(getDefaultHomePath(access));
   }
 
   const locations = await prisma.location.findMany({
     where: {
       archived: false,
-      organizationId: session.organizationId,
+      organizationId: access.organizationId,
     },
     orderBy: { name: "asc" },
     include: {

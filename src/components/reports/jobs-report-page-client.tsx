@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { UserRole } from "@/lib/auth";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
 
 interface JobPart {
@@ -25,7 +24,7 @@ export interface JobsReportJob {
 }
 
 interface JobsReportPageClientProps {
-  currentUserRole: UserRole;
+  showFinancials: boolean;
   initialJobs: JobsReportJob[];
 }
 
@@ -35,7 +34,7 @@ const STATUS_COLOR: Record<string, string> = {
   INVOICED: "bg-slate-700 text-slate-300",
 };
 
-export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsReportPageClientProps) {
+export function JobsReportPageClient({ showFinancials, initialJobs }: JobsReportPageClientProps) {
   const [jobs] = useState<JobsReportJob[]>(initialJobs);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -77,24 +76,13 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
     [filtered]
   );
 
-  // Only admin/office can see this report
-  if (currentUserRole === "TECH") {
-    return (
-      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-        <GlassBubbleCard>
-          <p className="text-slate-400">Access restricted.</p>
-        </GlassBubbleCard>
-      </main>
-    );
-  }
-
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <Link href="/reports" className="text-slate-400 hover:text-slate-200 text-sm">← Reports</Link>
         <h1 className="text-2xl sm:text-3xl font-bold">Parts by Job</h1>
       </div>
-      <p className="text-slate-500 text-sm mb-5">Material cost summary for all jobs. Use for billing and ordering analysis.</p>
+      <p className="text-slate-500 text-sm mb-5">{showFinancials ? "Material cost summary for all jobs. Use for billing and ordering analysis." : "Parts by job summary. Financial values are hidden for this account."}</p>
 
       {/* Filters */}
       <GlassBubbleCard className="mb-5">
@@ -142,10 +130,12 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
           <p className="text-xs text-slate-400">Jobs Shown</p>
           <p className="text-xl font-bold">{filtered.length}</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3">
-          <p className="text-xs text-slate-400">Total Material Cost</p>
-          <p className="text-xl font-bold text-slate-100">${grandTotal.toFixed(2)}</p>
-        </div>
+        {showFinancials ? (
+          <div className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3">
+            <p className="text-xs text-slate-400">Total Material Cost</p>
+            <p className="text-xl font-bold text-slate-100">${grandTotal.toFixed(2)}</p>
+          </div>
+        ) : null}
       </div>
 
       {/* Job rows */}
@@ -179,7 +169,7 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-slate-100">${jobTotal.toFixed(2)}</p>
+                    {showFinancials ? <p className="font-bold text-slate-100">${jobTotal.toFixed(2)}</p> : <p className="font-bold text-slate-100">{job.parts.length} parts</p>}
                   </div>
                 </button>
 
@@ -200,21 +190,27 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
                                   <p className="text-[10px] uppercase tracking-wider text-slate-500">Qty</p>
                                   <p className="mt-0.5 text-slate-200">{p.quantity} {p.item.unitOfMeasure}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
-                                  <p className="mt-0.5 text-slate-200">${p.unitCost.toFixed(2)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Total</p>
-                                  <p className="mt-0.5 font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</p>
-                                </div>
+                                {showFinancials ? (
+                                  <>
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
+                                      <p className="mt-0.5 text-slate-200">${p.unitCost.toFixed(2)}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Total</p>
+                                      <p className="mt-0.5 font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</p>
+                                    </div>
+                                  </>
+                                ) : null}
                               </div>
                             </div>
                           ))}
-                          <div className="pt-1 text-right">
-                            <p className="text-xs font-semibold text-slate-400">Job Total</p>
-                            <p className="mt-0.5 text-lg font-bold text-slate-100">${jobTotal.toFixed(2)}</p>
-                          </div>
+                          {showFinancials ? (
+                            <div className="pt-1 text-right">
+                              <p className="text-xs font-semibold text-slate-400">Job Total</p>
+                              <p className="mt-0.5 text-lg font-bold text-slate-100">${jobTotal.toFixed(2)}</p>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="hidden overflow-x-auto sm:block">
                           <table className="w-full text-sm">
@@ -222,8 +218,8 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
                               <tr className="border-b border-slate-700 text-xs text-slate-400">
                                 <th className="pb-2 text-left">Part</th>
                                 <th className="pb-2 text-right">Qty</th>
-                                <th className="pb-2 text-right">Unit Cost</th>
-                                <th className="pb-2 text-right">Total</th>
+                                {showFinancials ? <th className="pb-2 text-right">Unit Cost</th> : null}
+                                {showFinancials ? <th className="pb-2 text-right">Total</th> : null}
                               </tr>
                             </thead>
                             <tbody>
@@ -235,14 +231,16 @@ export function JobsReportPageClient({ currentUserRole, initialJobs }: JobsRepor
                                     {p.notes && <span className="ml-1 text-xs italic text-slate-400">- {p.notes}</span>}
                                   </td>
                                   <td className="text-right text-slate-300">{p.quantity} {p.item.unitOfMeasure}</td>
-                                  <td className="text-right text-slate-300">${p.unitCost.toFixed(2)}</td>
-                                  <td className="text-right font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</td>
+                                  {showFinancials ? <td className="text-right text-slate-300">${p.unitCost.toFixed(2)}</td> : null}
+                                  {showFinancials ? <td className="text-right font-medium text-slate-100">${(p.unitCost * p.quantity).toFixed(2)}</td> : null}
                                 </tr>
                               ))}
-                              <tr>
-                                <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-slate-400">Job Total</td>
-                                <td className="pt-3 text-right font-bold text-slate-100">${jobTotal.toFixed(2)}</td>
-                              </tr>
+                              {showFinancials ? (
+                                <tr>
+                                  <td colSpan={3} className="pt-3 text-right text-xs font-semibold text-slate-400">Job Total</td>
+                                  <td className="pt-3 text-right font-bold text-slate-100">${jobTotal.toFixed(2)}</td>
+                                </tr>
+                              ) : null}
                             </tbody>
                           </table>
                         </div>

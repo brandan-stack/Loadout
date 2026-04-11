@@ -1,19 +1,19 @@
 import { redirect } from "next/navigation";
 import { JobDetailPageClient } from "@/components/jobs/job-detail-page-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { canViewFinancialValue, requirePageAccess } from "@/lib/permissions";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
+  const access = await requirePageAccess("canViewJobs");
+  const showFinancials =
+    canViewFinancialValue(access.financialVisibilityMode, "base") ||
+    canViewFinancialValue(access.financialVisibilityMode, "total") ||
+    canViewFinancialValue(access.financialVisibilityMode, "job_costing");
 
   const { id } = await params;
 
   const job = await prisma.job.findFirst({
-    where: { id, organizationId: session.organizationId },
+    where: { id, organizationId: access.organizationId },
     select: {
       id: true,
       jobNumber: true,
@@ -51,16 +51,17 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   if (!job) {
     initialJobError = "Job not found. It may have been deleted or the link is incorrect.";
-  } else if (session.role === "TECH" && job.technicianId !== session.userId) {
+  } else if (access.role === "TECH" && job.technicianId !== access.userId) {
     initialJobError = "You don't have permission to view this job.";
   } else {
+    const canEditJob = job.status !== "INVOICED" && access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId);
     initialJob = {
       ...job,
       date: job.date.toISOString(),
       notes: job.notes ?? undefined,
       parts: job.parts.map((part) => ({
         ...part,
-        unitCost: session.role === "TECH" ? 0 : part.unitCost,
+        unitCost: showFinancials ? part.unitCost : 0,
         notes: part.notes ?? undefined,
         item: {
           ...part.item,
@@ -69,9 +70,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       })),
     };
 
-    if (job.status !== "INVOICED" && (session.role !== "TECH" || job.technicianId === session.userId)) {
+    if (canEditJob) {
       const items = await prisma.item.findMany({
-        where: { organizationId: session.organizationId },
+        where: { organizationId: access.organizationId },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -95,10 +96,16 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  const canEditJob = job
+    ? job.status !== "INVOICED" && access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId)
+    : false;
+
   return (
     <JobDetailPageClient
-      currentUserId={session.userId}
-      currentUserRole={session.role}
+      currentUserId={access.userId}
+      canEditJob={canEditJob}
+      canChangeStatus={access.canCloseJobs || access.canInvoiceJobs}
+      showFinancials={showFinancials}
       jobId={id}
       initialJob={initialJob}
       initialItems={initialItems}

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassBubbleCard } from "@/components/ui/glass-bubble-card";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUsageReport } from "@/hooks/useReports";
 import { downloadCSV, usageReportToCSV } from "@/lib/reports/csv-export";
 
@@ -19,9 +21,21 @@ interface UsageRow {
 }
 
 export default function UsageReportPage() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useCurrentUser();
   const { data, loading, error, generateReport } = useUsageReport();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  useEffect(() => {
+    if (!userLoading && user && !user.canViewReports) {
+      router.replace("/");
+    }
+  }, [router, user, userLoading]);
+
+  if (userLoading || !user || !user.canViewReports) {
+    return null;
+  }
 
   const typedData = (data || []) as UsageRow[];
 

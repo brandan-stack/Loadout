@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { UserRole } from "@/lib/auth";
 
 export interface JobDetailItem {
   id: string;
@@ -36,7 +35,9 @@ export interface JobDetail {
 
 interface JobDetailPageClientProps {
   currentUserId: string;
-  currentUserRole: UserRole;
+  canEditJob: boolean;
+  canChangeStatus: boolean;
+  showFinancials: boolean;
   jobId: string;
   initialJob: JobDetail | null;
   initialItems: JobDetailItem[];
@@ -51,7 +52,9 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function JobDetailPageClient({
   currentUserId,
-  currentUserRole,
+  canEditJob,
+  canChangeStatus,
+  showFinancials,
   jobId,
   initialJob,
   initialItems,
@@ -161,9 +164,8 @@ export function JobDetailPageClient({
   ).slice(0, 20);
 
   const totalMaterialCost = job?.parts.reduce((sum, p) => sum + p.quantity * (p.unitCost ?? 0), 0) ?? 0;
-  const canEdit = job && job.status !== "INVOICED" && (currentUserRole !== "TECH" || job.technician.id === currentUserId);
-  const canChangeStatus = currentUserRole === "SUPER_ADMIN" || currentUserRole === "OFFICE";
-  const partsGridTemplate = currentUserRole !== "TECH" ? "minmax(0,1fr) auto auto auto auto" : "minmax(0,1fr) auto auto";
+  const canEdit = Boolean(job) && canEditJob;
+  const partsGridTemplate = showFinancials ? "minmax(0,1fr) auto auto auto auto" : "minmax(0,1fr) auto auto";
 
   if (loading) {
     return (
@@ -256,18 +258,18 @@ export function JobDetailPageClient({
                       </button>
                     ) : null}
                   </div>
-                  <div className={`mt-3 grid gap-3 text-sm ${currentUserRole !== "TECH" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+                  <div className={`mt-3 grid gap-3 text-sm ${showFinancials ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-slate-500">Qty</p>
                       <p className="mt-0.5 text-slate-200">{part.quantity} <span className="text-xs text-slate-500">{part.item.unitOfMeasure}</span></p>
                     </div>
-                    {currentUserRole !== "TECH" && (
+                    {showFinancials && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
                         <p className="mt-0.5 text-slate-200">${(part.unitCost ?? 0).toFixed(2)}</p>
                       </div>
                     )}
-                    {currentUserRole !== "TECH" && (
+                    {showFinancials && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-slate-500">Line Total</p>
                         <p className="mt-0.5 font-semibold text-slate-100">${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}</p>
@@ -282,8 +284,8 @@ export function JobDetailPageClient({
               style={{ gridTemplateColumns: partsGridTemplate }}>
               <span>Part</span>
               <span className="text-right pr-4">Qty</span>
-              {currentUserRole !== "TECH" && <span className="text-right pr-4">Unit Cost</span>}
-              {currentUserRole !== "TECH" && <span className="text-right pr-4">Line Total</span>}
+              {showFinancials && <span className="text-right pr-4">Unit Cost</span>}
+              {showFinancials && <span className="text-right pr-4">Line Total</span>}
               <span />
             </div>
             {job.parts.map((part) => (
@@ -300,10 +302,10 @@ export function JobDetailPageClient({
                 <span className="text-slate-300 pr-4 text-right">
                   {part.quantity} <span className="text-slate-500 text-xs">{part.item.unitOfMeasure}</span>
                 </span>
-                {currentUserRole !== "TECH" && (
+                {showFinancials && (
                   <span className="text-slate-300 pr-4 text-right">${(part.unitCost ?? 0).toFixed(2)}</span>
                 )}
-                {currentUserRole !== "TECH" && (
+                {showFinancials && (
                   <span className="text-slate-200 font-semibold pr-4 text-right">
                     ${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}
                   </span>
@@ -323,7 +325,7 @@ export function JobDetailPageClient({
         )}
 
         {/* Total */}
-        {currentUserRole !== "TECH" && job.parts.length > 0 && (
+        {showFinancials && job.parts.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-700 flex justify-end">
             <div className="text-right">
               <span className="text-xs text-slate-500 uppercase tracking-wide">Total Material Cost</span>

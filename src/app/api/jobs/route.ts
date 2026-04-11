@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireRequestContext } from "@/lib/request-context";
+import { requireUserAccess } from "@/lib/permissions";
 import { z } from "zod";
 
 const dbAny = prisma as any;
 
 const createSchema = z.object({
   jobNumber: z.string().min(1, "Job number is required"),
+  description: z.string().optional(),
   customer: z.string().min(1, "Customer is required"),
   date: z.string().optional(),
   notes: z.string().optional(),
@@ -14,30 +15,35 @@ const createSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = requireRequestContext(request);
-    if (!auth.ok) {
-      return auth.response;
+    const access = await requireUserAccess(request);
+    if (!access.ok) {
+      return access.response;
+    }
+
+    if (!access.access.canViewJobs) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const includeParts = request.nextUrl.searchParams.get("includeParts") === "1";
 
-    // Techs only see their own jobs
     const where = {
-      organizationId: auth.context.organizationId,
-      ...(auth.context.role === "TECH" ? { technicianId: auth.context.userId } : {}),
+      organizationId: access.access.organizationId,
+      ...(access.access.role === "TECH" ? { technicianId: access.access.userId } : {}),
     };
 
     const jobs = includeParts
-      ? await prisma.job.findMany({
+      ? await dbAny.job.findMany({
           where,
-          orderBy: { createdAt: "desc" },
+          orderBy: { latestActivityAt: "desc" },
           select: {
             id: true,
             jobNumber: true,
+            description: true,
             customer: true,
             date: true,
             status: true,
             notes: true,
+            latestActivityAt: true,
             technician: { select: { id: true, name: true } },
             parts: {
               select: {
@@ -45,21 +51,43 @@ export async function GET(request: NextRequest) {
                 quantity: true,
                 unitCost: true,
                 notes: true,
-                item: { select: { id: true, name: true, partNumber: true, unitOfMeasure: true } },
+                item: {
+                  select: {
+                    id: true,
+                    name: true,
+                    partNumber: true,
+                    unitOfMeasure: true,
+                    quantityOnHand: true,
+                    lowStockRedThreshold: true,
+                  },
+                },
               },
             },
           },
         })
-      : await prisma.job.findMany({
+        : await dbAny.job.findMany({
           where,
-          orderBy: { createdAt: "desc" },
+          orderBy: { latestActivityAt: "desc" },
           select: {
             id: true,
             jobNumber: true,
+            description: true,
             customer: true,
             date: true,
             status: true,
+            latestActivityAt: true,
             technician: { select: { id: true, name: true } },
+            parts: {
+              select: {
+                quantity: true,
+                item: {
+                  select: {
+                    quantityOnHand: true,
+                    lowStockRedThreshold: true,
+                  },
+                },
+              },
+            },
             _count: { select: { parts: true } },
           },
         });
@@ -73,9 +101,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireRequestContext(request);
-    if (!auth.ok) {
-      return auth.response;
+    const access = await requireUserAccess(request);
+    if (!access.ok) {
+      return access.response;
+    }
+
+    if (!access.access.canCreateJobs) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -83,12 +115,14 @@ export async function POST(request: NextRequest) {
 
     const job = await dbAny.job.create({
       data: {
-        organizationId: auth.context.organizationId,
+        organizationId: access.access.organizationId,
         jobNumber: data.jobNumber.trim(),
+        description: data.description?.trim() || null,
         customer: data.customer.trim(),
-        technicianId: auth.context.userId,
+        technicianId: access.access.userId,
         date: data.date ? new Date(data.date) : new Date(),
         notes: data.notes?.trim() || null,
+        latestActivityAt: new Date(),
       },
       include: {
         technician: { select: { id: true, name: true } },

@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
 import { ReorderPageClient } from "@/components/reorder/reorder-page-client";
-import { getSession } from "@/lib/auth";
+import { requirePageAccess } from "@/lib/permissions";
 import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
 
 function getInitialPriorityFilter(value: string | string[] | undefined) {
@@ -24,14 +23,10 @@ export default async function ReorderPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getSession();
+  const access = await requirePageAccess("canViewReorder");
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  const snapshot = await getReorderRecommendationSnapshot(session.organizationId);
+  const snapshot = await getReorderRecommendationSnapshot(access.organizationId);
 
   return (
     <ReorderPageClient

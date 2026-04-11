@@ -1,14 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Boxes, CircleAlert, ScanLine, Warehouse } from "lucide-react";
-import type { UserRole } from "@/lib/auth";
+import { useEffect, useMemo, useState } from "react";
 import {
-  TAB_DATA_CACHE_KEYS,
-  getCachedData,
-  invalidateCachedData,
-  primeCachedData,
-} from "@/lib/client-data-cache";
+  ArrowRightLeft,
+  BriefcaseBusiness,
+  Boxes,
+  CircleAlert,
+  FolderOpen,
+  PackageMinus,
+  PackagePlus,
+  RotateCcw,
+  ScanLine,
+  Warehouse,
+} from "lucide-react";
+import {
+  createOfflineMutationPayload,
+  getOfflineQueueSummary,
+  runMutationWithOfflineSupport,
+  subscribeToOfflineQueue,
+  type OfflineQueueSummary,
+} from "@/lib/offline-queue";
+import { canViewFinancialValue, type FinancialVisibilityMode } from "@/lib/financial-visibility";
 import { StatCard } from "@/components/cards/StatCard";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { SidePanel } from "@/components/panels/SidePanel";
@@ -18,20 +30,6 @@ import { Card } from "@/components/ui/Card";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SearchBar } from "@/components/ui/SearchBar";
-
-const INVENTORY_ROW_HEIGHT = 68;
-const INVENTORY_ROW_OVERSCAN = 8;
-const INVENTORY_VIRTUALIZATION_THRESHOLD = 90;
-
-interface AiResult {
-  name?: string;
-  manufacturer?: string;
-  partNumber?: string;
-  modelNumber?: string;
-  description?: string;
-  material?: string;
-  confidence?: number;
-}
 
 export interface InventoryPageSupplier {
   id: string;
@@ -45,399 +43,494 @@ export interface InventoryPageLocation {
   description?: string;
 }
 
+export interface InventoryPageJob {
+  id: string;
+  jobNumber: string;
+  description?: string;
+  customer: string;
+  date: string;
+  status: string;
+}
+
 export interface InventoryPageItem {
   id: string;
   name: string;
   manufacturer?: string;
   partNumber?: string;
   modelNumber?: string;
-  serialNumber?: string;
-  barcode?: string;
+  category?: string;
   description?: string;
   photoUrl?: string;
   quantityOnHand: number;
-  quantityUsedTotal: number;
   lowStockAmberThreshold: number;
   lowStockRedThreshold: number;
   preferredSupplierId?: string;
+  preferredSupplierName?: string;
+  defaultLocationId?: string;
+  defaultLocationName?: string;
   lastUnitCost?: number;
   unitOfMeasure: string;
-  createdAt: string;
+  lastMovementAt?: string;
+  lastMovementType?: string;
+  linkedJobsCount: number;
 }
 
 interface ItemCatalogClientProps {
-  currentUserRole: UserRole;
+  financialVisibilityMode: FinancialVisibilityMode;
+  permissions: {
+    canAddInventory: boolean;
+    canEditInventory: boolean;
+    canMoveInventory: boolean;
+    canRemoveInventory: boolean;
+    canUseInventoryOnJob: boolean;
+    canReturnInventoryFromJob: boolean;
+  };
   initialItems: InventoryPageItem[];
   initialSuppliers: InventoryPageSupplier[];
   initialLocations: InventoryPageLocation[];
+  initialJobs: InventoryPageJob[];
   initialSelectedItemId?: string;
 }
 
-function normalizeOptionalText(value: string): string | undefined {
+type StockFilter = "all" | "low" | "critical";
+type MovementAction = "move_stock" | "use_on_job" | "return_from_job" | "receive_stock" | "adjust_quantity";
+type CreateItemDraft = {
+  name: string;
+  manufacturer: string;
+  partNumber: string;
+  modelNumber: string;
+  category: string;
+  description: string;
+  quantityOnHand: string;
+  lowStockAmberThreshold: string;
+  lowStockRedThreshold: string;
+  preferredSupplierId: string;
+  unitOfMeasure: string;
+  locationId: string;
+  lastUnitCost: string;
+};
+type MovementDraft = {
+  action: MovementAction;
+  quantity: string;
+  quantityDelta: string;
+  fromLocationId: string;
+  toLocationId: string;
+  jobId: string;
+  supplierCost: string;
+  notes: string;
+};
+
+const EMPTY_CREATE_DRAFT: CreateItemDraft = {
+  name: "",
+  manufacturer: "",
+  partNumber: "",
+  modelNumber: "",
+  category: "",
+  description: "",
+  quantityOnHand: "0",
+  lowStockAmberThreshold: "5",
+  lowStockRedThreshold: "2",
+  preferredSupplierId: "",
+  unitOfMeasure: "units",
+  locationId: "",
+  lastUnitCost: "",
+};
+
+function createMovementDraft(item?: InventoryPageItem, action: MovementAction = "receive_stock"): MovementDraft {
+  return {
+    action,
+    quantity: "1",
+    quantityDelta: action === "adjust_quantity" ? "0" : "",
+    fromLocationId: item?.defaultLocationId ?? "",
+    toLocationId: item?.defaultLocationId ?? "",
+    jobId: "",
+    supplierCost: item?.lastUnitCost?.toString() ?? "",
+    notes: "",
+  };
+}
+
+function normalizeOptionalText(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
 
-/** Compress an image file to a low-res JPEG data URL (max ~150x150px, ~20KB). */
-async function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const MAX = 150;
-      let { width, height } = img;
-      if (width > MAX || height > MAX) {
-        if (width > height) {
-          height = Math.round((height * MAX) / width);
-          width = MAX;
-        } else {
-          width = Math.round((width * MAX) / height);
-          height = MAX;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas not available")); return; }
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.7));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
+function parseInteger(value: string) {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function parseCurrency(value: string) {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getStockTone(item: InventoryPageItem): "green" | "orange" | "red" {
+  if (item.quantityOnHand <= item.lowStockRedThreshold) {
+    return "red";
+  }
+  if (item.quantityOnHand <= item.lowStockAmberThreshold) {
+    return "orange";
+  }
+  return "green";
+}
+
+function getStockLabel(item: InventoryPageItem) {
+  const tone = getStockTone(item);
+  if (tone === "red") {
+    return "Critical";
+  }
+  if (tone === "orange") {
+    return "Low";
+  }
+  return "Healthy";
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "No movement yet";
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "No movement yet" : parsed.toLocaleString();
+}
+
+function formatMoney(value?: number) {
+  if (value === undefined) {
+    return "Not set";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function buildItemSearchText(item: InventoryPageItem) {
+  return [
+    item.name,
+    item.manufacturer,
+    item.partNumber,
+    item.modelNumber,
+    item.category,
+    item.description,
+    item.preferredSupplierName,
+    item.defaultLocationName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function applyMovementOptimistically(
+  item: InventoryPageItem,
+  draft: MovementDraft,
+  locations: InventoryPageLocation[],
+  jobs: InventoryPageJob[]
+) {
+  const quantity = parseInteger(draft.quantity) ?? 0;
+  const quantityDelta = parseInteger(draft.quantityDelta) ?? 0;
+  const next = { ...item };
+  const now = new Date().toISOString();
+
+  if (draft.action === "receive_stock") {
+    next.quantityOnHand += quantity;
+    next.lastUnitCost = parseCurrency(draft.supplierCost) ?? next.lastUnitCost;
+    next.defaultLocationId = draft.toLocationId || next.defaultLocationId;
+  }
+
+  if (draft.action === "move_stock") {
+    next.defaultLocationId = draft.toLocationId || next.defaultLocationId;
+  }
+
+  if (draft.action === "adjust_quantity") {
+    next.quantityOnHand += quantityDelta;
+  }
+
+  if (draft.action === "use_on_job") {
+    next.quantityOnHand -= quantity;
+    next.linkedJobsCount += 1;
+  }
+
+  if (draft.action === "return_from_job") {
+    next.quantityOnHand += quantity;
+  }
+
+  const locationName = locations.find((location) => location.id === (draft.toLocationId || next.defaultLocationId))?.name;
+  const jobNumber = jobs.find((job) => job.id === draft.jobId)?.jobNumber;
+
+  next.defaultLocationName = locationName ?? next.defaultLocationName;
+  next.lastMovementAt = now;
+  next.lastMovementType =
+    draft.action === "use_on_job" && jobNumber
+      ? `${draft.action}:${jobNumber}`
+      : draft.action;
+
+  return next;
 }
 
 export function ItemCatalogClient({
-  currentUserRole,
+  financialVisibilityMode,
+  permissions,
   initialItems,
   initialSuppliers,
   initialLocations,
+  initialJobs,
   initialSelectedItemId,
 }: ItemCatalogClientProps) {
-  const isAdmin = currentUserRole === "SUPER_ADMIN" || currentUserRole === "OFFICE";
-  const [items, setItems] = useState<InventoryPageItem[]>(initialItems);
-  const [suppliers, setSuppliers] = useState<InventoryPageSupplier[]>(initialSuppliers);
-  const [locations, setLocations] = useState<InventoryPageLocation[]>(initialLocations);
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [items, setItems] = useState(initialItems);
+  const [suppliers, setSuppliers] = useState(initialSuppliers);
+  const [locations] = useState(initialLocations);
+  const [jobs] = useState(initialJobs);
   const [search, setSearch] = useState("");
-  const [stockFilter, setStockFilter] = useState<"all" | "low" | "critical">("all");
-  const [aiScanning, setAiScanning] = useState(false);
-  const [aiResult, setAiResult] = useState<AiResult | null>(null);
-  const [aiError, setAiError] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(initialSelectedItemId ?? null);
-  const [photoPreview, setPhotoPreview] = useState<string>("");
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    manufacturer: "",
-    partNumber: "",
-    modelNumber: "",
-    serialNumber: "",
-    barcode: "",
-    description: "",
-    quantityOnHand: "",
-    lowStockAmberThreshold: "",
-    lowStockRedThreshold: "",
-    preferredSupplierId: "",
-    lastUnitCost: 0,
-    unitOfMeasure: "units",
-    locationId: "",
-  });
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(initialSelectedItemId ?? initialItems[0]?.id ?? null);
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [createDraft, setCreateDraft] = useState<CreateItemDraft>(EMPTY_CREATE_DRAFT);
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [movementItemId, setMovementItemId] = useState<string | null>(null);
+  const [movementDraft, setMovementDraft] = useState<MovementDraft>(createMovementDraft());
+  const [movementError, setMovementError] = useState("");
+  const [submittingMovement, setSubmittingMovement] = useState(false);
+  const [queueSummary, setQueueSummary] = useState<OfflineQueueSummary>(getOfflineQueueSummary());
 
-  useEffect(() => {
-    primeCachedData(TAB_DATA_CACHE_KEYS.items, initialItems);
-    primeCachedData(TAB_DATA_CACHE_KEYS.suppliers, initialSuppliers);
-    primeCachedData(TAB_DATA_CACHE_KEYS.locations, initialLocations);
-  }, [initialItems, initialSuppliers, initialLocations]);
+  useEffect(() => subscribeToOfflineQueue(() => setQueueSummary(getOfflineQueueSummary())), []);
 
-  async function fetchData(force = false) {
-    setLoading(force);
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  const movementItem = items.find((item) => item.id === movementItemId) ?? null;
+  const lowCount = items.filter((item) => getStockTone(item) === "orange").length;
+  const criticalCount = items.filter((item) => getStockTone(item) === "red").length;
+  const visibleBase = canViewFinancialValue(financialVisibilityMode, "base");
+  const visibleTotal = canViewFinancialValue(financialVisibilityMode, "total");
 
-    try {
-      if (force) {
-        invalidateCachedData([
-          TAB_DATA_CACHE_KEYS.items,
-          TAB_DATA_CACHE_KEYS.suppliers,
-          TAB_DATA_CACHE_KEYS.locations,
-        ]);
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const tone = getStockTone(item);
+      if (stockFilter === "critical" && tone !== "red") {
+        return false;
       }
-
-      const [itemsData, suppliersData, locationsData] = await Promise.all([
-        getCachedData<InventoryPageItem[]>(TAB_DATA_CACHE_KEYS.items, async () => {
-          const res = await fetch("/api/items", { cache: "no-store" });
-          if (!res.ok) {
-            throw new Error("Failed to load inventory items");
-          }
-          return res.json() as Promise<InventoryPageItem[]>;
-        }),
-        getCachedData<InventoryPageSupplier[]>(TAB_DATA_CACHE_KEYS.suppliers, async () => {
-          const res = await fetch("/api/suppliers", { cache: "no-store" });
-          if (!res.ok) {
-            throw new Error("Failed to load suppliers");
-          }
-          return res.json() as Promise<InventoryPageSupplier[]>;
-        }),
-        getCachedData<InventoryPageLocation[]>(TAB_DATA_CACHE_KEYS.locations, async () => {
-          const res = await fetch("/api/locations", { cache: "no-store" });
-          if (!res.ok) {
-            return [];
-          }
-          return res.json() as Promise<InventoryPageLocation[]>;
-        }),
-      ]);
-
-      setItems(Array.isArray(itemsData) ? itemsData : []);
-      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
-      setLocations(Array.isArray(locationsData) ? locationsData : []);
-      setError("");
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      setError("Could not load items right now. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleAIScan(file: File) {
-    setAiScanning(true);
-    setAiError("");
-    setAiResult(null);
-    try {
-      const body = new FormData();
-      body.append("image", file);
-      const res = await fetch("/api/ai/identify-item", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setAiError(data.error || "AI scan failed.");
-        return;
+      if (stockFilter === "low" && tone === "green") {
+        return false;
       }
-      setAiResult(data as AiResult);
-    } catch {
-      setAiError("AI scan failed. Please try again.");
-    } finally {
-      setAiScanning(false);
+      if (!query) {
+        return true;
+      }
+      return buildItemSearchText(item).includes(query);
+    });
+  }, [items, search, stockFilter]);
+
+  async function refreshItems() {
+    const response = await fetch("/api/items", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Failed to refresh inventory");
     }
+    const payload = (await response.json()) as InventoryPageItem[];
+    setItems(payload);
+    setSuppliers((current) => current);
   }
 
-  async function handlePhotoUpload(file: File) {
-    setPhotoUploading(true);
-    try {
-      const dataUrl = await compressImage(file);
-      setPhotoPreview(dataUrl);
-    } catch {
-      setError("Failed to process photo. Please try a different image.");
-    } finally {
-      setPhotoUploading(false);
-    }
+  function openMovement(item: InventoryPageItem, action: MovementAction) {
+    setMovementItemId(item.id);
+    setMovementDraft(createMovementDraft(item, action));
+    setMovementError("");
   }
 
-  function applyAiResult() {
-    if (!aiResult) return;
-    setFormData((prev) => ({
-      ...prev,
-      name: aiResult!.name || prev.name,
-      manufacturer: aiResult!.manufacturer || prev.manufacturer,
-      partNumber: aiResult!.partNumber || prev.partNumber,
-      modelNumber: aiResult!.modelNumber || prev.modelNumber,
-      description: aiResult!.description || prev.description,
-    }));
-    setAiResult(null);
-  }
+  async function handleCreateItem() {
+    const quantityOnHand = parseInteger(createDraft.quantityOnHand);
+    const lowThreshold = parseInteger(createDraft.lowStockAmberThreshold);
+    const criticalThreshold = parseInteger(createDraft.lowStockRedThreshold);
 
-  async function handleAddItem(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-
-    if (!formData.name.trim()) {
-      setError("Item name is required.");
+    if (!createDraft.name.trim()) {
+      setCreateError("Item name is required.");
+      return;
+    }
+    if (quantityOnHand === undefined || quantityOnHand < 0) {
+      setCreateError("Quantity on hand must be a whole number of 0 or greater.");
+      return;
+    }
+    if (lowThreshold === undefined || lowThreshold < 1) {
+      setCreateError("Low threshold must be at least 1.");
+      return;
+    }
+    if (criticalThreshold === undefined || criticalThreshold < 0 || criticalThreshold > lowThreshold) {
+      setCreateError("Critical threshold must be 0 or greater and not exceed the low threshold.");
       return;
     }
 
-    const lowStockAlert =
-      formData.lowStockAmberThreshold === "" ? 5 : Number(formData.lowStockAmberThreshold);
-    const criticalStockAlert =
-      formData.lowStockRedThreshold === "" ? 2 : Number(formData.lowStockRedThreshold);
-    const quantityOnHand =
-      formData.quantityOnHand === "" ? 0 : Number(formData.quantityOnHand);
-
-    if (!Number.isFinite(lowStockAlert) || lowStockAlert < 1) {
-      setError("Low stock alert must be at least 1.");
-      return;
-    }
-    if (!Number.isInteger(lowStockAlert)) {
-      setError("Low stock alert must be a whole number.");
-      return;
-    }
-
-    if (!Number.isFinite(criticalStockAlert) || criticalStockAlert < 0) {
-      setError("Critical stock alert must be 0 or greater.");
-      return;
-    }
-    if (!Number.isInteger(criticalStockAlert)) {
-      setError("Critical stock alert must be a whole number.");
-      return;
-    }
-
-    if (criticalStockAlert > lowStockAlert) {
-      setError("Critical stock alert must be less than or equal to low stock alert.");
-      return;
-    }
-
-    if (!Number.isFinite(quantityOnHand) || quantityOnHand < 0) {
-      setError("Quantity on hand must be 0 or greater.");
-      return;
-    }
-    if (!Number.isInteger(quantityOnHand)) {
-      setError("Quantity on hand must be a whole number.");
-      return;
-    }
-
-    const payload = {
-      name: formData.name.trim(),
-      manufacturer: normalizeOptionalText(formData.manufacturer),
-      partNumber: normalizeOptionalText(formData.partNumber),
-      modelNumber: normalizeOptionalText(formData.modelNumber),
-      serialNumber: normalizeOptionalText(formData.serialNumber),
-      barcode: normalizeOptionalText(formData.barcode),
-      description: normalizeOptionalText(formData.description),
-      photoUrl: photoPreview || undefined,
-      quantityOnHand,
-      lowStockAmberThreshold: lowStockAlert,
-      lowStockRedThreshold: criticalStockAlert,
-      preferredSupplierId: normalizeOptionalText(formData.preferredSupplierId),
-      lastUnitCost: Number.isFinite(formData.lastUnitCost) ? formData.lastUnitCost : undefined,
-      unitOfMeasure: normalizeOptionalText(formData.unitOfMeasure) || "units",
-      locationId: normalizeOptionalText(formData.locationId),
-    };
+    setCreating(true);
+    setCreateError("");
 
     try {
-      const res = await fetch("/api/items", {
+      const response = await fetch("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: createDraft.name.trim(),
+          manufacturer: normalizeOptionalText(createDraft.manufacturer),
+          partNumber: normalizeOptionalText(createDraft.partNumber),
+          modelNumber: normalizeOptionalText(createDraft.modelNumber),
+          category: normalizeOptionalText(createDraft.category),
+          description: normalizeOptionalText(createDraft.description),
+          quantityOnHand,
+          lowStockAmberThreshold: lowThreshold,
+          lowStockRedThreshold: criticalThreshold,
+          preferredSupplierId: normalizeOptionalText(createDraft.preferredSupplierId),
+          lastUnitCost: parseCurrency(createDraft.lastUnitCost),
+          unitOfMeasure: normalizeOptionalText(createDraft.unitOfMeasure) ?? "units",
+          locationId: normalizeOptionalText(createDraft.locationId),
+        }),
       });
 
-      if (res.ok) {
-        invalidateCachedData([TAB_DATA_CACHE_KEYS.items, TAB_DATA_CACHE_KEYS.reorder]);
-        setFormData({
-          name: "",
-          manufacturer: "",
-          partNumber: "",
-          modelNumber: "",
-          serialNumber: "",
-          barcode: "",
-          description: "",
-          quantityOnHand: "",
-          lowStockAmberThreshold: "",
-          lowStockRedThreshold: "",
-          preferredSupplierId: "",
-          lastUnitCost: 0,
-          unitOfMeasure: "units",
-          locationId: "",
-        });
-        setPhotoPreview("");
-        setShowForm(false);
-        void fetchData(true);
-      } else {
-        const errBody = await res.json().catch(() => null);
-        if (Array.isArray(errBody?.error)) {
-          const message = errBody.error[0]?.message;
-          setError(typeof message === "string" ? message : "Failed to save item.");
-        } else {
-          setError(errBody?.error || "Failed to save item.");
-        }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to add item.");
       }
+
+      await refreshItems();
+      setShowCreatePanel(false);
+      setCreateDraft(EMPTY_CREATE_DRAFT);
     } catch (error) {
-      console.error("Failed to add item:", error);
-      setError("Failed to save item. Please try again.");
+      setCreateError(error instanceof Error ? error.message : "Failed to add item.");
+    } finally {
+      setCreating(false);
     }
   }
 
-  const filteredItems = items.filter((item) => {
-    if (stockFilter === "critical" && item.quantityOnHand > item.lowStockRedThreshold) return false;
-    if (stockFilter === "low" && item.quantityOnHand > item.lowStockAmberThreshold) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(q) ||
-      (item.manufacturer ?? "").toLowerCase().includes(q) ||
-      (item.partNumber ?? "").toLowerCase().includes(q) ||
-      (item.modelNumber ?? "").toLowerCase().includes(q) ||
-      (item.description ?? "").toLowerCase().includes(q) ||
-      (item.serialNumber ?? "").toLowerCase().includes(q) ||
-      (item.barcode ?? "").toLowerCase().includes(q)
-    );
-  });
+  async function handleMovementSubmit() {
+    if (!movementItem) {
+      return;
+    }
 
-  const lowCount = items.filter((i) => i.quantityOnHand <= i.lowStockAmberThreshold && i.quantityOnHand > i.lowStockRedThreshold).length;
-  const criticalCount = items.filter((i) => i.quantityOnHand <= i.lowStockRedThreshold).length;
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
-  const supplierNamesById = useMemo(
-    () => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])),
-    [suppliers]
-  );
+    const quantity = parseInteger(movementDraft.quantity);
+    const quantityDelta = parseInteger(movementDraft.quantityDelta);
 
-  if (loading) {
-    return (
-      <PageShell>
-        <p className="text-sm text-slate-400 animate-pulse">Loading inventory...</p>
-      </PageShell>
-    );
+    if (["move_stock", "use_on_job", "return_from_job", "receive_stock"].includes(movementDraft.action) && (!quantity || quantity < 1)) {
+      setMovementError("Quantity must be a whole number greater than zero.");
+      return;
+    }
+    if (movementDraft.action === "move_stock" && (!movementDraft.fromLocationId || !movementDraft.toLocationId)) {
+      setMovementError("Choose both source and destination locations.");
+      return;
+    }
+    if (movementDraft.action === "use_on_job" && !movementDraft.jobId) {
+      setMovementError("Select a job before logging usage.");
+      return;
+    }
+    if (movementDraft.action === "return_from_job" && (!movementDraft.jobId || !movementDraft.toLocationId)) {
+      setMovementError("Select the job and return location.");
+      return;
+    }
+    if (movementDraft.action === "adjust_quantity" && quantityDelta === undefined) {
+      setMovementError("Adjustment amount must be a whole number.");
+      return;
+    }
+
+    setSubmittingMovement(true);
+    setMovementError("");
+
+    const payload = createOfflineMutationPayload({
+      action: movementDraft.action,
+      quantity,
+      quantityDelta,
+      fromLocationId: normalizeOptionalText(movementDraft.fromLocationId),
+      toLocationId: normalizeOptionalText(movementDraft.toLocationId),
+      jobId: normalizeOptionalText(movementDraft.jobId),
+      supplierCost: parseCurrency(movementDraft.supplierCost),
+      notes: normalizeOptionalText(movementDraft.notes),
+    });
+
+    try {
+      const result = await runMutationWithOfflineSupport({
+        url: `/api/items/${movementItem.id}/movements`,
+        method: "POST",
+        scope: "inventory",
+        body: payload,
+      });
+
+      if (result.queued) {
+        const optimistic = applyMovementOptimistically(movementItem, movementDraft, locations, jobs);
+        setItems((current) => current.map((item) => (item.id === optimistic.id ? optimistic : item)));
+      } else {
+        const response = result.response;
+        if (!response) {
+          throw new Error("Movement response was missing.");
+        }
+
+        if (!response.ok) {
+          const responsePayload = await response.json().catch(() => null);
+          throw new Error(responsePayload?.error || "Failed to save movement.");
+        }
+
+        const updated = (await response.json()) as InventoryPageItem;
+        setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      }
+
+      setMovementItemId(null);
+    } catch (error) {
+      setMovementError(error instanceof Error ? error.message : "Failed to save movement.");
+    } finally {
+      setSubmittingMovement(false);
+    }
   }
 
   return (
     <PageShell className="form-screen">
       <PageHeader
         eyebrow={<Badge tone="blue">Inventory Workspace</Badge>}
-        title="See stock pressure before it slows the team"
-        description="Track the current count, isolate low-stock risk quickly, and add new items without leaving the list."
+        title="Move stock with job context"
+        description="Keep the existing dark operational shell, but make each record actionable. Stock movement, job usage, and offline submission all sit directly inside the inventory workspace."
         actions={
           <>
             <Button variant="secondary" href="/scan">
               <ScanLine className="h-4 w-4" />
               Scan
             </Button>
-            <Button variant="primary" onClick={() => { setShowForm(true); setError(""); }}>
-              Add item
-            </Button>
+            {permissions.canAddInventory ? (
+              <Button variant="primary" onClick={() => { setCreateError(""); setShowCreatePanel(true); }}>
+                <PackagePlus className="h-4 w-4" />
+                Add item
+              </Button>
+            ) : null}
           </>
         }
       />
 
-      {error ? (
-        <PageSection>
-          <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{error}</Card>
-        </PageSection>
-      ) : null}
-
-      <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Items" value={String(items.length)} hint="Tracked inventory records" tone="blue" icon={Boxes} />
-        <StatCard label="Low stock" value={String(lowCount)} hint="Below low threshold" trend={lowCount > 0 ? "Watch" : "Clear"} tone={lowCount > 0 ? "orange" : "green"} icon={AlertTriangle} />
-        <StatCard label="Critical" value={String(criticalCount)} hint="Needs attention first" trend={criticalCount > 0 ? "Act now" : "Stable"} tone={criticalCount > 0 ? "red" : "green"} icon={CircleAlert} />
-        <StatCard label="Locations" value={String(locations.length)} hint="Storage points in rotation" tone="teal" icon={Warehouse} />
+      <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="Records" value={String(items.length)} hint="Tracked inventory items" tone="blue" icon={Boxes} />
+        <StatCard label="Low stock" value={String(lowCount)} hint="Watch soon" tone={lowCount > 0 ? "orange" : "green"} icon={Warehouse} />
+        <StatCard label="Critical" value={String(criticalCount)} hint="Needs action first" tone={criticalCount > 0 ? "red" : "green"} icon={CircleAlert} />
+        <StatCard label="Locations" value={String(locations.length)} hint="Stock points active" tone="teal" icon={ArrowRightLeft} />
+        <StatCard label="Queued" value={String(queueSummary.total)} hint="Offline mutations waiting" tone={queueSummary.total > 0 ? "orange" : "green"} icon={RotateCcw} />
       </PageSection>
 
       <PageSection>
         <Card className="space-y-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-white">Stock controls</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300/78">Search by part details, then isolate the queue to all parts, low stock, or critical shortages.</p>
+              <h2 className="text-lg font-semibold text-white">Operational inventory records</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300/78">Search across manufacturer, part number, category, location, and supplier, then trigger the right stock action without flattening the page into a generic grid.</p>
             </div>
             <Badge tone="slate">{filteredItems.length} showing</Badge>
           </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-            <SearchBar value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, manufacturer, part number..." />
+            <SearchBar value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, manufacturer, category, supplier, or location" />
             <FilterTabs
               value={stockFilter}
-              onChange={(value) => setStockFilter(value as "all" | "low" | "critical")}
+              onChange={(value) => setStockFilter(value as StockFilter)}
               options={[
-                { value: "all", label: "All parts", count: String(items.length) },
-                { value: "low", label: "Low stock", count: String(lowCount) },
+                { value: "all", label: "All records", count: String(items.length) },
+                { value: "low", label: "Low stock", count: String(lowCount + criticalCount) },
                 { value: "critical", label: "Critical", count: String(criticalCount) },
               ]}
             />
@@ -445,401 +538,246 @@ export function ItemCatalogClient({
         </Card>
       </PageSection>
 
+      <PageSection>
+        <div className="space-y-4">
+          {filteredItems.map((item) => {
+            const tone = getStockTone(item);
+            return (
+              <Card key={item.id} className="rounded-[1.8rem] border-white/8 bg-[linear-gradient(180deg,rgba(11,19,34,0.94),rgba(10,15,27,0.82))] p-5">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="flex min-w-0 gap-4">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[1.25rem] border border-white/10 bg-white/[0.04]">
+                      {item.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.photoUrl} alt={item.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-slate-500">
+                          <Boxes className="h-6 w-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{item.name}</h3>
+                        <Badge tone={tone}>{getStockLabel(item)}</Badge>
+                        {item.category ? <Badge tone="slate">{item.category}</Badge> : null}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-300">
+                        {[item.manufacturer, item.partNumber ? `Part ${item.partNumber}` : null, item.modelNumber ? `Model ${item.modelNumber}` : null]
+                          .filter(Boolean)
+                          .join(" • ") || "No manufacturer or part metadata yet"}
+                      </p>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <DataPill label="Location" value={item.defaultLocationName || "Unassigned"} />
+                        <DataPill label="Supplier" value={item.preferredSupplierName || "Not linked"} />
+                        <DataPill label="Last movement" value={formatDateTime(item.lastMovementAt)} />
+                        <DataPill label="Linked jobs" value={String(item.linkedJobsCount)} />
+                      </div>
+                      {item.description ? <p className="mt-4 text-sm leading-6 text-slate-400">{item.description}</p> : null}
+                    </div>
+                  </div>
+
+                  <div className="xl:w-[19rem]">
+                    <div className="grid grid-cols-2 gap-3">
+                      <MetricBox label="On hand" value={`${item.quantityOnHand} ${item.unitOfMeasure}`} />
+                      <MetricBox label="Thresholds" value={`${item.lowStockRedThreshold} / ${item.lowStockAmberThreshold}`} helpText="Critical / low" />
+                      {visibleBase ? <MetricBox label="Base cost" value={formatMoney(item.lastUnitCost)} /> : null}
+                      {visibleTotal ? <MetricBox label="Stock total" value={formatMoney((item.lastUnitCost ?? 0) * item.quantityOnHand)} /> : null}
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <Button variant="secondary" onClick={() => setSelectedItemId(item.id)}>
+                        <FolderOpen className="h-4 w-4" />
+                        Open
+                      </Button>
+                      {permissions.canAddInventory ? (
+                        <Button variant="secondary" onClick={() => openMovement(item, "receive_stock")}>
+                          <PackagePlus className="h-4 w-4" />
+                          Add
+                        </Button>
+                      ) : null}
+                      {permissions.canRemoveInventory ? (
+                        <Button variant="secondary" onClick={() => openMovement(item, "adjust_quantity")}>
+                          <PackageMinus className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      ) : null}
+                      {permissions.canMoveInventory ? (
+                        <Button variant="secondary" onClick={() => openMovement(item, "move_stock")}>
+                          <ArrowRightLeft className="h-4 w-4" />
+                          Move
+                        </Button>
+                      ) : null}
+                      {permissions.canUseInventoryOnJob ? (
+                        <Button variant="primary" onClick={() => openMovement(item, "use_on_job")}>
+                          <BriefcaseBusiness className="h-4 w-4" />
+                          Use on job
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </PageSection>
+
       <SidePanel
-        open={showForm}
-        onClose={() => setShowForm(false)}
+        open={showCreatePanel}
+        onClose={() => setShowCreatePanel(false)}
         title="Add inventory item"
-        description="Capture the important part metadata, thresholds, and supplier details without leaving the catalog."
-      >
-        <div
-          className="rounded-2xl p-0"
-          style={{ background: "rgba(12,17,36,0.95)" }}
-        >
-          {/* AI Scan panel */}
-          <div className="mb-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
-            <p className="text-sm font-semibold text-slate-200 mb-1">📷 AI Item Recognition</p>
-            <p className="text-xs text-slate-400 mb-3">
-              Take or upload a photo — AI will try to identify the item and pre-fill the form.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <label
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-semibold cursor-pointer select-none"
-                style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
-              >
-                📷 Use Camera
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  disabled={aiScanning}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void handleAIScan(file);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold cursor-pointer select-none">
-                🖼 Upload Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={aiScanning}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void handleAIScan(file);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </div>
-            {aiScanning && (
-              <p className="mt-2 text-xs text-indigo-300 animate-pulse">Analyzing image with AI…</p>
-            )}
-            {aiError && <p className="mt-2 text-xs text-red-400">{aiError}</p>}
-            {aiResult && (
-              <div
-                className="mt-3 rounded-lg p-3 text-sm"
-                style={{
-                  border: "1px solid rgba(129,140,248,0.24)",
-                  background: "rgba(79,70,229,0.10)",
-                }}
-              >
-                <p className="font-semibold text-indigo-200 mb-2">AI Detected:</p>
-                {aiResult.name && (
-                  <p className="text-slate-300">
-                    <span className="text-slate-400">Name:</span> {aiResult.name}
-                  </p>
-                )}
-                {aiResult.manufacturer && (
-                  <p className="text-slate-300">
-                    <span className="text-slate-400">Brand:</span> {aiResult.manufacturer}
-                  </p>
-                )}
-                {aiResult.partNumber && (
-                  <p className="text-slate-300">
-                    <span className="text-slate-400">Part #:</span> {aiResult.partNumber}
-                  </p>
-                )}
-                {aiResult.modelNumber && (
-                  <p className="text-slate-300">
-                    <span className="text-slate-400">Model:</span> {aiResult.modelNumber}
-                  </p>
-                )}
-                {aiResult.material && (
-                  <p className="text-slate-300">
-                    <span className="text-slate-400">Material:</span> {aiResult.material}
-                  </p>
-                )}
-                {aiResult.description && (
-                  <p className="text-xs text-slate-400 mt-1">{aiResult.description}</p>
-                )}
-                {aiResult.confidence !== undefined && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    Confidence: {Math.round(aiResult.confidence * 100)}%
-                  </p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={applyAiResult}
-                    className="px-3 py-1.5 rounded-lg text-white text-sm font-semibold"
-                    style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
-                  >
-                    Apply to Form
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiResult(null)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
+        description="Capture the key record fields without leaving the inventory workspace."
+        footer={
+          <div className="flex flex-col gap-3">
+            {createError ? <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{createError}</Card> : null}
+            <Button variant="primary" onClick={handleCreateItem} disabled={creating}>
+              {creating ? "Saving..." : "Save item"}
+            </Button>
+            <Button variant="secondary" onClick={() => setShowCreatePanel(false)}>Cancel</Button>
           </div>
-
-          <form onSubmit={handleAddItem}>
-            <div className="space-y-4">
-              {/* Item Photo Upload */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2">
-                  Item Photo
-                  <span className="ml-1 text-slate-500 font-normal">(auto-compressed to thumbnail size)</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  {photoPreview ? (
-                    <div className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="w-16 h-16 object-cover rounded-lg border border-slate-600"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPhotoPreview("")}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500 text-xs text-center">
-                      No photo
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium cursor-pointer select-none">
-                    {photoUploading ? "Processing…" : "📷 Upload Photo"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      disabled={photoUploading}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void handlePhotoUpload(file);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <input
-                type="text"
-                placeholder="Item Name *"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="Manufacturer (optional)"
-                  value={formData.manufacturer}
-                  onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Part Number (optional)"
-                  value={formData.partNumber}
-                  onChange={(e) => setFormData({ ...formData, partNumber: e.target.value })}
-                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Model Number (optional)"
-                  value={formData.modelNumber}
-                  onChange={(e) => setFormData({ ...formData, modelNumber: e.target.value })}
-                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Serial Number (optional)"
-                  value={formData.serialNumber}
-                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-                  className="rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              </div>
-              <textarea
-                placeholder="Description (optional) — helps with searching"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={2}
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              />
-              <input
-                type="text"
-                placeholder="Barcode (optional)"
-                value={formData.barcode}
-                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              />
-              <input
-                type="number"
-                placeholder="Quantity on Hand (optional; defaults to 0)"
-                value={formData.quantityOnHand}
-                onChange={(e) => setFormData({ ...formData, quantityOnHand: e.target.value })}
-                min={0}
-                step={1}
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  placeholder="Low Stock Alert (defaults to 5)"
-                  value={formData.lowStockAmberThreshold}
-                  onChange={(e) => setFormData({ ...formData, lowStockAmberThreshold: e.target.value })}
-                  min={1}
-                  step={1}
-                  className="rounded-xl bg-slate-800 border border-amber-700/50 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <input
-                  type="number"
-                  placeholder="Critical Stock Alert (defaults to 2)"
-                  value={formData.lowStockRedThreshold}
-                  onChange={(e) => setFormData({ ...formData, lowStockRedThreshold: e.target.value })}
-                  min={0}
-                  step={1}
-                  className="rounded-xl bg-slate-800 border border-red-700/50 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div className="rounded-lg border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-300">
-                <p>
-                  <span className="font-semibold text-amber-300">Low Stock Alert</span>: when quantity on hand is at or below this value,
-                  the item is flagged as low stock.
-                </p>
-                <p className="mt-1">
-                  <span className="font-semibold text-red-300">Critical Stock Alert</span>: when quantity on hand is at or below this lower value,
-                  the item is marked critical and should be prioritized.
-                </p>
-              </div>
-              <select
-                value={formData.preferredSupplierId}
-                onChange={(e) => setFormData({ ...formData, preferredSupplierId: e.target.value })}
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              >
-                <option value="">Select Supplier (optional)</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={formData.locationId}
-                onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              >
-                <option value="">Assign to Location (optional)</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}{loc.description ? ` — ${loc.description}` : ""}
-                  </option>
-                ))}
-              </select>
-              {isAdmin && (
-                <input
-                  type="number"
-                  placeholder="Unit Cost $ (optional)"
-                  value={formData.lastUnitCost || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      lastUnitCost: isNaN(e.currentTarget.valueAsNumber) ? 0 : e.currentTarget.valueAsNumber,
-                    })
-                  }
-                  min={0}
-                  step="0.01"
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                />
-              )}
-              <button
-                type="submit"
-                className="w-full rounded-xl text-white font-semibold py-2.5 text-sm transition-all hover:brightness-110 active:scale-[0.98]"
-                style={{
-                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-                  boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
-                }}
-              >
-                Save Item
-              </button>
-            </div>
-          </form>
+        }
+      >
+        <div className="space-y-4">
+          <FormInput label="Item name" value={createDraft.name} onChange={(value) => setCreateDraft((current) => ({ ...current, name: value }))} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormInput label="Manufacturer" value={createDraft.manufacturer} onChange={(value) => setCreateDraft((current) => ({ ...current, manufacturer: value }))} />
+            <FormInput label="Part number" value={createDraft.partNumber} onChange={(value) => setCreateDraft((current) => ({ ...current, partNumber: value }))} />
+            <FormInput label="Model number" value={createDraft.modelNumber} onChange={(value) => setCreateDraft((current) => ({ ...current, modelNumber: value }))} />
+            <FormInput label="Category" value={createDraft.category} onChange={(value) => setCreateDraft((current) => ({ ...current, category: value }))} />
+          </div>
+          <FormTextarea label="Description" value={createDraft.description} onChange={(value) => setCreateDraft((current) => ({ ...current, description: value }))} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormInput label="Quantity on hand" type="number" value={createDraft.quantityOnHand} onChange={(value) => setCreateDraft((current) => ({ ...current, quantityOnHand: value }))} />
+            <FormInput label="Unit type" value={createDraft.unitOfMeasure} onChange={(value) => setCreateDraft((current) => ({ ...current, unitOfMeasure: value }))} />
+            <FormInput label="Low threshold" type="number" value={createDraft.lowStockAmberThreshold} onChange={(value) => setCreateDraft((current) => ({ ...current, lowStockAmberThreshold: value }))} />
+            <FormInput label="Critical threshold" type="number" value={createDraft.lowStockRedThreshold} onChange={(value) => setCreateDraft((current) => ({ ...current, lowStockRedThreshold: value }))} />
+          </div>
+          <SelectInput
+            label="Supplier"
+            value={createDraft.preferredSupplierId}
+            onChange={(value) => setCreateDraft((current) => ({ ...current, preferredSupplierId: value }))}
+            options={[{ value: "", label: "No supplier linked" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]}
+          />
+          <SelectInput
+            label="Location"
+            value={createDraft.locationId}
+            onChange={(value) => setCreateDraft((current) => ({ ...current, locationId: value }))}
+            options={[{ value: "", label: "No default location" }, ...locations.map((location) => ({ value: location.id, label: location.name }))]}
+          />
+          {visibleBase ? <FormInput label="Base cost" type="number" value={createDraft.lastUnitCost} onChange={(value) => setCreateDraft((current) => ({ ...current, lastUnitCost: value }))} /> : null}
         </div>
       </SidePanel>
 
-      {/* ─── Item list (row layout) ─── */}
-      {filteredItems.length > 0 && (
-        <InventoryItemList items={filteredItems} onSelectItem={setSelectedItemId} />
-      )}
-
-      {filteredItems.length === 0 && (
-        <div
-          className="rounded-2xl py-16 flex flex-col items-center text-center"
-          style={{
-            background: "rgba(12,17,36,0.85)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-            style={{
-              background: "rgba(99,102,241,0.10)",
-              border: "1px solid rgba(129,140,248,0.14)",
-            }}
-          >
-            📦
-          </div>
-          {search || stockFilter !== "all" ? (
-            <>
-              <p className="font-semibold text-slate-300 mb-1">No matching items</p>
-              <p className="text-sm text-slate-500">Try a different search or filter</p>
-            </>
-          ) : (
-            <>
-              <p className="font-semibold text-slate-200 mb-1.5">No inventory yet</p>
-              <p className="text-sm text-slate-500 mb-6">Add your first part to get started</p>
-              <button
-                onClick={() => { setShowForm(true); setError(""); }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{
-                  background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-                  boxShadow: "0 3px 16px rgba(91,94,244,0.30)",
-                }}
-              >
-                + Add Item
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
       <SidePanel
-        open={selectedItem !== null}
+        open={Boolean(selectedItem)}
         onClose={() => setSelectedItemId(null)}
-        title={selectedItem?.name ?? "Item detail"}
-        description={selectedItem?.manufacturer || selectedItem?.partNumber || "Inventory detail"}
-        footer={selectedItem ? <Button className="w-full" variant="secondary" href="/reorder">Open reorder queue</Button> : null}
+        title={selectedItem?.name ?? "Inventory item"}
+        description={selectedItem ? `${selectedItem.defaultLocationName || "Unassigned"} • ${selectedItem.unitOfMeasure}` : undefined}
+        footer={
+          selectedItem ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {permissions.canMoveInventory ? <Button variant="secondary" onClick={() => openMovement(selectedItem, "move_stock")}>Move stock</Button> : null}
+              {permissions.canUseInventoryOnJob ? <Button variant="primary" onClick={() => openMovement(selectedItem, "use_on_job")}>Use on job</Button> : null}
+            </div>
+          ) : null
+        }
       >
         {selectedItem ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Badge tone={selectedItem.quantityOnHand <= selectedItem.lowStockRedThreshold ? "red" : selectedItem.quantityOnHand <= selectedItem.lowStockAmberThreshold ? "orange" : "green"}>
-                {selectedItem.quantityOnHand <= selectedItem.lowStockRedThreshold ? "Critical stock" : selectedItem.quantityOnHand <= selectedItem.lowStockAmberThreshold ? "Low stock" : "In range"}
-              </Badge>
+              <Badge tone={getStockTone(selectedItem)}>{getStockLabel(selectedItem)}</Badge>
               <Badge tone="slate">{selectedItem.quantityOnHand} {selectedItem.unitOfMeasure}</Badge>
             </div>
             {selectedItem.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedItem.photoUrl} alt={selectedItem.name} className="w-full rounded-3xl border border-white/10 object-cover" />
+              <img src={selectedItem.photoUrl} alt={selectedItem.name} className="w-full rounded-[1.5rem] border border-white/10 object-cover" />
             ) : null}
             <Card className="space-y-4 bg-white/[0.04]">
               <DetailRow label="Manufacturer" value={selectedItem.manufacturer || "Not set"} />
               <DetailRow label="Part number" value={selectedItem.partNumber || "Not set"} />
-              <DetailRow label="Model" value={selectedItem.modelNumber || "Not set"} />
-              <DetailRow label="Serial" value={selectedItem.serialNumber || "Not set"} />
-              <DetailRow label="Barcode" value={selectedItem.barcode || "Not set"} />
-              <DetailRow label="Supplier" value={selectedItem.preferredSupplierId ? supplierNamesById.get(selectedItem.preferredSupplierId) || "Linked" : "Not linked"} />
+              <DetailRow label="Model number" value={selectedItem.modelNumber || "Not set"} />
+              <DetailRow label="Category" value={selectedItem.category || "Not set"} />
+              <DetailRow label="Supplier" value={selectedItem.preferredSupplierName || "Not linked"} />
+              <DetailRow label="Last movement" value={formatDateTime(selectedItem.lastMovementAt)} />
+              <DetailRow label="Linked jobs" value={String(selectedItem.linkedJobsCount)} />
+              {visibleBase ? <DetailRow label="Base cost" value={formatMoney(selectedItem.lastUnitCost)} /> : null}
+              {visibleTotal ? <DetailRow label="Stock total" value={formatMoney((selectedItem.lastUnitCost ?? 0) * selectedItem.quantityOnHand)} /> : null}
             </Card>
             {selectedItem.description ? <p className="text-sm leading-6 text-slate-300/78">{selectedItem.description}</p> : null}
+          </div>
+        ) : null}
+      </SidePanel>
+
+      <SidePanel
+        open={Boolean(movementItem)}
+        onClose={() => setMovementItemId(null)}
+        title={movementItem ? `Move ${movementItem.name}` : "Inventory movement"}
+        description="Log stock movement, job usage, returns, receiving, or a direct adjustment from one operational drawer."
+        footer={
+          <div className="flex flex-col gap-3">
+            {movementError ? <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{movementError}</Card> : null}
+            <Button variant="primary" onClick={handleMovementSubmit} disabled={submittingMovement}>
+              {submittingMovement ? "Saving..." : queueSummary.total > 0 ? "Save movement" : "Save movement"}
+            </Button>
+            <Button variant="secondary" onClick={() => setMovementItemId(null)}>Cancel</Button>
+          </div>
+        }
+      >
+        {movementItem ? (
+          <div className="space-y-4">
+            <SelectInput
+              label="Action"
+              value={movementDraft.action}
+              onChange={(value) => setMovementDraft((current) => createMovementDraft(movementItem, value as MovementAction))}
+              options={[
+                { value: "move_stock", label: "Move stock" },
+                { value: "use_on_job", label: "Use on job" },
+                { value: "return_from_job", label: "Return from job" },
+                { value: "receive_stock", label: "Receive stock" },
+                { value: "adjust_quantity", label: "Adjust quantity" },
+              ]}
+            />
+
+            {movementDraft.action === "move_stock" ? (
+              <>
+                <SelectInput label="From location" value={movementDraft.fromLocationId} onChange={(value) => setMovementDraft((current) => ({ ...current, fromLocationId: value }))} options={locations.map((location) => ({ value: location.id, label: location.name }))} />
+                <SelectInput label="To location" value={movementDraft.toLocationId} onChange={(value) => setMovementDraft((current) => ({ ...current, toLocationId: value }))} options={locations.map((location) => ({ value: location.id, label: location.name }))} />
+                <FormInput label="Quantity" type="number" value={movementDraft.quantity} onChange={(value) => setMovementDraft((current) => ({ ...current, quantity: value }))} />
+              </>
+            ) : null}
+
+            {movementDraft.action === "use_on_job" ? (
+              <>
+                <SearchableJobSelect jobs={jobs} value={movementDraft.jobId} onChange={(value) => setMovementDraft((current) => ({ ...current, jobId: value }))} />
+                <FormInput label="Quantity used" type="number" value={movementDraft.quantity} onChange={(value) => setMovementDraft((current) => ({ ...current, quantity: value }))} />
+                <SelectInput label="From location" value={movementDraft.fromLocationId} onChange={(value) => setMovementDraft((current) => ({ ...current, fromLocationId: value }))} options={[{ value: "", label: "Default location" }, ...locations.map((location) => ({ value: location.id, label: location.name }))]} />
+              </>
+            ) : null}
+
+            {movementDraft.action === "return_from_job" ? (
+              <>
+                <SearchableJobSelect jobs={jobs} value={movementDraft.jobId} onChange={(value) => setMovementDraft((current) => ({ ...current, jobId: value }))} />
+                <FormInput label="Quantity returned" type="number" value={movementDraft.quantity} onChange={(value) => setMovementDraft((current) => ({ ...current, quantity: value }))} />
+                <SelectInput label="Return location" value={movementDraft.toLocationId} onChange={(value) => setMovementDraft((current) => ({ ...current, toLocationId: value }))} options={locations.map((location) => ({ value: location.id, label: location.name }))} />
+              </>
+            ) : null}
+
+            {movementDraft.action === "receive_stock" ? (
+              <>
+                <FormInput label="Quantity received" type="number" value={movementDraft.quantity} onChange={(value) => setMovementDraft((current) => ({ ...current, quantity: value }))} />
+                <SelectInput label="Receive into" value={movementDraft.toLocationId} onChange={(value) => setMovementDraft((current) => ({ ...current, toLocationId: value }))} options={[{ value: "", label: "Default location" }, ...locations.map((location) => ({ value: location.id, label: location.name }))]} />
+                {visibleBase ? <FormInput label="Supplier cost" type="number" value={movementDraft.supplierCost} onChange={(value) => setMovementDraft((current) => ({ ...current, supplierCost: value }))} /> : null}
+              </>
+            ) : null}
+
+            {movementDraft.action === "adjust_quantity" ? (
+              <>
+                <FormInput label="Adjustment amount" type="number" value={movementDraft.quantityDelta} onChange={(value) => setMovementDraft((current) => ({ ...current, quantityDelta: value }))} />
+                <p className="text-xs leading-5 text-slate-400">Use a positive number to add stock or a negative number to remove it.</p>
+              </>
+            ) : null}
+
+            <FormTextarea label="Note" value={movementDraft.notes} onChange={(value) => setMovementDraft((current) => ({ ...current, notes: value }))} />
           </div>
         ) : null}
       </SidePanel>
@@ -847,242 +785,21 @@ export function ItemCatalogClient({
   );
 }
 
-function InventoryItemList({
-  items,
-  onSelectItem,
-}: {
-  items: InventoryPageItem[];
-  onSelectItem: (itemId: string) => void;
-}) {
-  if (items.length < INVENTORY_VIRTUALIZATION_THRESHOLD) {
-    return (
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        {items.map((item, idx) => (
-          <InventoryRow
-            key={item.id}
-            item={item}
-            isLast={idx === items.length - 1}
-            onSelectItem={onSelectItem}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  return <VirtualizedInventoryRows items={items} onSelectItem={onSelectItem} />;
-}
-
-function VirtualizedInventoryRows({
-  items,
-  onSelectItem,
-}: {
-  items: InventoryPageItem[];
-  onSelectItem: (itemId: string) => void;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [range, setRange] = useState({
-    start: 0,
-    end: Math.min(items.length, 18),
-  });
-
-  useEffect(() => {
-    let frameId = 0;
-
-    const updateRange = () => {
-      frameId = 0;
-
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const totalHeight = items.length * INVENTORY_ROW_HEIGHT;
-      const rect = container.getBoundingClientRect();
-      const viewportTop = window.scrollY;
-      const viewportBottom = viewportTop + window.innerHeight;
-      const containerTop = window.scrollY + rect.top;
-      const containerBottom = containerTop + totalHeight;
-
-      if (viewportBottom <= containerTop) {
-        setRange((current) => (
-          current.start === 0 && current.end === Math.min(items.length, 18)
-            ? current
-            : { start: 0, end: Math.min(items.length, 18) }
-        ));
-        return;
-      }
-
-      if (viewportTop >= containerBottom) {
-        const nextStart = Math.max(0, items.length - 18);
-        setRange((current) => (
-          current.start === nextStart && current.end === items.length
-            ? current
-            : { start: nextStart, end: items.length }
-        ));
-        return;
-      }
-
-      const relativeTop = Math.max(0, viewportTop - containerTop);
-      const relativeBottom = Math.min(totalHeight, viewportBottom - containerTop);
-      const nextStart = Math.max(0, Math.floor(relativeTop / INVENTORY_ROW_HEIGHT) - INVENTORY_ROW_OVERSCAN);
-      const nextEnd = Math.min(
-        items.length,
-        Math.ceil(relativeBottom / INVENTORY_ROW_HEIGHT) + INVENTORY_ROW_OVERSCAN
-      );
-
-      setRange((current) => (
-        current.start === nextStart && current.end === nextEnd
-          ? current
-          : { start: nextStart, end: nextEnd }
-      ));
-    };
-
-    const scheduleUpdate = () => {
-      if (frameId !== 0) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(updateRange);
-    };
-
-    updateRange();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-
-    return () => {
-      if (frameId !== 0) {
-        window.cancelAnimationFrame(frameId);
-      }
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-    };
-  }, [items.length]);
-
+function MetricBox({ label, value, helpText }: { label: string; value: string; helpText?: string }) {
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-    >
-      <div
-        ref={containerRef}
-        className="relative"
-        style={{ height: items.length * INVENTORY_ROW_HEIGHT }}
-      >
-        {items.slice(range.start, range.end).map((item, index) => {
-          const absoluteIndex = range.start + index;
-
-          return (
-            <InventoryRow
-              key={item.id}
-              item={item}
-              isLast={absoluteIndex === items.length - 1}
-              onSelectItem={onSelectItem}
-              top={absoluteIndex * INVENTORY_ROW_HEIGHT}
-            />
-          );
-        })}
-      </div>
+    <div className="rounded-[1.25rem] border border-white/8 bg-white/[0.03] px-3 py-3">
+      <p className="text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+      {helpText ? <p className="mt-1 text-xs text-slate-500">{helpText}</p> : null}
     </div>
   );
 }
 
-function InventoryRow({
-  item,
-  isLast,
-  onSelectItem,
-  top,
-}: {
-  item: InventoryPageItem;
-  isLast: boolean;
-  onSelectItem: (itemId: string) => void;
-  top?: number;
-}) {
-  const isCritical = item.quantityOnHand <= item.lowStockRedThreshold;
-  const isLow = !isCritical && item.quantityOnHand <= item.lowStockAmberThreshold;
-
+function DataPill({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className={`list-row-lazy flex cursor-pointer items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.025] ${top !== undefined ? "absolute inset-x-0" : ""}`}
-      style={{
-        top,
-        height: INVENTORY_ROW_HEIGHT,
-        background: isCritical
-          ? "rgba(239,68,68,0.04)"
-          : isLow
-            ? "rgba(245,158,11,0.03)"
-            : "rgba(12,17,36,0.85)",
-        borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
-      }}
-      onClick={() => onSelectItem(item.id)}
-    >
-      <div className="shrink-0">
-        {item.photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.photoUrl}
-            alt={item.name}
-            loading="lazy"
-            decoding="async"
-            className="object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
-            style={{ width: "40px", height: "40px" }}
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelectItem(item.id);
-            }}
-            title="Open item details"
-          />
-        ) : (
-          <div
-            className="flex items-center justify-center rounded-lg text-base"
-            style={{
-              width: "40px",
-              height: "40px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-          >
-            📦
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-100 truncate leading-tight">{item.name}</p>
-        <p className="text-xs text-slate-500 truncate mt-0.5">
-          {[item.manufacturer, item.partNumber ? `#${item.partNumber}` : null, item.modelNumber]
-            .filter(Boolean)
-            .join(" · ") || <span className="italic">No details</span>}
-        </p>
-      </div>
-
-      <div className="shrink-0 flex items-center gap-2.5 text-right">
-        {(isCritical || isLow) && (
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md hidden sm:inline-block"
-            style={{
-              background: isCritical ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.13)",
-              color: isCritical ? "#fca5a5" : "#fcd34d",
-              border: isCritical ? "1px solid rgba(239,68,68,0.22)" : "1px solid rgba(245,158,11,0.20)",
-            }}
-          >
-            {isCritical ? "Critical" : "Low"}
-          </span>
-        )}
-        <div>
-          <p
-            className="text-sm font-bold tabular-nums"
-            style={{
-              color: isCritical ? "#f87171" : isLow ? "#fbbf24" : "#cbd5e1",
-            }}
-          >
-            {item.quantityOnHand}
-          </p>
-          <p className="text-[10px] text-slate-600 text-right">{item.unitOfMeasure}</p>
-        </div>
-      </div>
+    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-3 py-3">
+      <p className="text-[0.66rem] uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-medium text-slate-100">{value}</p>
     </div>
   );
 }
@@ -1096,5 +813,72 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default ItemCatalogClient;
+function FormInput({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+    </label>
+  );
+}
 
+function FormTextarea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
+    </label>
+  );
+}
+
+function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none">
+        {options.map((option) => (
+          <option key={`${label}-${option.value}`} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SearchableJobSelect({ jobs, value, onChange }: { jobs: InventoryPageJob[]; value: string; onChange: (value: string) => void }) {
+  const [search, setSearch] = useState("");
+
+  const filteredJobs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return jobs;
+    }
+    return jobs.filter((job) => `${job.jobNumber} ${job.description ?? ""} ${job.customer} ${job.status}`.toLowerCase().includes(query));
+  }, [jobs, search]);
+
+  return (
+    <div className="space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Job</span>
+      <SearchBar value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search job number, description, customer, or status" />
+      <div className="max-h-64 space-y-2 overflow-y-auto rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-3">
+        {filteredJobs.map((job) => (
+          <button
+            key={job.id}
+            type="button"
+            onClick={() => onChange(job.id)}
+            className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${value === job.id ? "border-sky-400/20 bg-sky-500/[0.08]" : "border-white/8 bg-white/[0.03] hover:bg-white/[0.06]"}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-white">{job.jobNumber}</p>
+              <Badge tone="slate">{job.status}</Badge>
+            </div>
+            <p className="mt-2 text-sm text-slate-300">{job.description || "No description"}</p>
+            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{job.customer} • {new Date(job.date).toLocaleDateString()}</p>
+          </button>
+        ))}
+        {filteredJobs.length === 0 ? <p className="px-2 py-3 text-sm text-slate-400">No jobs match this search.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+export default ItemCatalogClient;

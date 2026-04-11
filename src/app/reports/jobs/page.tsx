@@ -1,20 +1,43 @@
-import { redirect } from "next/navigation";
 import { JobsReportPageClient } from "@/components/reports/jobs-report-page-client";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { canViewFinancialValue, requirePageAccess } from "@/lib/permissions";
 
 export default async function JobsReportPage() {
-  const session = await getSession();
+  const access = await requirePageAccess("canViewReports");
+  const showFinancials =
+    canViewFinancialValue(access.financialVisibilityMode, "base") ||
+    canViewFinancialValue(access.financialVisibilityMode, "total") ||
+    canViewFinancialValue(access.financialVisibilityMode, "job_costing");
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  const jobs = session.role === "TECH"
-    ? []
+  const jobs = access.role === "TECH"
+    ? await prisma.job.findMany({
+        where: {
+          organizationId: access.organizationId,
+          technicianId: access.userId,
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          jobNumber: true,
+          customer: true,
+          date: true,
+          status: true,
+          notes: true,
+          technician: { select: { id: true, name: true } },
+          parts: {
+            select: {
+              id: true,
+              quantity: true,
+              unitCost: true,
+              notes: true,
+              item: { select: { id: true, name: true, partNumber: true, unitOfMeasure: true } },
+            },
+          },
+        },
+      })
     : await prisma.job.findMany({
         where: {
-          organizationId: session.organizationId,
+          organizationId: access.organizationId,
         },
         orderBy: { createdAt: "desc" },
         select: {
@@ -39,13 +62,14 @@ export default async function JobsReportPage() {
 
   return (
     <JobsReportPageClient
-      currentUserRole={session.role}
+      showFinancials={showFinancials}
       initialJobs={jobs.map((job) => ({
         ...job,
         date: job.date.toISOString(),
         notes: job.notes ?? undefined,
         parts: job.parts.map((part) => ({
           ...part,
+          unitCost: showFinancials ? part.unitCost : 0,
           notes: part.notes ?? undefined,
           item: {
             ...part.item,

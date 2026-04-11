@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireRequestContext } from "@/lib/request-context";
+import { requireUserAccess } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -19,6 +19,7 @@ const itemSchema = z.object({
   manufacturer: z.string().optional(),
   partNumber: z.string().optional(),
   modelNumber: z.string().optional(),
+  category: z.string().optional(),
   serialNumber: z.string().optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
@@ -41,34 +42,40 @@ type ItemInput = z.infer<typeof itemSchema>;
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = requireRequestContext(request);
-    if (!auth.ok) {
-      return auth.response;
+    const access = await requireUserAccess(request);
+    if (!access.ok) {
+      return access.response;
     }
 
-    const items = await prisma.item.findMany({
-      where: { organizationId: auth.context.organizationId },
+    if (!access.access.canViewInventory) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const items = await dbAny.item.findMany({
+      where: { organizationId: access.access.organizationId },
       select: {
         id: true,
         name: true,
         manufacturer: true,
         partNumber: true,
         modelNumber: true,
-        serialNumber: true,
-        barcode: true,
+        category: true,
         description: true,
         photoUrl: true,
         quantityOnHand: true,
-        quantityUsedTotal: true,
         lowStockAmberThreshold: true,
         lowStockRedThreshold: true,
-        preferredSupplierId: true,
+        preferredSupplier: { select: { id: true, name: true } },
+        defaultLocation: { select: { id: true, name: true } },
         lastUnitCost: true,
         unitOfMeasure: true,
-        createdAt: true,
+        lastMovementAt: true,
+        lastMovementType: true,
+        _count: { select: { jobParts: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ lastMovementAt: "desc" }, { name: "asc" }],
     });
+
     return NextResponse.json(items);
   } catch (error) {
     console.error("Item GET error:", error);
@@ -76,11 +83,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
+
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireRequestContext(request);
-    if (!auth.ok) {
-      return auth.response;
+    const access = await requireUserAccess(request);
+    if (!access.ok) {
+      return access.response;
+    }
+
+    if (!access.access.canAddInventory) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -90,6 +102,7 @@ export async function POST(request: NextRequest) {
       manufacturer: normalizeOptionalText(body?.manufacturer),
       partNumber: normalizeOptionalText(body?.partNumber),
       modelNumber: normalizeOptionalText(body?.modelNumber),
+      category: normalizeOptionalText(body?.category),
       serialNumber: normalizeOptionalText(body?.serialNumber),
       barcode: normalizeOptionalText(body?.barcode),
       description: normalizeOptionalText(body?.description),
@@ -104,7 +117,7 @@ export async function POST(request: NextRequest) {
     if (itemData.barcode) {
       const existing = await prisma.item.findFirst({
         where: {
-          organizationId: auth.context.organizationId,
+          organizationId: access.access.organizationId,
           barcode: itemData.barcode,
         },
       });
@@ -120,7 +133,7 @@ export async function POST(request: NextRequest) {
       const supplier = await prisma.supplier.findFirst({
         where: {
           id: itemData.preferredSupplierId,
-          organizationId: auth.context.organizationId,
+          organizationId: access.access.organizationId,
         },
         select: { id: true },
       });
@@ -133,7 +146,7 @@ export async function POST(request: NextRequest) {
       const location = await prisma.location.findFirst({
         where: {
           id: locationId,
-          organizationId: auth.context.organizationId,
+          organizationId: access.access.organizationId,
         },
         select: { id: true },
       });
@@ -145,12 +158,16 @@ export async function POST(request: NextRequest) {
     const item = await dbAny.item.create({
       data: {
         ...itemData,
-        organizationId: auth.context.organizationId,
+        organizationId: access.access.organizationId,
         quantityUsedTotal: 0,
+        defaultLocationId: locationId,
+        lastMovementAt: new Date(),
+        lastMovementType: "receive_stock",
       },
       include: {
-        photos: true,
-        preferredSupplier: true,
+        preferredSupplier: { select: { id: true, name: true } },
+        defaultLocation: { select: { id: true, name: true } },
+        _count: { select: { jobParts: true } },
       },
     });
 

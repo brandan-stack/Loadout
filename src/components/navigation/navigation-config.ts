@@ -1,4 +1,4 @@
-import type { UserRole } from "@/lib/auth";
+import type { PermissionKey, UserAccessContext } from "@/lib/permissions";
 import type { AppNavIcon } from "@/components/navigation/nav-icons";
 
 type NavMatchMode = "exact" | "prefix";
@@ -11,7 +11,7 @@ export interface AppNavItem {
   mobileLabel?: string;
   icon: AppNavIcon;
   match?: NavMatchMode;
-  roles?: UserRole[];
+  pagePermission?: PermissionKey;
   desktopSlot: DesktopNavSlot;
   mobileSlot: MobileNavSlot;
   includesReorderBadge?: boolean;
@@ -38,6 +38,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/jobs",
     label: "Jobs",
     icon: "jobs",
+    pagePermission: "canViewJobs",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
@@ -46,6 +47,15 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     label: "Inventory",
     mobileLabel: "Items",
     icon: "inventory",
+    pagePermission: "canViewInventory",
+    desktopSlot: "main",
+    mobileSlot: "primary",
+  },
+  {
+    href: "/tools",
+    label: "Tools",
+    icon: "tools",
+    pagePermission: "canViewTools",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
@@ -53,6 +63,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/reports",
     label: "Reports",
     icon: "reports",
+    pagePermission: "canViewReports",
     desktopSlot: "main",
     mobileSlot: "primary",
   },
@@ -60,6 +71,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/suppliers",
     label: "Suppliers",
     icon: "suppliers",
+    pagePermission: "canViewSuppliers",
     desktopSlot: "main",
     mobileSlot: "secondary",
   },
@@ -67,6 +79,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/reorder",
     label: "Reorder",
     icon: "reorder",
+    pagePermission: "canViewReorder",
     desktopSlot: "main",
     mobileSlot: "secondary",
     includesReorderBadge: true,
@@ -75,6 +88,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/settings",
     label: "Settings",
     icon: "settings",
+    pagePermission: "canViewSettings",
     desktopSlot: "utility",
     mobileSlot: "secondary",
   },
@@ -82,7 +96,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/admin/users",
     label: "Users",
     icon: "users",
-    roles: ["SUPER_ADMIN"],
+    pagePermission: "canManageUsers",
     desktopSlot: "hidden",
     mobileSlot: "secondary",
   },
@@ -100,34 +114,41 @@ export function isNavItemActive(item: Pick<AppNavItem, "href" | "match">, pathna
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export function getDesktopNavItems() {
-  return APP_NAV_ITEMS.filter((item) => item.desktopSlot === "main");
-}
-
-export function getDesktopUtilityNavItems() {
-  return APP_NAV_ITEMS.filter((item) => item.desktopSlot === "utility");
-}
-
-export function getMobileNavItems(role?: UserRole | null) {
+export function getDesktopNavItems(access?: Pick<UserAccessContext, PermissionKey> | null) {
   return APP_NAV_ITEMS.filter(
-    (item) => item.mobileSlot !== "hidden" && isAllowedForRole(item, role)
+    (item) => item.desktopSlot === "main" && isAllowedForAccess(item, access)
   );
 }
 
-export function getMobilePrimaryNavItems(role?: UserRole | null) {
+export function getDesktopUtilityNavItems(access?: Pick<UserAccessContext, PermissionKey> | null) {
   return APP_NAV_ITEMS.filter(
-    (item) => item.mobileSlot === "primary" && isAllowedForRole(item, role)
+    (item) => item.desktopSlot === "utility" && isAllowedForAccess(item, access)
   );
 }
 
-export function getMobileSecondaryNavItems(role?: UserRole | null) {
+export function getMobileNavItems(access?: Pick<UserAccessContext, PermissionKey> | null) {
   return APP_NAV_ITEMS.filter(
-    (item) => item.mobileSlot === "secondary" && isAllowedForRole(item, role)
+    (item) => item.mobileSlot !== "hidden" && isAllowedForAccess(item, access)
   );
 }
 
-export function getCurrentSectionLabel(pathname: string, role?: UserRole | null) {
-  const activeItem = getMobileNavItems(role).find((item) => isNavItemActive(item, pathname));
+export function getMobilePrimaryNavItems(access?: Pick<UserAccessContext, PermissionKey> | null) {
+  return APP_NAV_ITEMS.filter(
+    (item) => item.mobileSlot === "primary" && isAllowedForAccess(item, access)
+  );
+}
+
+export function getMobileSecondaryNavItems(access?: Pick<UserAccessContext, PermissionKey> | null) {
+  return APP_NAV_ITEMS.filter(
+    (item) => item.mobileSlot === "secondary" && isAllowedForAccess(item, access)
+  );
+}
+
+export function getCurrentSectionLabel(
+  pathname: string,
+  access?: Pick<UserAccessContext, PermissionKey> | null
+) {
+  const activeItem = getMobileNavItems(access).find((item) => isNavItemActive(item, pathname));
   if (activeItem) {
     return activeItem.label;
   }
@@ -143,10 +164,13 @@ export function getCurrentSectionLabel(pathname: string, role?: UserRole | null)
     .join(" ");
 }
 
-function isAllowedForRole(item: AppNavItem, role?: UserRole | null) {
-  if (!item.roles || item.roles.length === 0) {
+function isAllowedForAccess(
+  item: AppNavItem,
+  access?: Pick<UserAccessContext, PermissionKey> | null
+) {
+  if (!item.pagePermission) {
     return true;
   }
 
-  return role ? item.roles.includes(role) : false;
+  return Boolean(access?.[item.pagePermission]);
 }

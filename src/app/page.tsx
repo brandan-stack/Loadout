@@ -9,8 +9,8 @@ import type {
   HealthStatItem,
   Tone,
 } from "@/components/dashboard/types";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getDefaultHomePath, requirePageAccess } from "@/lib/permissions";
 import { getReorderRecommendationSnapshot } from "@/lib/reorder/suggestion-service";
 import type { ReorderRecommendation } from "@/lib/reorder/types";
 
@@ -52,16 +52,14 @@ type ItemDecisionSignals = {
 };
 
 export default async function Home() {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
+  const access = await requirePageAccess("canViewDashboard");
 
   const jobScope =
-    session.role === "TECH"
-      ? { organizationId: session.organizationId, technicianId: session.userId }
-      : { organizationId: session.organizationId };
+    access.role === "TECH"
+      ? { organizationId: access.organizationId, technicianId: access.userId }
+      : { organizationId: access.organizationId };
+
+  const defaultHomePath = getDefaultHomePath(access);
 
   const passwordRecoveryConfigured = Boolean(
     process.env.SMTP_HOST && process.env.SMTP_FROM && (!process.env.SMTP_USER || process.env.SMTP_PASS)
@@ -79,12 +77,12 @@ export default async function Home() {
             AND item."quantityOnHand" <= item."lowStockAmberThreshold"
         )::int AS "warningCount"
       FROM "Item" item
-      WHERE item."organizationId" = ${session.organizationId}
+      WHERE item."organizationId" = ${access.organizationId}
     `),
     prisma.job.count({
       where: { ...jobScope, status: "OPEN" },
     }),
-    getReorderRecommendationSnapshot(session.organizationId, 8),
+    getReorderRecommendationSnapshot(access.organizationId, 8),
     prisma.job.findMany({
       where: { ...jobScope, status: "OPEN" },
       orderBy: { updatedAt: "desc" },
@@ -146,20 +144,9 @@ export default async function Home() {
   const itemSignals = buildItemDecisionSignals(recentTransactions);
   const jobsAtRisk = buildJobsAtRisk(openJobs, reorderSnapshot.recommendations);
   const allDecisions = buildCommandDecisions(reorderSnapshot.recommendations, jobImpacts, itemSignals);
-  const commandActions = allDecisions.slice(0, 3);
-  const workQueueItems = allDecisions.slice(3, 7);
   const atRiskJobsCount = jobsAtRisk.length;
-  const supportingLine = buildSupportingLine(commandActions);
   const criticalActionCount = allDecisions.filter((decision) => decision.isCritical).length;
   const heroTitle = buildHeroTitle({ criticalActionCount });
-
-  const primaryAction =
-    commandActions[0] != null
-      ? {
-          label: `Reorder Critical (${formatCompact(criticalActionCount)})`,
-          href: criticalActionCount > 0 ? "/reorder?priority=urgent" : commandActions[0].actionHref,
-        }
-      : { label: `Reorder Critical (${formatCompact(criticalActionCount)})`, href: "/reorder?priority=urgent" };
 
   const summaryItems = [
     {
@@ -192,26 +179,58 @@ export default async function Home() {
     {
       label: "Active Jobs",
       value: formatCompact(openJobsCount),
-      detail: session.role === "TECH" ? "Assigned to you" : "Currently open field work",
+      detail: access.role === "TECH" ? "Assigned to you" : "Currently open field work",
       tone: openJobsCount > 0 ? "indigo" : "sky",
     },
   ];
 
   const actionStripItems: ActionStripItem[] = [
-    { label: "Scan", href: "/scan", icon: ScanLine, tone: "emerald" },
-    { label: "Add Item", href: "/items", icon: PackagePlus, tone: "sky" },
-    { label: "Move Stock", href: "/locations", icon: ArrowRightLeft, tone: "amber" },
-    { label: "New Job", href: "/jobs", icon: BriefcaseBusiness, tone: "indigo" },
-  ];
+    access.canViewInventory ? { label: "Scan", href: "/scan", icon: ScanLine, tone: "emerald" } : null,
+    access.canViewInventory ? { label: "Add Item", href: "/items", icon: PackagePlus, tone: "sky" } : null,
+    access.canMoveInventory || access.canManageLocations ? { label: "Move Stock", href: "/locations", icon: ArrowRightLeft, tone: "amber" } : null,
+    access.canViewJobs ? { label: "New Job", href: "/jobs", icon: BriefcaseBusiness, tone: "indigo" } : null,
+  ].filter((item): item is ActionStripItem => item !== null);
+
+  const safeCommandActions = allDecisions.map((decision) => ({
+    ...decision,
+    actionHref:
+      decision.actionHref.startsWith("/reorder") && !access.canViewReorder
+        ? access.canViewJobs && decision.actionHref.includes("/jobs/")
+          ? decision.actionHref
+          : access.canViewInventory
+            ? decision.detailHref
+            : defaultHomePath
+        : decision.actionHref,
+    detailHref: access.canViewInventory ? decision.detailHref : defaultHomePath,
+  }));
+  const commandActions = safeCommandActions.slice(0, 3);
+  const workQueueItems = safeCommandActions.slice(3, 7);
+  const supportingLine = buildSupportingLine(commandActions);
+
+  const primaryAction =
+    commandActions[0] != null
+      ? {
+          label: access.canViewReorder ? `Reorder Critical (${formatCompact(criticalActionCount)})` : commandActions[0].actionLabel,
+          href:
+            access.canViewReorder
+              ? criticalActionCount > 0
+                ? "/reorder?priority=urgent"
+                : commandActions[0].actionHref
+              : commandActions[0].actionHref,
+        }
+      : {
+          label: access.canViewReorder ? `Reorder Critical (${formatCompact(criticalActionCount)})` : "Open workspace",
+          href: access.canViewReorder ? "/reorder?priority=urgent" : defaultHomePath,
+        };
 
   return (
     <Dashboard
-      organizationName={session.organizationName}
+      organizationName={access.organizationName}
       heroTitle={heroTitle}
       summaryItems={summaryItems}
       supportingLine={supportingLine}
       primaryAction={primaryAction}
-      secondaryAction={{ label: "Open Action Queue", href: "/reorder" }}
+      secondaryAction={{ label: access.canViewReorder ? "Open Action Queue" : "Open Workspace", href: access.canViewReorder ? "/reorder" : defaultHomePath }}
       commandActions={commandActions}
       healthStats={healthStats}
       actionStripItems={actionStripItems}
