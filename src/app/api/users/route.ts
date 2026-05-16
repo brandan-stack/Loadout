@@ -6,6 +6,7 @@ import {
   FINANCIAL_VISIBILITY_VALUES,
   getDefaultRolePreset,
   PERMISSION_KEYS,
+  PRICE_VISIBILITY_KEYS,
   ROLE_PRESET_VALUES,
   requireUserAccess,
   USER_ACCESS_SELECT,
@@ -16,7 +17,7 @@ import bcrypt from "bcryptjs";
 const dbAny = prisma as any;
 
 const permissionShape = Object.fromEntries(
-  PERMISSION_KEYS.map((key) => [key, z.boolean().optional()])
+  [...PERMISSION_KEYS, ...PRICE_VISIBILITY_KEYS].map((key) => [key, z.boolean().optional()])
 ) as Record<string, z.ZodBoolean | z.ZodOptional<z.ZodBoolean>>;
 
 interface CreatedUser {
@@ -73,8 +74,8 @@ export async function POST(request: NextRequest) {
     const rolePreset = data.rolePreset ?? getDefaultRolePreset(data.role);
     const permissionSource = data as unknown as Record<string, boolean | undefined>;
     const permissionInput = Object.fromEntries(
-      PERMISSION_KEYS.map((key) => [key, permissionSource[key]])
-    ) as Partial<Record<(typeof PERMISSION_KEYS)[number], boolean | undefined>>;
+      [...PERMISSION_KEYS, ...PRICE_VISIBILITY_KEYS].map((key) => [key, permissionSource[key]])
+    ) as Partial<Record<(typeof PERMISSION_KEYS)[number] | (typeof PRICE_VISIBILITY_KEYS)[number], boolean | undefined>>;
     const permissions = buildPermissionSnapshot(permissionInput, rolePreset, data.financialVisibilityMode);
     let user: CreatedUser;
     try {

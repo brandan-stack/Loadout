@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Globe, Mail, Star, TimerReset, Truck } from "lucide-react";
+import { Globe, Mail, Plus, SquarePen, Star, TimerReset, Trash2, Truck } from "lucide-react";
 import { TAB_DATA_CACHE_KEYS, invalidateCachedData, primeCachedData } from "@/lib/client-data-cache";
+import type { SupplierEmailContact } from "@/lib/supplier-contacts";
 import { StatCard } from "@/components/cards/StatCard";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { SidePanel } from "@/components/panels/SidePanel";
@@ -17,6 +18,7 @@ export interface Supplier {
   id: string;
   name: string;
   contact?: string;
+  emailContacts: SupplierEmailContact[];
   website?: string;
   leadTimeD: number;
   notes?: string;
@@ -30,6 +32,28 @@ export interface Supplier {
 interface SuppliersPageClientProps {
   initialSuppliers: Supplier[];
 }
+
+type SupplierFormState = {
+  name: string;
+  contact: string;
+  website: string;
+  leadTimeD: number;
+  notes: string;
+  preferred: boolean;
+  fastest: boolean;
+  emailContacts: Array<{ label: string; email: string }>;
+};
+
+const EMPTY_FORM: SupplierFormState = {
+  name: "",
+  contact: "",
+  website: "",
+  leadTimeD: 7,
+  notes: "",
+  preferred: false,
+  fastest: false,
+  emailContacts: [{ label: "Sales", email: "" }],
+};
 
 function readApiError(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") {
@@ -56,16 +80,11 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [editorState, setEditorState] = useState<{ open: boolean; supplierId?: string }>({ open: false });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({
-    name: "",
-    contact: "",
-    website: "",
-    leadTimeD: 7,
-    notes: "",
-  });
+  const [formData, setFormData] = useState<SupplierFormState>(EMPTY_FORM);
 
   useEffect(() => {
     primeCachedData(TAB_DATA_CACHE_KEYS.suppliers, initialSuppliers);
@@ -94,11 +113,54 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
   }, [filter, search, suppliers]);
 
   const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
+  const editingSupplier = suppliers.find((supplier) => supplier.id === editorState.supplierId) ?? null;
   const averageLeadTime = Math.round(
     suppliers.reduce((total, supplier) => total + supplier.leadTimeD, 0) / Math.max(suppliers.length, 1)
   );
 
-  async function handleCreate() {
+  function openCreatePanel() {
+    setError("");
+    setFormData(EMPTY_FORM);
+    setEditorState({ open: true });
+  }
+
+  function openEditPanel(supplier: Supplier) {
+    setError("");
+    setFormData({
+      name: supplier.name,
+      contact: supplier.contact ?? "",
+      website: supplier.website ?? "",
+      leadTimeD: supplier.leadTimeD,
+      notes: supplier.notes ?? "",
+      preferred: supplier.preferred,
+      fastest: supplier.fastest,
+      emailContacts: supplier.emailContacts.length > 0 ? supplier.emailContacts.map((entry) => ({ ...entry })) : [{ label: "Sales", email: supplier.contact ?? "" }],
+    });
+    setEditorState({ open: true, supplierId: supplier.id });
+  }
+
+  function addEmailContact() {
+    setFormData((current) => ({
+      ...current,
+      emailContacts: [...current.emailContacts, { label: "", email: "" }],
+    }));
+  }
+
+  function updateEmailContact(index: number, field: "label" | "email", value: string) {
+    setFormData((current) => ({
+      ...current,
+      emailContacts: current.emailContacts.map((entry, entryIndex) => (entryIndex === index ? { ...entry, [field]: value } : entry)),
+    }));
+  }
+
+  function removeEmailContact(index: number) {
+    setFormData((current) => ({
+      ...current,
+      emailContacts: current.emailContacts.length === 1 ? [{ label: "", email: "" }] : current.emailContacts.filter((_, entryIndex) => entryIndex !== index),
+    }));
+  }
+
+  async function handleSave() {
     setError("");
 
     if (!formData.name.trim()) {
@@ -115,18 +177,30 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
       }
     }
 
+    const emailContacts = formData.emailContacts
+      .map((entry) => ({ label: entry.label.trim(), email: entry.email.trim().toLowerCase() }))
+      .filter((entry) => entry.label || entry.email);
+
+    if (emailContacts.some((entry) => !entry.label || !entry.email)) {
+      setError("Each supplier email needs both a position and an email address.");
+      return;
+    }
+
     setSaving(true);
 
     try {
-      const response = await fetch("/api/suppliers", {
-        method: "POST",
+      const response = await fetch(editorState.supplierId ? `/api/suppliers/${editorState.supplierId}` : "/api/suppliers", {
+        method: editorState.supplierId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
           name: formData.name.trim(),
           contact: formData.contact.trim(),
           website: formData.website.trim() || undefined,
+          leadTimeD: formData.leadTimeD,
           notes: formData.notes.trim(),
+          isPreferred: formData.preferred,
+          isFastest: formData.fastest,
+          emailContacts,
         }),
       });
 
@@ -145,15 +219,17 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
     }
   }
 
-  async function archiveSupplier(id: string) {
+  async function deleteSupplier(id: string) {
     setError("");
 
+    if (!confirm("Are you sure you want to delete this supplier?")) {
+      return;
+    }
+
+    setDeleting(true);
+
     try {
-      const response = await fetch(`/api/suppliers/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ archived: true }),
-      });
+      const response = await fetch(`/api/suppliers/${id}`, { method: "DELETE" });
 
       if (response.ok) {
         invalidateCachedData(TAB_DATA_CACHE_KEYS.suppliers);
@@ -162,9 +238,11 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
       }
 
       const payload = await response.json().catch(() => null);
-      setError(readApiError(payload) || "Failed to archive supplier.");
+      setError(readApiError(payload) || "Failed to delete supplier.");
     } catch {
-      setError("Failed to archive supplier.");
+      setError("Failed to delete supplier.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -174,7 +252,7 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
         eyebrow={<Badge tone="teal">Vendor Workspace</Badge>}
         title="Keep supplier decisions clean and fast"
         description="Show the field team which vendors are quickest, which ones are already preferred, and where the next purchase path is already wired."
-        actions={<Button variant="primary" onClick={() => setShowCreatePanel(true)}>Add supplier</Button>}
+        actions={<Button variant="primary" onClick={openCreatePanel}>Add supplier</Button>}
       />
 
       {error ? (
@@ -243,6 +321,10 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
 
               <div className="flex flex-wrap gap-4">
                 <Button variant="secondary" onClick={() => setSelectedSupplierId(supplier.id)}>Open details</Button>
+                <Button variant="secondary" onClick={() => openEditPanel(supplier)}>
+                  <SquarePen className="h-4 w-4" />
+                  Edit
+                </Button>
                 {supplier.website ? <Button variant="ghost" href={supplier.website} target="_blank" rel="noreferrer">Open site</Button> : null}
               </div>
             </Card>
@@ -256,14 +338,14 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
       </PageSection>
 
       <SidePanel
-        open={showCreatePanel}
-        onClose={() => setShowCreatePanel(false)}
-        title="Add supplier"
-        description="Create a vendor record without interrupting the list view."
+        open={editorState.open}
+        onClose={() => setEditorState({ open: false })}
+        title={editorState.supplierId ? "Edit supplier" : "Add supplier"}
+        description="Set the vendor profile, flag preferred or fastest options, and keep the right email contacts ready for purchasing."
         footer={
           <div className="flex flex-col gap-4 sm:flex-row">
-            <Button className="flex-1" variant="primary" onClick={handleCreate} disabled={saving}>{saving ? "Saving..." : "Save supplier"}</Button>
-            <Button className="flex-1" variant="secondary" onClick={() => setShowCreatePanel(false)}>Cancel</Button>
+            <Button className="flex-1" variant="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editorState.supplierId ? "Save changes" : "Save supplier"}</Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setEditorState({ open: false })}>Cancel</Button>
           </div>
         }
       >
@@ -284,6 +366,42 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Lead time</span>
             <input type="number" min={0} value={formData.leadTimeD} onChange={(event) => setFormData({ ...formData, leadTimeD: Number(event.target.value) || 0 })} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
           </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ToggleCard label="Preferred" description="Pin this vendor as a preferred option in the supplier workspace." checked={formData.preferred} onToggle={() => setFormData((current) => ({ ...current, preferred: !current.preferred }))} />
+            <ToggleCard label="Fastest" description="Highlight this vendor for quick-turn fulfillment." checked={formData.fastest} onToggle={() => setFormData((current) => ({ ...current, fastest: !current.fastest }))} />
+          </div>
+          <div className="space-y-3 rounded-[1.6rem] border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Email contacts</p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">Add as many supplier contacts as needed with a custom role like sales, support, accounts, or dispatch.</p>
+              </div>
+              <Button variant="secondary" onClick={addEmailContact}>
+                <Plus className="h-4 w-4" />
+                Add email
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {formData.emailContacts.map((entry, index) => (
+                <div key={`email-contact-${index}`} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
+                  <label className="space-y-2">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-400">Position</span>
+                    <input value={entry.label} onChange={(event) => updateEmailContact(index, "label", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" placeholder="Sales" />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-400">Email</span>
+                    <input type="email" value={entry.email} onChange={(event) => updateEmailContact(index, "email", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" placeholder="sales@supplier.com" />
+                  </label>
+                  <div className="flex items-end">
+                    <Button variant="ghost" onClick={() => removeEmailContact(index)}>
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           <label className="block space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Notes</span>
             <textarea value={formData.notes} onChange={(event) => setFormData({ ...formData, notes: event.target.value })} rows={4} className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" />
@@ -296,7 +414,17 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
         onClose={() => setSelectedSupplierId(null)}
         title={selectedSupplier?.name ?? "Supplier detail"}
         description={selectedSupplier ? `${selectedSupplier.leadTimeD} day lead time` : undefined}
-        footer={selectedSupplier ? <Button className="w-full" variant="danger" onClick={() => archiveSupplier(selectedSupplier.id)}>Archive supplier</Button> : null}
+        footer={selectedSupplier ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button variant="secondary" onClick={() => openEditPanel(selectedSupplier)}>
+              <SquarePen className="h-4 w-4" />
+              Edit supplier
+            </Button>
+            <Button variant="danger" onClick={() => deleteSupplier(selectedSupplier.id)} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete supplier"}
+            </Button>
+          </div>
+        ) : null}
       >
         {selectedSupplier ? (
           <div className="space-y-4">
@@ -309,6 +437,18 @@ export function SuppliersPageClient({ initialSuppliers }: SuppliersPageClientPro
               <SupplierDetail label="Contact" value={selectedSupplier.contact || "No contact"} icon={Mail} />
               <SupplierDetail label="Website" value={selectedSupplier.website || "No website"} icon={Globe} />
               <SupplierDetail label="Linked items" value={String(selectedSupplier.linkedItemCount)} icon={Truck} />
+            </Card>
+            <Card className="space-y-3 bg-white/[0.04] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Email contacts</p>
+              {selectedSupplier.emailContacts.length > 0 ? selectedSupplier.emailContacts.map((entry) => (
+                <div key={`${selectedSupplier.id}-${entry.label}-${entry.email}`} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{entry.label}</p>
+                    <p className="mt-1 text-sm text-slate-300">{entry.email}</p>
+                  </div>
+                  <Badge tone="slate">Email</Badge>
+                </div>
+              )) : <p className="text-sm text-slate-400">No supplier emails saved yet.</p>}
             </Card>
             {selectedSupplier.notes ? <p className="text-sm leading-6 text-slate-300/78">{selectedSupplier.notes}</p> : null}
           </div>
@@ -329,6 +469,20 @@ function SupplierDetail({ label, value, icon: Icon }: { label: string; value: st
         <p className="mt-2 text-sm text-white">{value}</p>
       </div>
     </div>
+  );
+}
+
+function ToggleCard({ label, description, checked, onToggle }: { label: string; description: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} className={`rounded-[1.5rem] border px-4 py-4 text-left transition-colors ${checked ? "border-emerald-400/30 bg-emerald-500/[0.08]" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">{label}</p>
+          <p className="mt-2 text-xs leading-5 text-slate-400">{description}</p>
+        </div>
+        <Badge tone={checked ? "green" : "slate"}>{checked ? "On" : "Off"}</Badge>
+      </div>
+    </button>
   );
 }
 

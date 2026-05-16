@@ -1,420 +1,1183 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  CalendarClock,
+  ClipboardList,
+  FolderCheck,
+  PackagePlus,
+  PencilLine,
+  ReceiptText,
+  RotateCcw,
+  Trash2,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+import { TAB_DATA_CACHE_KEYS, invalidateCachedData, primeCachedData } from "@/lib/client-data-cache";
+import { cn } from "@/lib/cn";
+import type { SerializedJobDetail, SerializedJobHistoryEntry, SerializedJobPart } from "@/lib/jobs/presenter";
+import {
+  canEditJobParts,
+  getComputedUnitSell,
+  getJobStatusLabel,
+  hasJobInvoiceMetadata,
+  normalizeJobStatus,
+} from "@/lib/jobs/workflow";
+import { PageSection, PageShell } from "@/components/layout/page-shell";
+import { SidePanel } from "@/components/panels/SidePanel";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 
-export interface JobDetailItem {
+type InventoryOption = {
   id: string;
   name: string;
-  manufacturer?: string | null;
-  partNumber?: string | null;
-  modelNumber?: string | null;
-  description?: string | null;
+  manufacturer?: string;
+  partNumber?: string;
+  modelNumber?: string;
+  description?: string;
   quantityOnHand: number;
   unitOfMeasure: string;
-}
+  lastUnitCost?: number;
+  marginPercent?: number;
+};
 
-export interface JobPart {
-  id: string;
-  quantity: number;
-  unitCost: number;
-  notes?: string | null;
-  item: { id: string; name: string; partNumber?: string | null; unitOfMeasure: string };
-}
-
-export interface JobDetail {
-  id: string;
+type JobDraft = {
   jobNumber: string;
+  title: string;
+  description: string;
   customer: string;
+  siteName: string;
   date: string;
-  status: string;
-  notes?: string | null;
-  technician: { id: string; name: string };
-  parts: JobPart[];
-}
+  notes: string;
+  customerSummary: string;
+  billingTotal: string;
+};
+
+type InvoiceDraft = {
+  invoiceNumber: string;
+  invoiceDate: string;
+};
+
+type PartDraft = {
+  itemId: string;
+  quantity: string;
+  unitCost: string;
+  markupPercent: string;
+  notes: string;
+};
+
+type PendingDialog =
+  | {
+      kind: "delete-invoice" | "delete-job";
+    }
+  | {
+      kind: "delete-part";
+      part: SerializedJobPart;
+    }
+  | null;
 
 interface JobDetailPageClientProps {
-  currentUserId: string;
-  canEditJob: boolean;
-  canChangeStatus: boolean;
-  showFinancials: boolean;
+  canManageJob: boolean;
+  canCloseJobs: boolean;
+  canInvoiceJobs: boolean;
+  canDeleteJobs: boolean;
+  canEditBillingTotal: boolean;
+  showBaseCosts: boolean;
+  showMargin: boolean;
+  showTotal: boolean;
   jobId: string;
-  initialJob: JobDetail | null;
-  initialItems: JobDetailItem[];
+  initialJob: SerializedJobDetail | null;
+  initialItems: InventoryOption[];
   initialJobError: string | null;
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  OPEN: "bg-amber-900/60 text-amber-300 border-amber-700",
-  COMPLETED: "bg-slate-700/60 text-slate-300 border-slate-600",
-  INVOICED: "bg-slate-700 text-slate-300 border-slate-600",
-};
+const fieldClassName =
+  "w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500";
+
+function buildJobDraft(job: SerializedJobDetail | null): JobDraft {
+  return {
+    jobNumber: job?.jobNumber ?? "",
+    title: job?.title ?? "",
+    description: job?.description ?? "",
+    customer: job?.customer ?? "",
+    siteName: job?.siteName ?? "",
+    date: job?.date ? job.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    notes: job?.notes ?? "",
+    customerSummary: job?.customerSummary ?? "",
+    billingTotal: typeof job?.billingTotal === "number" ? String(job.billingTotal) : "",
+  };
+}
+
+function buildInvoiceDraft(job: SerializedJobDetail | null): InvoiceDraft {
+  return {
+    invoiceNumber: job?.invoiceNumber ?? "",
+    invoiceDate: job?.invoiceDate ? job.invoiceDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function buildPartDraft(part?: SerializedJobPart | null): PartDraft {
+  return {
+    itemId: part?.itemId ?? "",
+    quantity: part ? String(part.quantity) : "1",
+    unitCost: typeof part?.unitCost === "number" ? String(part.unitCost) : "",
+    markupPercent: typeof part?.markupPercent === "number" ? String(part.markupPercent) : "0",
+    notes: part?.notes ?? "",
+  };
+}
+
+function parseOptionalDecimal(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function parseOptionalInteger(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function readError(response: Response, fallback: string) {
+  const payload = await response.json().catch(() => null);
+  const message = payload && typeof payload === "object" && "error" in payload ? payload.error : null;
+  return typeof message === "string" ? message : fallback;
+}
 
 export function JobDetailPageClient({
-  currentUserId,
-  canEditJob,
-  canChangeStatus,
-  showFinancials,
+  canManageJob,
+  canCloseJobs,
+  canInvoiceJobs,
+  canDeleteJobs,
+  canEditBillingTotal,
+  showBaseCosts,
+  showMargin,
+  showTotal,
   jobId,
   initialJob,
   initialItems,
   initialJobError,
 }: JobDetailPageClientProps) {
   const router = useRouter();
-  const [job, setJob] = useState<JobDetail | null>(initialJob);
-  const [loading, setLoading] = useState(false);
-  const [jobError, setJobError] = useState<string | null>(initialJobError);
-  const [items, setItems] = useState<JobDetailItem[]>(initialItems);
-  const [search, setSearch] = useState("");
-  const [addForm, setAddForm] = useState({ itemId: "", quantity: 1, notes: "" });
-  const [addError, setAddError] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [job, setJob] = useState<SerializedJobDetail | null>(initialJob);
+  const [jobError, setJobError] = useState(initialJobError ?? "");
+  const [bannerError, setBannerError] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [editJobOpen, setEditJobOpen] = useState(false);
+  const [addPartOpen, setAddPartOpen] = useState(false);
+  const [invoicePanelOpen, setInvoicePanelOpen] = useState(false);
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [dialogState, setDialogState] = useState<PendingDialog>(null);
+  const [jobDraft, setJobDraft] = useState<JobDraft>(() => buildJobDraft(initialJob));
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>(() => buildInvoiceDraft(initialJob));
+  const [addPartDraft, setAddPartDraft] = useState<PartDraft>(() => buildPartDraft());
+  const [editPartDraft, setEditPartDraft] = useState<PartDraft>(() => buildPartDraft());
 
-  async function fetchJob() {
-    setJobError(null);
+  useEffect(() => {
+    setJob(initialJob);
+    setJobError(initialJobError ?? "");
+  }, [initialJob, initialJobError]);
+
+  useEffect(() => {
+    setJobDraft(buildJobDraft(job));
+    setInvoiceDraft(buildInvoiceDraft(job));
+  }, [job]);
+
+  const editingPart = useMemo(() => job?.parts.find((part) => part.id === editingPartId) ?? null, [editingPartId, job]);
+  const addPartItem = useMemo(() => initialItems.find((item) => item.id === addPartDraft.itemId) ?? null, [addPartDraft.itemId, initialItems]);
+  const normalizedStatus = normalizeJobStatus(job?.status);
+  const canEditDetails = Boolean(job && canManageJob && normalizedStatus !== "INVOICED");
+  const canModifyParts = Boolean(job && canManageJob && canEditJobParts(job.status));
+  const hasInvoice = Boolean(job && hasJobInvoiceMetadata(job));
+
+  useEffect(() => {
+    if (editingPart) {
+      setEditPartDraft(buildPartDraft(editingPart));
+    }
+  }, [editingPart]);
+
+  useEffect(() => {
+    if (job) {
+      primeCachedData(TAB_DATA_CACHE_KEYS.jobs, [job]);
+    }
+  }, [job]);
+
+  useEffect(() => {
+    if (!canModifyParts || typeof window === "undefined" || window.location.hash !== "#parts") {
+      return;
+    }
+
+    setAddPartOpen(true);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }, [canModifyParts]);
+
+  async function withBusy<T>(key: string, action: () => Promise<T>) {
+    setBusyAction(key);
+    setBannerError("");
     try {
-      const res = await fetch(`/api/jobs/${jobId}`);
-      if (res.status === 404) {
-        setJobError("Job not found. It may have been deleted or the link is incorrect.");
-        setLoading(false);
-        return;
-      }
-      if (res.status === 403) {
-        setJobError("You don't have permission to view this job.");
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setJobError("Failed to load job. Please try again.");
-        setLoading(false);
-        return;
-      }
-      setJob(await res.json());
-    } catch {
-      setJobError("Failed to load job. Please check your connection.");
+      return await action();
     } finally {
-      setLoading(false);
+      setBusyAction(null);
     }
   }
 
-  async function fetchItems() {
+  async function refreshJob() {
+    const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(await readError(response, "Failed to refresh job"));
+    }
+
+    const payload = (await response.json()) as SerializedJobDetail;
+    setJob(payload);
+    setJobError("");
+    invalidateCachedData(TAB_DATA_CACHE_KEYS.jobs);
+    return payload;
+  }
+
+  async function patchJob(body: Record<string, unknown>) {
+    const response = await fetch(`/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readError(response, "Failed to update job"));
+    }
+
+    const payload = (await response.json()) as SerializedJobDetail;
+    setJob(payload);
+    invalidateCachedData(TAB_DATA_CACHE_KEYS.jobs);
+    return payload;
+  }
+
+  async function handleSaveJob() {
+    const trimmedJobNumber = jobDraft.jobNumber.trim();
+    if (!trimmedJobNumber) {
+      setBannerError("Job number is required.");
+      return;
+    }
+
+    const trimmedCustomer = jobDraft.customer.trim();
+    if (!trimmedCustomer && job?.customer.trim()) {
+      setBannerError("Customer is required.");
+      return;
+    }
+
+    const billingTotal = parseOptionalDecimal(jobDraft.billingTotal);
+    if (billingTotal === null) {
+      setBannerError("Billing total must be a valid positive number.");
+      return;
+    }
+
     try {
-      const res = await fetch("/api/items");
-      const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
-    } catch { /* ignore */ }
+      await withBusy("save-job", async () => {
+        await patchJob({
+          jobNumber: trimmedJobNumber,
+          title: jobDraft.title,
+          description: jobDraft.description,
+          customer: trimmedCustomer || undefined,
+          siteName: jobDraft.siteName,
+          date: jobDraft.date || undefined,
+          notes: jobDraft.notes,
+          customerSummary: jobDraft.customerSummary,
+          billingTotal: canEditBillingTotal ? billingTotal ?? null : undefined,
+        });
+        setEditJobOpen(false);
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to save job");
+    }
+  }
+
+  async function handleStatusChange(nextStatus: "OPEN" | "COMPLETED") {
+    try {
+      await withBusy(`status-${nextStatus.toLowerCase()}`, async () => {
+        await patchJob({ status: nextStatus });
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to update job status");
+    }
+  }
+
+  async function handleInvoiceJob() {
+    const invoiceDate = invoiceDraft.invoiceDate.trim();
+
+    try {
+      await withBusy("status-invoiced", async () => {
+        await patchJob({
+          status: "INVOICED",
+          invoiceNumber: invoiceDraft.invoiceNumber,
+          invoiceDate: invoiceDate || undefined,
+        });
+        setInvoicePanelOpen(false);
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to mark job invoiced");
+    }
+  }
+
+  async function handleDeleteInvoice() {
+    try {
+      await withBusy("delete-invoice", async () => {
+        const response = await fetch(`/api/jobs/${jobId}/invoice`, { method: "DELETE" });
+        if (!response.ok) {
+          throw new Error(await readError(response, "Failed to delete invoice"));
+        }
+
+        const payload = (await response.json()) as SerializedJobDetail;
+        setJob(payload);
+        invalidateCachedData(TAB_DATA_CACHE_KEYS.jobs);
+        setDialogState(null);
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to delete invoice");
+    }
+  }
+
+  async function handleDeleteJob() {
+    try {
+      await withBusy("delete-job", async () => {
+        const response = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+        if (!response.ok) {
+          throw new Error(await readError(response, "Failed to delete job"));
+        }
+
+        invalidateCachedData(TAB_DATA_CACHE_KEYS.jobs);
+        router.push("/jobs");
+        router.refresh();
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to delete job");
+    }
+  }
+
+  function handleAddPartItemChange(itemId: string) {
+    const item = initialItems.find((entry) => entry.id === itemId);
+    setAddPartDraft((current) => ({
+      ...current,
+      itemId,
+      unitCost: item?.lastUnitCost !== undefined ? String(item.lastUnitCost) : "",
+      markupPercent: String(item?.marginPercent ?? 0),
+    }));
   }
 
   async function handleAddPart() {
-    if (!addForm.itemId) { setAddError("Select an item"); return; }
-    if (addForm.quantity < 1) { setAddError("Quantity must be at least 1"); return; }
-    setAdding(true); setAddError("");
+    const quantity = parseOptionalInteger(addPartDraft.quantity);
+    const unitCost = parseOptionalDecimal(addPartDraft.unitCost);
+    const markupPercent = parseOptionalDecimal(addPartDraft.markupPercent);
+
+    if (!addPartDraft.itemId) {
+      setBannerError("Select an inventory item before adding a part.");
+      return;
+    }
+
+    if (quantity === null || quantity === undefined) {
+      setBannerError("Quantity must be a whole number greater than zero.");
+      return;
+    }
+
+    if (unitCost === null) {
+      setBannerError("Unit cost must be a valid positive number.");
+      return;
+    }
+
+    if (markupPercent === null) {
+      setBannerError("Markup must be a valid positive number.");
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/jobs/${jobId}/parts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(addForm),
+      await withBusy("add-part", async () => {
+        const response = await fetch(`/api/jobs/${jobId}/parts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemId: addPartDraft.itemId,
+            quantity,
+            unitCost,
+            markupPercent,
+            notes: addPartDraft.notes.trim() || undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await readError(response, "Failed to add part"));
+        }
+
+        await refreshJob();
+        setAddPartDraft(buildPartDraft());
+        setAddPartOpen(false);
       });
-      if (res.ok) {
-        setAddForm({ itemId: "", quantity: 1, notes: "" });
-        setSearch("");
-        fetchJob();
-        fetchItems();
-      } else {
-        const d = await res.json();
-        setAddError(d.error || "Failed to add part");
-      }
-    } catch { setAddError("Failed to add part"); }
-    setAdding(false);
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to add part");
+    }
   }
 
-  async function handleRemovePart(partId: string) {
-    if (!confirm("Remove this part? Stock will be restored.")) return;
-    setRemovingId(partId);
-    try {
-      await fetch(`/api/jobs/${jobId}/parts/${partId}`, { method: "DELETE" });
-      fetchJob();
-      fetchItems();
-    } catch { /* ignore */ }
-    setRemovingId(null);
-  }
+  async function handleSavePart() {
+    if (!editingPart) {
+      return;
+    }
 
-  async function handleStatusChange(status: string) {
-    setStatusUpdating(true);
+    const quantity = parseOptionalInteger(editPartDraft.quantity);
+    const unitCost = parseOptionalDecimal(editPartDraft.unitCost);
+    const markupPercent = parseOptionalDecimal(editPartDraft.markupPercent);
+
+    if (quantity === null || quantity === undefined) {
+      setBannerError("Quantity must be a whole number greater than zero.");
+      return;
+    }
+
+    if (unitCost === null) {
+      setBannerError("Unit cost must be a valid positive number.");
+      return;
+    }
+
+    if (markupPercent === null) {
+      setBannerError("Markup must be a valid positive number.");
+      return;
+    }
+
     try {
-      await fetch(`/api/jobs/${jobId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+      await withBusy(`save-part-${editingPart.id}`, async () => {
+        const response = await fetch(`/api/jobs/${jobId}/parts/${editingPart.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quantity,
+            unitCost,
+            markupPercent,
+            notes: editPartDraft.notes.trim() || null,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await readError(response, "Failed to update part"));
+        }
+
+        await refreshJob();
+        setEditingPartId(null);
       });
-      fetchJob();
-    } catch { /* ignore */ }
-    setStatusUpdating(false);
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to update part");
+    }
   }
 
-  const filteredItems = items.filter(
-    (item) =>
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      (item.partNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (item.manufacturer ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (item.modelNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (item.description ?? "").toLowerCase().includes(search.toLowerCase())
-  ).slice(0, 20);
+  async function handleDeletePart(part: SerializedJobPart) {
+    try {
+      await withBusy(`delete-part-${part.id}`, async () => {
+        const response = await fetch(`/api/jobs/${jobId}/parts/${part.id}`, { method: "DELETE" });
+        if (!response.ok) {
+          throw new Error(await readError(response, "Failed to remove part"));
+        }
 
-  const totalMaterialCost = job?.parts.reduce((sum, p) => sum + p.quantity * (p.unitCost ?? 0), 0) ?? 0;
-  const canEdit = Boolean(job) && canEditJob;
-  const partsGridTemplate = showFinancials ? "minmax(0,1fr) auto auto auto auto" : "minmax(0,1fr) auto auto";
-
-  if (loading) {
-    return (
-      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-        <p className="text-sm text-slate-400 animate-pulse">Loading job...</p>
-      </main>
-    );
+        await refreshJob();
+        setDialogState(null);
+      });
+    } catch (error) {
+      setBannerError(error instanceof Error ? error.message : "Failed to remove part");
+    }
   }
 
-  if (jobError) {
-    return (
-      <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-        <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-4 flex items-center gap-1">← Jobs</button>
-        <div className="rounded-2xl border border-red-700/50 bg-red-900/20 p-6 text-center">
-          <p className="text-2xl mb-3">⚠️</p>
-          <p className="font-semibold text-red-300">{jobError}</p>
-          <button
-            onClick={() => { setLoading(true); fetchJob(); }}
-            className="mt-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 text-sm"
-          >
-            Try Again
-          </button>
-        </div>
-      </main>
-    );
+  function scrollToBillingSummary() {
+    document.getElementById("billing-summary")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  if (!job) return null;
+  const statusTone = normalizedStatus === "OPEN" ? "orange" : normalizedStatus === "COMPLETED" ? "green" : "blue";
+  const canMarkCompleted = normalizedStatus === "OPEN" && canCloseJobs;
+  const canMoveBackToOpen = normalizedStatus === "COMPLETED" && canCloseJobs;
+  const canMarkInvoiced = normalizedStatus === "COMPLETED" && canInvoiceJobs;
+  const canDeleteInvoice = canInvoiceJobs && hasInvoice;
 
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 py-8 form-screen">
-      {/* Header */}
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <button onClick={() => router.push("/jobs")} className="text-sm text-slate-500 hover:text-slate-200 mb-2 flex items-center gap-1">← Jobs</button>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-50">{job.jobNumber}</h1>
-            <span className={`text-xs px-2.5 py-1 rounded-full border ${STATUS_COLOR[job.status] ?? "bg-slate-700 text-slate-300"}`}>
-              {job.status}
-            </span>
-          </div>
-          <p className="text-slate-300 mt-1 font-medium">{job.customer}</p>
-          <p className="text-slate-500 text-sm">{job.technician.name} · {new Date(job.date).toLocaleDateString()}</p>
-          {job.notes && <p className="text-slate-400 text-sm mt-1 italic">{job.notes}</p>}
-        </div>
-        {canChangeStatus && (
-          <div className="w-full shrink-0 sm:w-auto">
-            <select
-              className="w-full rounded-xl text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:w-auto"
-              style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-              value={job.status}
-              disabled={statusUpdating}
-              onChange={(e) => handleStatusChange(e.target.value)}
-            >
-              <option value="OPEN">Open</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="INVOICED">Invoiced</option>
-            </select>
-          </div>
-        )}
-      </div>
+    <PageShell contentClassName="space-y-8">
+      <PageHeader
+        eyebrow={<Badge tone="blue">Job Workspace</Badge>}
+        title={job?.displayTitle ?? "Job"}
+        description="Track the full service lifecycle, preserve saved parts and pricing, and keep status changes explicit from open through completed and invoiced."
+        actions={
+          <>
+            <Button variant="secondary" href="/jobs">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Jobs
+            </Button>
+            {canModifyParts ? (
+              <Button variant="secondary" onClick={() => setAddPartOpen(true)}>
+                <PackagePlus className="h-4 w-4" />
+                Add Part
+              </Button>
+            ) : null}
+            {canEditDetails ? (
+              <Button variant="secondary" onClick={() => setEditJobOpen(true)}>
+                <PencilLine className="h-4 w-4" />
+                Edit Job
+              </Button>
+            ) : null}
+            {canMarkCompleted ? (
+              <Button variant="primary" onClick={() => void handleStatusChange("COMPLETED")} disabled={busyAction === "status-completed"}>
+                <FolderCheck className="h-4 w-4" />
+                Mark Completed
+              </Button>
+            ) : null}
+            {canMarkInvoiced ? (
+              <Button variant="primary" onClick={() => setInvoicePanelOpen(true)} disabled={busyAction === "status-invoiced"}>
+                <ReceiptText className="h-4 w-4" />
+                Mark Invoiced
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {/* Parts table */}
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl mb-5 overflow-hidden">
-        <div className="flex flex-col gap-1 border-b border-slate-700 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-bold text-slate-200">Parts Used</h2>
-          <span className="text-xs text-slate-500">{job.parts.length} item{job.parts.length !== 1 ? "s" : ""}</span>
-        </div>
+      {jobError && !job ? (
+        <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{jobError}</Card>
+      ) : null}
 
-        {job.parts.length === 0 ? (
-          <div className="px-4 py-8 text-center text-slate-500 text-sm">No parts added yet</div>
-        ) : (
-          <div className="divide-y divide-slate-800">
-            <div className="space-y-3 p-4 md:hidden">
-              {job.parts.map((part) => (
-                <div key={part.id} className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-100">{part.item.name}</p>
-                      {part.item.partNumber && <p className="mt-1 text-xs text-slate-500">{part.item.partNumber}</p>}
-                      {part.notes && <p className="mt-1 text-xs italic text-slate-400">{part.notes}</p>}
-                    </div>
-                    {canEdit ? (
-                      <button
-                        onClick={() => handleRemovePart(part.id)}
-                        disabled={removingId === part.id}
-                        className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
-                      >
-                        {removingId === part.id ? "..." : "Remove"}
-                      </button>
-                    ) : null}
+      {bannerError ? <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{bannerError}</Card> : null}
+
+      {job ? (
+        <>
+          <PageSection>
+            <Card className="overflow-hidden border-white/12 p-0">
+              <div className="grid gap-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,1fr)]">
+                <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(9,14,24,0.96),rgba(9,14,24,0.84))] px-5 py-6 sm:px-6 sm:py-7 xl:border-b-0 xl:border-r">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge tone={statusTone}>{getJobStatusLabel(job.status)}</Badge>
+                    <Badge tone="slate">{job.jobNumber}</Badge>
+                    {job.needsPartsAttention ? <Badge tone="orange">Needs parts attention</Badge> : null}
+                    {job.invoiceStatus === "INVOICED_PENDING_NUMBER" ? <Badge tone="red">Invoice number missing</Badge> : null}
                   </div>
-                  <div className={`mt-3 grid gap-3 text-sm ${showFinancials ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Qty</p>
-                      <p className="mt-0.5 text-slate-200">{part.quantity} <span className="text-xs text-slate-500">{part.item.unitOfMeasure}</span></p>
+                  <div className="mt-5 space-y-3">
+                    <h2 className="text-3xl font-semibold tracking-[-0.05em] text-white">{job.displayTitle}</h2>
+                    <p className="text-sm leading-6 text-slate-300/78 sm:text-base">{job.description || "No extended description recorded for this job yet."}</p>
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <SummaryChip label="Customer" value={job.customer || "No customer recorded"} icon={UserRound} />
+                      <SummaryChip label="Technician" value={job.technician.name} icon={Wrench} />
+                      <SummaryChip label="Service date" value={formatDate(job.date)} icon={CalendarClock} />
                     </div>
-                    {showFinancials && (
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-500">Unit Cost</p>
-                        <p className="mt-0.5 text-slate-200">${(part.unitCost ?? 0).toFixed(2)}</p>
-                      </div>
-                    )}
-                    {showFinancials && (
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-500">Line Total</p>
-                        <p className="mt-0.5 font-semibold text-slate-100">${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                <div className="grid gap-3 px-5 py-6 sm:grid-cols-2 sm:px-6 sm:py-7">
+                  <SummaryMetric label="Latest activity" value={formatDateTime(job.latestActivityAt)} />
+                  <SummaryMetric label="Created" value={formatDateTime(job.createdAt)} />
+                  <SummaryMetric label="Completed by" value={job.completedByName || (job.completedAt ? "Recorded" : "Not completed")} />
+                  <SummaryMetric label="Invoice" value={job.invoiceNumber || (hasInvoice ? "Pending number" : "Not invoiced")} />
+                </div>
+              </div>
+            </Card>
+          </PageSection>
+
+          <PageSection>
+            <Card className="border-white/12 bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.08),transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))]">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status-aware actions</p>
+                  <h2 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">Keep the workflow obvious at every stage</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-300/76">Status moves only change lifecycle state. Parts, pricing, totals, notes, and history stay attached to the same job record.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {canModifyParts ? (
+                    <Button variant="secondary" onClick={() => setAddPartOpen(true)}>
+                      Add Part
+                    </Button>
+                  ) : null}
+                  {canEditDetails ? (
+                    <Button variant="secondary" onClick={() => setEditJobOpen(true)}>
+                      Edit Job
+                    </Button>
+                  ) : null}
+                  {canMarkCompleted ? (
+                    <Button variant="primary" onClick={() => void handleStatusChange("COMPLETED")} disabled={busyAction === "status-completed"}>
+                      Mark Completed
+                    </Button>
+                  ) : null}
+                  {canMoveBackToOpen ? (
+                    <Button variant="secondary" onClick={() => void handleStatusChange("OPEN")} disabled={busyAction === "status-open"}>
+                      <RotateCcw className="h-4 w-4" />
+                      Move Back to Open
+                    </Button>
+                  ) : null}
+                  {canMarkInvoiced ? (
+                    <Button variant="primary" onClick={() => setInvoicePanelOpen(true)} disabled={busyAction === "status-invoiced"}>
+                      Mark Invoiced
+                    </Button>
+                  ) : null}
+                  {hasInvoice ? (
+                    <Button variant="secondary" onClick={scrollToBillingSummary}>
+                      View Summary
+                    </Button>
+                  ) : null}
+                  {canDeleteInvoice ? (
+                    <Button variant="secondary" onClick={() => setDialogState({ kind: "delete-invoice" })}>
+                      Delete Invoice
+                    </Button>
+                  ) : null}
+                  {canDeleteJobs ? (
+                    <Button variant="ghost" className="text-rose-200 hover:border-rose-400/20 hover:bg-rose-500/10 hover:text-rose-100" onClick={() => setDialogState({ kind: "delete-job" })}>
+                      Delete Job
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </Card>
+          </PageSection>
+
+          <PageSection className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <WorkflowMetricCard label="Parts logged" value={String(job.parts.length)} detail="Saved part lines attached to this job" />
+            <WorkflowMetricCard label="Subtotal cost" value={showBaseCosts ? formatCurrency(job.totals.totalCost) : "Hidden"} detail="Saved cost carried across workflow stages" />
+            <WorkflowMetricCard label="Invoice total" value={showTotal ? formatCurrency(job.totals.totalSell) : "Hidden"} detail="Final sell total from saved job pricing" />
+            <WorkflowMetricCard label="Margin" value={showMargin ? formatCurrency(job.totals.margin) : "Hidden"} detail="Margin across all current part lines" />
+          </PageSection>
+
+          <PageSection className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
+            <div className="space-y-6">
+              <Card className="space-y-5 border-white/12">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Parts</p>
+                    <h2 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">Parts and pricing stay attached to the job</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-300/76">Every quantity, unit cost, markup, sell price, line total, and part note is read from saved job data and carried through open, completed, and invoiced states.</p>
+                  </div>
+                  {canModifyParts ? (
+                    <Button variant="secondary" onClick={() => setAddPartOpen(true)}>
+                      <PackagePlus className="h-4 w-4" />
+                      Add Part
+                    </Button>
+                  ) : null}
+                </div>
+
+                {job.parts.length > 0 ? (
+                  <div className="space-y-4">
+                    {job.parts.map((part) => (
+                      <PartCard
+                        key={part.id}
+                        part={part}
+                        canModify={canModifyParts}
+                        showBaseCosts={showBaseCosts}
+                        showMargin={showMargin}
+                        showTotal={showTotal}
+                        busy={busyAction === `save-part-${part.id}` || busyAction === `delete-part-${part.id}`}
+                        onEdit={() => setEditingPartId(part.id)}
+                        onDelete={() => setDialogState({ kind: "delete-part", part })}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyStateCard
+                    title="No parts logged yet"
+                    description="This job can still move through the workflow, but the parts section is ready for fast stock-driven additions as soon as work starts."
+                    action={
+                      canModifyParts ? (
+                        <Button variant="primary" onClick={() => setAddPartOpen(true)}>
+                          Add first part
+                        </Button>
+                      ) : null
+                    }
+                  />
+                )}
+              </Card>
+
+              <Card className="space-y-5 border-white/12">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">History</p>
+                  <h2 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">Activity timeline</h2>
+                </div>
+                {job.history.length > 0 ? (
+                  <div className="space-y-4">
+                    {job.history.map((entry) => (
+                      <HistoryRow key={entry.id} entry={entry} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyStateCard title="No history recorded yet" description="This job has not recorded workflow activity yet." />
+                )}
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <div id="billing-summary">
+                <Card className="space-y-5 border-white/12">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Totals</p>
+                    <h2 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">Saved billing snapshot</h2>
+                  </div>
+                  <div className="space-y-3">
+                    <DetailRow label="Subtotal cost" value={showBaseCosts ? formatCurrency(job.totals.totalCost) : "Hidden"} />
+                    <DetailRow label="Subtotal sell" value={showTotal ? formatCurrency(job.totals.subtotal) : "Hidden"} />
+                    <DetailRow label="Margin" value={showMargin ? formatCurrency(job.totals.margin) : "Hidden"} />
+                    <DetailRow label="Invoice total" value={showTotal ? formatCurrency(job.totals.totalSell) : "Hidden"} />
+                    <DetailRow label="Billing total override" value={showTotal ? formatCurrency(job.billingTotal) : "Hidden"} />
+                  </div>
+                  {job.totals.useLegacyBillingTotal ? (
+                    <div className="rounded-[1.2rem] border border-sky-400/20 bg-sky-500/[0.08] p-4 text-sm leading-6 text-sky-100">
+                      This job is currently using its saved billing total as the final sell total because the parts do not carry custom sell pricing yet.
+                    </div>
+                  ) : null}
+                </Card>
+              </div>
+
+              <Card className="space-y-5 border-white/12">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Notes</p>
+                  <h2 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">Internal and customer-facing notes</h2>
+                </div>
+                <NoteBlock label="Customer summary" value={job.customerSummary || "No customer summary recorded yet."} />
+                <NoteBlock label="Internal notes" value={job.notes || "No internal notes recorded yet."} />
+                <DetailRow label="Site / location" value={job.siteName || "No site recorded"} />
+                <DetailRow label="Invoice number" value={job.invoiceNumber || (hasInvoice ? "Pending number" : "Not invoiced")} />
+                <DetailRow label="Invoice date" value={formatDate(job.invoiceDate)} />
+                <DetailRow label="Invoiced by" value={job.invoicedByName || "Not invoiced"} />
+              </Card>
+            </div>
+          </PageSection>
+        </>
+      ) : null}
+
+      <SidePanel
+        open={editJobOpen}
+        onClose={() => setEditJobOpen(false)}
+        title={job ? `Edit ${job.jobNumber}` : "Edit job"}
+        description="Update the job record without breaking the lifecycle. Saved parts, totals, and history stay connected to this job."
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={() => void handleSaveJob()} disabled={busyAction === "save-job"}>
+              {busyAction === "save-job" ? "Saving..." : "Save job"}
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setEditJobOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Job number">
+            <input value={jobDraft.jobNumber} onChange={(event) => setJobDraft((current) => ({ ...current, jobNumber: event.target.value }))} className={fieldClassName} />
+          </Field>
+          <Field label="Work order title">
+            <input value={jobDraft.title} onChange={(event) => setJobDraft((current) => ({ ...current, title: event.target.value }))} className={fieldClassName} placeholder="Optional title" />
+          </Field>
+          <Field label="Description">
+            <textarea value={jobDraft.description} onChange={(event) => setJobDraft((current) => ({ ...current, description: event.target.value }))} rows={4} className={fieldClassName} placeholder="Work description or service summary" />
+          </Field>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Customer">
+              <input value={jobDraft.customer} onChange={(event) => setJobDraft((current) => ({ ...current, customer: event.target.value }))} className={fieldClassName} placeholder="Customer name" />
+            </Field>
+            <Field label="Site / location">
+              <input value={jobDraft.siteName} onChange={(event) => setJobDraft((current) => ({ ...current, siteName: event.target.value }))} className={fieldClassName} placeholder="Optional site" />
+            </Field>
+          </div>
+          <Field label="Service date">
+            <input type="date" value={jobDraft.date} onChange={(event) => setJobDraft((current) => ({ ...current, date: event.target.value }))} className={fieldClassName} />
+          </Field>
+          {canEditBillingTotal ? (
+            <Field label="Billing total">
+              <input value={jobDraft.billingTotal} onChange={(event) => setJobDraft((current) => ({ ...current, billingTotal: event.target.value }))} className={fieldClassName} placeholder="Optional saved billing total" />
+            </Field>
+          ) : null}
+          <Field label="Customer summary">
+            <textarea value={jobDraft.customerSummary} onChange={(event) => setJobDraft((current) => ({ ...current, customerSummary: event.target.value }))} rows={4} className={fieldClassName} placeholder="What the customer should see or hear" />
+          </Field>
+          <Field label="Internal notes">
+            <textarea value={jobDraft.notes} onChange={(event) => setJobDraft((current) => ({ ...current, notes: event.target.value }))} rows={5} className={fieldClassName} placeholder="Internal technician notes" />
+          </Field>
+        </div>
+      </SidePanel>
+
+      <SidePanel
+        open={addPartOpen}
+        onClose={() => setAddPartOpen(false)}
+        title="Add part"
+        description="Log a part against this job and preserve its quantity, cost, markup, sell price, notes, and stock movement from the saved record."
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={() => void handleAddPart()} disabled={busyAction === "add-part"}>
+              {busyAction === "add-part" ? "Adding..." : "Add part"}
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setAddPartOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Inventory item">
+            <select value={addPartDraft.itemId} onChange={(event) => handleAddPartItemChange(event.target.value)} className={fieldClassName}>
+              <option value="">Select an item</option>
+              {initialItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} {item.partNumber ? `(${item.partNumber})` : ""}
+                </option>
               ))}
-            </div>
-            {/* Table header */}
-            <div className="hidden grid px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid"
-              style={{ gridTemplateColumns: partsGridTemplate }}>
-              <span>Part</span>
-              <span className="text-right pr-4">Qty</span>
-              {showFinancials && <span className="text-right pr-4">Unit Cost</span>}
-              {showFinancials && <span className="text-right pr-4">Line Total</span>}
-              <span />
-            </div>
-            {job.parts.map((part) => (
-              <div
-                key={part.id}
-                className="hidden items-center px-4 py-3 text-sm md:grid"
-                style={{ gridTemplateColumns: partsGridTemplate }}
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-100 truncate">{part.item.name}</p>
-                  {part.item.partNumber && <p className="text-xs text-slate-500">{part.item.partNumber}</p>}
-                  {part.notes && <p className="text-xs text-slate-400 italic">{part.notes}</p>}
-                </div>
-                <span className="text-slate-300 pr-4 text-right">
-                  {part.quantity} <span className="text-slate-500 text-xs">{part.item.unitOfMeasure}</span>
-                </span>
-                {showFinancials && (
-                  <span className="text-slate-300 pr-4 text-right">${(part.unitCost ?? 0).toFixed(2)}</span>
-                )}
-                {showFinancials && (
-                  <span className="text-slate-200 font-semibold pr-4 text-right">
-                    ${(part.quantity * (part.unitCost ?? 0)).toFixed(2)}
-                  </span>
-                )}
-                {canEdit ? (
-                  <button
-                    onClick={() => handleRemovePart(part.id)}
-                    disabled={removingId === part.id}
-                    className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
-                  >
-                    {removingId === part.id ? "…" : "✕"}
-                  </button>
-                ) : <span />}
-              </div>
-            ))}
+            </select>
+          </Field>
+          {addPartItem ? (
+            <Card className="space-y-3 bg-white/[0.03]">
+              <DetailRow label="Part number" value={addPartItem.partNumber || "No part number"} />
+              <DetailRow label="Stock on hand" value={`${addPartItem.quantityOnHand} ${addPartItem.unitOfMeasure}`} />
+              <DetailRow label="Default unit cost" value={formatCurrency(addPartItem.lastUnitCost)} />
+              <DetailRow label="Default markup" value={formatPercent(addPartItem.marginPercent)} />
+            </Card>
+          ) : null}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Quantity">
+              <input value={addPartDraft.quantity} onChange={(event) => setAddPartDraft((current) => ({ ...current, quantity: event.target.value }))} className={fieldClassName} />
+            </Field>
+            <Field label="Unit cost">
+              <input value={addPartDraft.unitCost} onChange={(event) => setAddPartDraft((current) => ({ ...current, unitCost: event.target.value }))} className={fieldClassName} />
+            </Field>
+            <Field label="Markup %">
+              <input value={addPartDraft.markupPercent} onChange={(event) => setAddPartDraft((current) => ({ ...current, markupPercent: event.target.value }))} className={fieldClassName} />
+            </Field>
           </div>
-        )}
+          <Field label="Part notes">
+            <textarea value={addPartDraft.notes} onChange={(event) => setAddPartDraft((current) => ({ ...current, notes: event.target.value }))} rows={4} className={fieldClassName} placeholder="Optional line notes" />
+          </Field>
+          <Card className="space-y-3 bg-white/[0.03]">
+            <DetailRow label="Estimated unit sell" value={formatCurrency(getComputedUnitSell({ unitCost: parseOptionalDecimal(addPartDraft.unitCost) ?? 0, markupPercent: parseOptionalDecimal(addPartDraft.markupPercent) ?? 0 }))} />
+          </Card>
+        </div>
+      </SidePanel>
 
-        {/* Total */}
-        {showFinancials && job.parts.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-700 flex justify-end">
-            <div className="text-right">
-              <span className="text-xs text-slate-500 uppercase tracking-wide">Total Material Cost</span>
-              <p className="text-2xl font-bold text-slate-100 mt-0.5">${totalMaterialCost.toFixed(2)}</p>
-            </div>
+      <SidePanel
+        open={editingPart !== null}
+        onClose={() => setEditingPartId(null)}
+        title={editingPart ? `Edit ${editingPart.name}` : "Edit part"}
+        description="Update saved quantity, pricing, and notes without breaking the job totals or lifecycle."
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={() => void handleSavePart()} disabled={!editingPart || busyAction === `save-part-${editingPart?.id ?? ""}`}>
+              {editingPart && busyAction === `save-part-${editingPart.id}` ? "Saving..." : "Save part"}
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setEditingPartId(null)}>
+              Cancel
+            </Button>
           </div>
-        )}
+        }
+      >
+        {editingPart ? (
+          <div className="space-y-4">
+            <Card className="space-y-3 bg-white/[0.03]">
+              <DetailRow label="Part" value={editingPart.name} />
+              <DetailRow label="Part number" value={editingPart.partNumber || "No part number"} />
+              <DetailRow label="Stock on hand" value={`${editingPart.inventoryQuantityOnHand ?? 0} ${editingPart.unitOfMeasure}`} />
+            </Card>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Field label="Quantity">
+                <input value={editPartDraft.quantity} onChange={(event) => setEditPartDraft((current) => ({ ...current, quantity: event.target.value }))} className={fieldClassName} />
+              </Field>
+              <Field label="Unit cost">
+                <input value={editPartDraft.unitCost} onChange={(event) => setEditPartDraft((current) => ({ ...current, unitCost: event.target.value }))} className={fieldClassName} />
+              </Field>
+              <Field label="Markup %">
+                <input value={editPartDraft.markupPercent} onChange={(event) => setEditPartDraft((current) => ({ ...current, markupPercent: event.target.value }))} className={fieldClassName} />
+              </Field>
+            </div>
+            <Field label="Line notes">
+              <textarea value={editPartDraft.notes} onChange={(event) => setEditPartDraft((current) => ({ ...current, notes: event.target.value }))} rows={4} className={fieldClassName} placeholder="Optional line notes" />
+            </Field>
+            <Card className="space-y-3 bg-white/[0.03]">
+              <DetailRow label="Estimated unit sell" value={formatCurrency(getComputedUnitSell({ unitCost: parseOptionalDecimal(editPartDraft.unitCost) ?? 0, markupPercent: parseOptionalDecimal(editPartDraft.markupPercent) ?? 0 }))} />
+            </Card>
+          </div>
+        ) : null}
+      </SidePanel>
+
+      <SidePanel
+        open={invoicePanelOpen}
+        onClose={() => setInvoicePanelOpen(false)}
+        title="Mark job invoiced"
+        description="Save invoice metadata and move the job from Completed into Invoiced without changing its parts, pricing, totals, or notes."
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button className="flex-1" variant="primary" onClick={() => void handleInvoiceJob()} disabled={busyAction === "status-invoiced"}>
+              {busyAction === "status-invoiced" ? "Saving..." : "Mark invoiced"}
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setInvoicePanelOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Invoice number">
+            <input value={invoiceDraft.invoiceNumber} onChange={(event) => setInvoiceDraft((current) => ({ ...current, invoiceNumber: event.target.value }))} className={fieldClassName} placeholder="Optional invoice number" />
+          </Field>
+          <Field label="Invoice date">
+            <input type="date" value={invoiceDraft.invoiceDate} onChange={(event) => setInvoiceDraft((current) => ({ ...current, invoiceDate: event.target.value }))} className={fieldClassName} />
+          </Field>
+          <Card className="space-y-3 bg-white/[0.03]">
+            <DetailRow label="Current status" value={getJobStatusLabel(job?.status)} />
+            <DetailRow label="Invoice total" value={showTotal ? formatCurrency(job?.totals.totalSell) : "Hidden"} />
+          </Card>
+        </div>
+      </SidePanel>
+
+      <ConfirmationDialog
+        open={dialogState?.kind === "delete-invoice"}
+        title="Delete invoice?"
+        description="This will remove invoice status and return the job to Completed. Job details, parts, and pricing will be kept."
+        confirmLabel="Delete Invoice"
+        busy={busyAction === "delete-invoice"}
+        onClose={() => setDialogState(null)}
+        onConfirm={() => {
+          void handleDeleteInvoice();
+        }}
+      />
+
+      <ConfirmationDialog
+        open={dialogState?.kind === "delete-job"}
+        title="Delete job?"
+        description="This permanently removes the whole job and all related job data. Parts, pricing snapshots, notes, and history attached to the job will be removed."
+        confirmLabel="Delete Job"
+        busy={busyAction === "delete-job"}
+        onClose={() => setDialogState(null)}
+        onConfirm={() => {
+          void handleDeleteJob();
+        }}
+      />
+
+      <ConfirmationDialog
+        open={dialogState?.kind === "delete-part"}
+        title="Remove part?"
+        description="This removes the part line from the job, restores its stock, and updates the saved totals and history."
+        confirmLabel="Remove Part"
+        busy={dialogState?.kind === "delete-part" ? busyAction === `delete-part-${dialogState.part.id}` : false}
+        onClose={() => setDialogState(null)}
+        onConfirm={() => {
+          if (dialogState?.kind === "delete-part") {
+            void handleDeletePart(dialogState.part);
+          }
+        }}
+      />
+    </PageShell>
+  );
+}
+
+function PartCard({
+  part,
+  canModify,
+  showBaseCosts,
+  showMargin,
+  showTotal,
+  busy,
+  onEdit,
+  onDelete,
+}: {
+  part: SerializedJobPart;
+  canModify: boolean;
+  showBaseCosts: boolean;
+  showMargin: boolean;
+  showTotal: boolean;
+  busy: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const hasStockPressure = typeof part.inventoryQuantityOnHand === "number" && part.inventoryQuantityOnHand <= 0;
+
+  return (
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{part.name}</h3>
+            {part.partNumber ? <Badge tone="slate">{part.partNumber}</Badge> : null}
+            {hasStockPressure ? <Badge tone="orange">Check stock</Badge> : null}
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-300/72">{part.notes || "No part notes recorded for this line."}</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {canModify ? (
+            <Button variant="secondary" onClick={onEdit} disabled={busy}>
+              <PencilLine className="h-4 w-4" />
+              Edit Part
+            </Button>
+          ) : null}
+          {canModify ? (
+            <Button variant="ghost" className="text-rose-200 hover:border-rose-400/20 hover:bg-rose-500/10 hover:text-rose-100" onClick={onDelete} disabled={busy}>
+              <Trash2 className="h-4 w-4" />
+              Remove
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      {/* Add part section */}
-      {canEdit && (
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4">
-          <h2 className="font-bold text-slate-200 mb-3">Add Part</h2>
-          <div className="space-y-3">
-            <div>
-              <input
-                className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                placeholder="Search by name, part #, manufacturer, model, or description…"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setAddForm({ ...addForm, itemId: "" }); }}
-              />
-              {search && !addForm.itemId && (
-                <div className="mt-1 border border-slate-700 rounded-xl bg-slate-800 max-h-48 overflow-y-auto">
-                  {filteredItems.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-slate-500">No parts found</p>
-                  ) : filteredItems.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => { setAddForm({ ...addForm, itemId: item.id }); setSearch(item.name + (item.partNumber ? ` (${item.partNumber})` : "")); }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
-                    >
-                      <span className="text-sm text-slate-100 font-medium">{item.name}</span>
-                      {item.manufacturer && <span className="text-xs text-slate-400 ml-2">{item.manufacturer}</span>}
-                      {item.partNumber && <span className="text-xs text-slate-500 ml-2">#{item.partNumber}</span>}
-                      {item.modelNumber && <span className="text-xs text-slate-500 ml-1">· {item.modelNumber}</span>}
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs ${item.quantityOnHand > 0 ? "text-slate-300" : "text-red-400"}`}>
-                          In stock: {item.quantityOnHand} {item.unitOfMeasure}
-                        </span>
-                        {item.description && (
-                          <span className="text-xs text-slate-500 truncate">{item.description}</span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <div className="w-28">
-                <label className="block text-xs text-slate-400 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                  value={addForm.quantity}
-                  onChange={(e) => setAddForm({ ...addForm, quantity: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-slate-400 mb-1">Notes (optional)</label>
-                <input
-                  className="w-full rounded-xl text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.12)" }}
-                  placeholder="e.g. replaced bearing"
-                  value={addForm.notes}
-                  onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
-                />
-              </div>
-            </div>
-            {addError && <p className="text-red-400 text-xs">{addError}</p>}
-            <button
-              onClick={handleAddPart}
-              disabled={adding || !addForm.itemId}
-              className="rounded-xl text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-40 transition-all hover:brightness-110"
-              style={{
-                background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)",
-                boxShadow: "0 3px 14px rgba(91,94,244,0.32)",
-              }}
-            >
-              {adding ? "Adding…" : "Add Part to Job"}
-            </button>
-          </div>
-        </div>
-      )}
-    </main>
+      <div className={cn("mt-4 grid gap-3", showBaseCosts || showMargin || showTotal ? "sm:grid-cols-2 xl:grid-cols-5" : "sm:grid-cols-2 xl:grid-cols-3")}>
+        <MiniMetric label="Quantity" value={`${part.quantity} ${part.unitOfMeasure}`} />
+        <MiniMetric label="Stock on hand" value={typeof part.inventoryQuantityOnHand === "number" ? `${part.inventoryQuantityOnHand} ${part.unitOfMeasure}` : "Unknown"} />
+        {showBaseCosts ? <MiniMetric label="Unit cost" value={formatCurrency(part.unitCost)} /> : null}
+        {showMargin ? <MiniMetric label="Markup" value={formatPercent(part.markupPercent)} /> : null}
+        {showTotal ? <MiniMetric label="Unit sell" value={formatCurrency(part.unitSell)} /> : null}
+        {showBaseCosts ? <MiniMetric label="Line cost" value={formatCurrency(part.lineCost)} /> : null}
+        {showTotal ? <MiniMetric label="Line total" value={formatCurrency(part.lineTotal)} /> : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+        <span>Added {formatDateTime(part.createdAt)}</span>
+        <span>Updated {formatDateTime(part.lastActivityAt)}</span>
+      </div>
+    </div>
   );
+}
+
+function HistoryRow({ entry }: { entry: SerializedJobHistoryEntry }) {
+  const tone =
+    entry.actionType.includes("invoice")
+      ? "blue"
+      : entry.actionType.includes("status") || entry.actionType.includes("completed")
+        ? "green"
+        : entry.actionType.includes("part") || entry.actionType.includes("quantity") || entry.actionType.includes("pricing")
+          ? "teal"
+          : "slate";
+
+  return (
+    <div className="flex gap-4 rounded-[1.4rem] border border-white/10 bg-white/[0.03] p-4">
+      <span className={cn("mt-1 h-3 w-3 shrink-0 rounded-full", tone === "blue" ? "bg-sky-300" : tone === "green" ? "bg-emerald-300" : tone === "teal" ? "bg-teal-300" : "bg-slate-300")} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-white">{entry.actionLabel}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDateTime(entry.createdAt)}</p>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-300/76">{entry.details || "No additional details recorded."}</p>
+        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{entry.actorName || "System"}</p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryChip({ label, value, icon: Icon }: { label: string; value: string; icon: typeof UserRound }) {
+  return (
+    <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-slate-100">
+      <Icon className="h-4 w-4 text-slate-300" />
+      <span className="text-slate-400">{label}</span>
+      <span className="font-medium text-white">{value}</span>
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-sm font-medium leading-6 text-white">{value}</p>
+    </div>
+  );
+}
+
+function WorkflowMetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <Card className="border-white/12 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.76))]">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300/72">{detail}</p>
+    </Card>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/30 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-medium text-white">{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-white">{value}</span>
+    </div>
+  );
+}
+
+function NoteBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-200/84">{value}</p>
+    </div>
+  );
+}
+
+function EmptyStateCard({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-white/12 bg-white/[0.02] p-6 text-center">
+      <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-white/10 bg-white/[0.04] text-slate-200">
+        <ClipboardList className="h-5 w-5" />
+      </div>
+      <h3 className="mt-4 text-lg font-semibold tracking-[-0.03em] text-white">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-slate-300/72">{description}</p>
+      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function formatCurrency(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "$0.00";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatPercent(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "0%";
+  }
+
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}%`;
+}
+
+function formatDate(value?: string) {
+  if (!value) {
+    return "No date recorded";
+  }
+
+  return new Date(value).toLocaleDateString();
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "No activity recorded";
+  }
+
+  return new Date(value).toLocaleString();
 }
 
 export default JobDetailPageClient;

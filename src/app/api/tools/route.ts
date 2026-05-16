@@ -21,6 +21,13 @@ const createToolSchema = z.object({
   photoUrl: z.string().optional(),
   ownerId: z.string().optional(),
   assignedUserId: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.scope === "PERSONAL" && value.assignedUserId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["assignedUserId"], message: "Personal tools cannot be assigned as company tools." });
+  }
+  if (value.scope === "COMPANY" && value.ownerId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["ownerId"], message: "Company tools cannot be created with a personal owner." });
+  }
 });
 
 function normalizeOptionalText(value: unknown) {
@@ -141,7 +148,7 @@ export async function GET(request: NextRequest) {
             },
           })
         : [],
-      access.access.canCheckoutCompanyTools || access.access.canManageCompanyTools
+      access.access.canCheckoutCompanyTools || access.access.canManageCompanyTools || access.access.canManageUsers
         ? dbAny.appUser.findMany({
             where: { organizationId: access.access.organizationId },
             orderBy: { name: "asc" },
@@ -194,6 +201,10 @@ export async function POST(request: NextRequest) {
 
     const ownerId = parsed.scope === "PERSONAL" ? parsed.ownerId ?? access.access.userId : null;
     const assignedUserId = parsed.scope === "COMPANY" ? parsed.assignedUserId ?? null : null;
+
+    if (parsed.scope === "PERSONAL" && ownerId !== access.access.userId && !(access.access.canManageCompanyTools || access.access.canManageUsers)) {
+      return NextResponse.json({ error: "You cannot create personal tools for another user" }, { status: 403 });
+    }
 
     if (ownerId) {
       const owner = await dbAny.appUser.findFirst({

@@ -113,7 +113,7 @@ export default async function ToolsPage() {
           },
         })
       : [],
-    access.canCheckoutCompanyTools || access.canManageCompanyTools
+    access.canCheckoutCompanyTools || access.canManageCompanyTools || access.canManageUsers
       ? dbAny.appUser.findMany({
           where: { organizationId: access.organizationId },
           orderBy: { name: "asc" },
@@ -126,6 +126,11 @@ export default async function ToolsPage() {
     <ToolsPageClient
       currentUserId={access.userId}
       financialVisibilityMode={access.financialVisibilityMode}
+      priceVisibility={{
+        canViewBasePrice: access.canViewBasePrice,
+        canViewMarginPrice: access.canViewMarginPrice,
+        canViewTotalPrice: access.canViewTotalPrice,
+      }}
       workflowConfig={{
         requireReturnAcceptance: settings.requireToolReturnAcceptance,
         allowOfflineCompanyToolFlows: settings.allowOfflineCompanyToolFlows,
@@ -140,6 +145,7 @@ export default async function ToolsPage() {
         canReturnCompanyTools: access.canReturnCompanyTools,
         canAcceptToolReturns: access.canAcceptToolReturns,
         canManageCompanyTools: access.canManageCompanyTools,
+        canManageUsers: access.canManageUsers,
       }}
       initialPersonalTools={personalTools.map((tool: any) => ({
         ...tool,

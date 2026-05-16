@@ -29,7 +29,7 @@ import {
   subscribeToOfflineQueue,
   type OfflineQueueSummary,
 } from "@/lib/offline-queue";
-import { canViewFinancialValue, type FinancialVisibilityMode } from "@/lib/financial-visibility";
+import { canViewFinancialValue, type FinancialVisibilityMode, type PriceVisibilitySnapshot } from "@/lib/financial-visibility";
 
 type ToolsTab = "my-tools" | "company-tools" | "sign-outs";
 type ToolScope = "PERSONAL" | "COMPANY";
@@ -130,6 +130,7 @@ interface TransactionDraft {
 interface ToolsPageClientProps {
   currentUserId: string;
   financialVisibilityMode: FinancialVisibilityMode;
+  priceVisibility: PriceVisibilitySnapshot;
   workflowConfig: {
     requireReturnAcceptance: boolean;
     allowOfflineCompanyToolFlows: boolean;
@@ -144,6 +145,7 @@ interface ToolsPageClientProps {
     canReturnCompanyTools: boolean;
     canAcceptToolReturns: boolean;
     canManageCompanyTools: boolean;
+    canManageUsers: boolean;
   };
   initialPersonalTools: PersonalTool[];
   initialCompanyTools: CompanyTool[];
@@ -338,6 +340,7 @@ function createOptimisticSignout(
 export function ToolsPageClient({
   currentUserId,
   financialVisibilityMode,
+  priceVisibility,
   workflowConfig,
   permissions,
   initialPersonalTools,
@@ -363,8 +366,8 @@ export function ToolsPageClient({
 
   useEffect(() => subscribeToOfflineQueue(() => setQueueSummary(getOfflineQueueSummary())), []);
 
-  const canSeeBaseCost = canViewFinancialValue(financialVisibilityMode, "base") || canViewFinancialValue(financialVisibilityMode, "supplier");
-  const canSeeReplacementValue = canViewFinancialValue(financialVisibilityMode, "total") || canSeeBaseCost;
+  const canSeeBaseCost = canViewFinancialValue(financialVisibilityMode, "base", priceVisibility) || canViewFinancialValue(financialVisibilityMode, "supplier", priceVisibility);
+  const canSeeReplacementValue = canViewFinancialValue(financialVisibilityMode, "total", priceVisibility) || canSeeBaseCost;
 
   const filteredPersonalTools = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -851,19 +854,19 @@ export function ToolsPageClient({
         }
       >
         <div className="space-y-4">
-          <SelectField
-            label="Tool scope"
-            value={toolDraft.scope}
-            onChange={(value) => {
-              const nextScope = value as ToolScope;
-              setToolDraft((current) => ({ ...current, scope: nextScope, ownerId: nextScope === "PERSONAL" ? current.ownerId : "", assignedUserId: nextScope === "COMPANY" ? current.assignedUserId : "" }));
-            }}
-            disabled={Boolean(toolPanelState.toolId)}
-            options={[
-              { value: "PERSONAL", label: "Personal" },
-              { value: "COMPANY", label: "Company" },
-            ]}
-          />
+          <Card className="border-white/8 bg-white/[0.03] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{toolDraft.scope === "COMPANY" ? "Company tool workflow" : "Personal tool record"}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  {toolDraft.scope === "COMPANY"
+                    ? "This form only creates or edits shared company assets. Personal ownership fields are intentionally excluded."
+                    : "This form only creates or edits personal tools. Company assignment fields are intentionally excluded."}
+                </p>
+              </div>
+              <Badge tone={toolDraft.scope === "COMPANY" ? "blue" : "slate"}>{toolDraft.scope === "COMPANY" ? "Company" : "Personal"}</Badge>
+            </div>
+          </Card>
           <TextField label="Tool name" value={toolDraft.name} onChange={(value) => setToolDraft((current) => ({ ...current, name: value }))} />
           {toolDraft.scope === "COMPANY" ? <TextField label="Asset tag" value={toolDraft.assetTag} onChange={(value) => setToolDraft((current) => ({ ...current, assetTag: value }))} /> : null}
           <div className="grid gap-4 md:grid-cols-2">
@@ -876,7 +879,7 @@ export function ToolsPageClient({
             {canSeeBaseCost ? <TextField label={toolDraft.scope === "COMPANY" ? "Company cost" : "Purchase cost"} type="number" value={toolDraft.cost} onChange={(value) => setToolDraft((current) => ({ ...current, cost: value }))} /> : null}
             {toolDraft.scope === "COMPANY" && canSeeReplacementValue ? <TextField label="Replacement value" type="number" value={toolDraft.replacementValue} onChange={(value) => setToolDraft((current) => ({ ...current, replacementValue: value }))} /> : null}
           </div>
-          {toolDraft.scope === "PERSONAL" && permissions.canManageCompanyTools ? (
+          {toolDraft.scope === "PERSONAL" && (permissions.canManageCompanyTools || permissions.canManageUsers) ? (
             <SelectField label="Owner" value={toolDraft.ownerId} onChange={(value) => setToolDraft((current) => ({ ...current, ownerId: value }))} options={[{ value: "", label: "Current user" }, ...users.map((user) => ({ value: user.id, label: user.name }))]} />
           ) : null}
           {toolDraft.scope === "COMPANY" ? (

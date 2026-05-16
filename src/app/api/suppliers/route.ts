@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRequestContext } from "@/lib/request-context";
+import { normalizeSupplierEmailContacts } from "@/lib/supplier-contacts";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -11,6 +12,14 @@ const supplierSchema = z.object({
   contact: z.string().optional(),
   website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   leadTimeD: z.number().min(0).default(7),
+  isPreferred: z.boolean().optional(),
+  isFastest: z.boolean().optional(),
+  emailContacts: z.array(
+    z.object({
+      label: z.string().min(1, "Contact position is required"),
+      email: z.string().email("Enter a valid supplier email"),
+    })
+  ).optional(),
   notes: z.string().optional(),
 });
 
@@ -43,10 +52,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const data = supplierSchema.parse(body);
+    const emailContacts = normalizeSupplierEmailContacts(data.emailContacts);
 
     const supplier = await prisma.supplier.create({
       data: {
         ...data,
+        contact: data.contact?.trim() || null,
+        emailContacts,
+        isPreferred: data.isPreferred ?? false,
+        isFastest: data.isFastest ?? false,
         organizationId: auth.context.organizationId,
       },
     });

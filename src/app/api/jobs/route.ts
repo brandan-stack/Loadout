@@ -1,17 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUserAccess } from "@/lib/permissions";
+import { appendJobHistory } from "@/lib/jobs/server";
+import { serializeJobDetail, serializeJobSummary, type JobVisibility } from "@/lib/jobs/presenter";
+import { jobDetailSelect, jobSummarySelect } from "@/lib/jobs/selects";
+import { canViewFinancialValue, requireUserAccess } from "@/lib/permissions";
 import { z } from "zod";
 
 const dbAny = prisma as any;
 
 const createSchema = z.object({
   jobNumber: z.string().min(1, "Job number is required"),
+  title: z.string().optional().nullable(),
   description: z.string().optional(),
   customer: z.string().min(1, "Customer is required"),
+  siteName: z.string().optional().nullable(),
   date: z.string().optional(),
+  billingTotal: z.number().min(0).optional(),
   notes: z.string().optional(),
+  customerSummary: z.string().optional().nullable(),
 });
+
+function normalizeOptionalText(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function getJobVisibility(access: any): JobVisibility {
+  return {
+    showBaseCosts:
+      canViewFinancialValue(access.financialVisibilityMode, "base", access) ||
+      canViewFinancialValue(access.financialVisibilityMode, "job_costing", access),
+    showMargin: canViewFinancialValue(access.financialVisibilityMode, "margin", access),
+    showTotal:
+      canViewFinancialValue(access.financialVisibilityMode, "total", access) ||
+      canViewFinancialValue(access.financialVisibilityMode, "job_costing", access),
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,68 +59,16 @@ export async function GET(request: NextRequest) {
       ...(access.access.role === "TECH" ? { technicianId: access.access.userId } : {}),
     };
 
-    const jobs = includeParts
-      ? await dbAny.job.findMany({
-          where,
-          orderBy: { latestActivityAt: "desc" },
-          select: {
-            id: true,
-            jobNumber: true,
-            description: true,
-            customer: true,
-            date: true,
-            status: true,
-            notes: true,
-            latestActivityAt: true,
-            technician: { select: { id: true, name: true } },
-            parts: {
-              select: {
-                id: true,
-                quantity: true,
-                unitCost: true,
-                notes: true,
-                item: {
-                  select: {
-                    id: true,
-                    name: true,
-                    partNumber: true,
-                    unitOfMeasure: true,
-                    quantityOnHand: true,
-                    lowStockRedThreshold: true,
-                  },
-                },
-              },
-            },
-          },
-        })
-        : await dbAny.job.findMany({
-          where,
-          orderBy: { latestActivityAt: "desc" },
-          select: {
-            id: true,
-            jobNumber: true,
-            description: true,
-            customer: true,
-            date: true,
-            status: true,
-            latestActivityAt: true,
-            technician: { select: { id: true, name: true } },
-            parts: {
-              select: {
-                quantity: true,
-                item: {
-                  select: {
-                    quantityOnHand: true,
-                    lowStockRedThreshold: true,
-                  },
-                },
-              },
-            },
-            _count: { select: { parts: true } },
-          },
-        });
+    const visibility = getJobVisibility(access.access);
+    const jobs = await dbAny.job.findMany({
+      where,
+      orderBy: { latestActivityAt: "desc" },
+      select: includeParts ? jobDetailSelect : jobSummarySelect,
+    });
 
-    return NextResponse.json(jobs);
+    return NextResponse.json(
+      jobs.map((job: any) => (includeParts ? serializeJobDetail(job, visibility) : serializeJobSummary(job, visibility)))
+    );
   } catch (err) {
     console.error("Jobs GET error:", err);
     return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
@@ -111,24 +87,55 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const data = createSchema.parse(body);
-
-    const job = await dbAny.job.create({
-      data: {
-        organizationId: access.access.organizationId,
-        jobNumber: data.jobNumber.trim(),
-        description: data.description?.trim() || null,
-        customer: data.customer.trim(),
-        technicianId: access.access.userId,
-        date: data.date ? new Date(data.date) : new Date(),
-        notes: data.notes?.trim() || null,
-        latestActivityAt: new Date(),
-      },
-      include: {
-        technician: { select: { id: true, name: true } },
-      },
+    const data = createSchema.parse({
+      ...body,
+      title: body?.title === undefined ? undefined : normalizeOptionalText(body.title),
+      description: body?.description === undefined ? undefined : normalizeOptionalText(body.description),
+      siteName: body?.siteName === undefined ? undefined : normalizeOptionalText(body.siteName),
+      notes: body?.notes === undefined ? undefined : normalizeOptionalText(body.notes),
+      customerSummary: body?.customerSummary === undefined ? undefined : normalizeOptionalText(body.customerSummary),
     });
-    return NextResponse.json(job, { status: 201 });
+
+    const visibility = getJobVisibility(access.access);
+
+    const job = await dbAny.$transaction(async (tx: any) => {
+      const createdJob = await tx.job.create({
+        data: {
+          organizationId: access.access.organizationId,
+          jobNumber: data.jobNumber.trim(),
+          title: data.title ?? null,
+          description: data.description ?? null,
+          customer: data.customer.trim(),
+          siteName: data.siteName ?? null,
+          technicianId: access.access.userId,
+          createdByUserId: access.access.userId,
+          createdByName: access.access.name,
+          date: data.date ? new Date(data.date) : new Date(),
+          billingTotal: data.billingTotal ?? null,
+          notes: data.notes ?? null,
+          customerSummary: data.customerSummary ?? null,
+          latestActivityAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      await appendJobHistory(tx, {
+        organizationId: access.access.organizationId,
+        jobId: createdJob.id,
+        actorUserId: access.access.userId,
+        actorName: access.access.name,
+        actionType: "job_created",
+        actionLabel: "Job created",
+        details: `${data.jobNumber.trim()} created for ${data.customer.trim()}`,
+      });
+
+      return tx.job.findUnique({
+        where: { id: createdJob.id },
+        select: jobDetailSelect,
+      });
+    });
+
+    return NextResponse.json(serializeJobDetail(job, visibility), { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.errors }, { status: 400 });

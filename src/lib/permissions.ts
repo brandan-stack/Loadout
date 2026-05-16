@@ -55,6 +55,12 @@ export const ADMIN_CAPABILITY_KEYS = [
   "canEnableModules",
 ] as const;
 
+export const PRICE_VISIBILITY_KEYS = [
+  "canViewBasePrice",
+  "canViewMarginPrice",
+  "canViewTotalPrice",
+] as const;
+
 export const PERMISSION_KEYS = [
   ...PAGE_ACCESS_KEYS,
   ...INVENTORY_ACTION_KEYS,
@@ -74,12 +80,14 @@ export const FINANCIAL_VISIBILITY_VALUES = [
 
 export type PageAccessKey = (typeof PAGE_ACCESS_KEYS)[number];
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+export type PriceVisibilityKey = (typeof PRICE_VISIBILITY_KEYS)[number];
 export type RolePreset = (typeof ROLE_PRESET_VALUES)[number];
 export type FinancialVisibilityMode = (typeof FINANCIAL_VISIBILITY_VALUES)[number];
 export type FinancialField = "total" | "base" | "margin" | "supplier" | "job_costing";
 export type PermissionBooleans = Record<PermissionKey, boolean>;
+export type PriceVisibilityBooleans = Record<PriceVisibilityKey, boolean>;
 
-export interface PermissionSnapshot extends PermissionBooleans {
+export interface PermissionSnapshot extends PermissionBooleans, PriceVisibilityBooleans {
   rolePreset: RolePreset;
   financialVisibilityMode: FinancialVisibilityMode;
 }
@@ -112,11 +120,43 @@ export const USER_ACCESS_SELECT = Object.fromEntries([
   "role",
   "rolePreset",
   "financialVisibilityMode",
+  ...PRICE_VISIBILITY_KEYS,
   ...PERMISSION_KEYS,
 ].map((key) => [key, true])) as Record<string, true>;
 
 function emptyPermissions(): PermissionBooleans {
   return Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])) as PermissionBooleans;
+}
+
+function getPriceVisibilityFromMode(financialVisibilityMode: FinancialVisibilityMode): PriceVisibilityBooleans {
+  switch (financialVisibilityMode) {
+    case "total_only":
+      return {
+        canViewBasePrice: false,
+        canViewMarginPrice: false,
+        canViewTotalPrice: true,
+      };
+    case "base_only":
+      return {
+        canViewBasePrice: true,
+        canViewMarginPrice: false,
+        canViewTotalPrice: false,
+      };
+    case "base_margin_total":
+    case "full":
+      return {
+        canViewBasePrice: true,
+        canViewMarginPrice: true,
+        canViewTotalPrice: true,
+      };
+    case "none":
+    default:
+      return {
+        canViewBasePrice: false,
+        canViewMarginPrice: false,
+        canViewTotalPrice: false,
+      };
+  }
 }
 
 function toRolePreset(value: unknown, fallbackRole: UserRole): RolePreset {
@@ -144,6 +184,7 @@ export function getPresetPermissions(rolePreset: RolePreset): PermissionSnapshot
     case "ADMIN":
       return {
         ...Object.fromEntries(PERMISSION_KEYS.map((key) => [key, true])) as PermissionBooleans,
+        ...getPriceVisibilityFromMode("full"),
         rolePreset,
         financialVisibilityMode: "full",
       };
@@ -186,6 +227,7 @@ export function getPresetPermissions(rolePreset: RolePreset): PermissionSnapshot
         canBackupRestore: false,
         canClearCache: true,
         canEnableModules: false,
+        ...getPriceVisibilityFromMode("base_margin_total"),
         rolePreset,
         financialVisibilityMode: "base_margin_total",
       };
@@ -200,6 +242,7 @@ export function getPresetPermissions(rolePreset: RolePreset): PermissionSnapshot
         canViewJobSummaries: true,
         canViewOwnTools: true,
         canReturnCompanyTools: true,
+        ...getPriceVisibilityFromMode("none"),
         rolePreset,
         financialVisibilityMode: "none",
       };
@@ -223,6 +266,7 @@ export function getPresetPermissions(rolePreset: RolePreset): PermissionSnapshot
         canViewCompanyTools: true,
         canRequestCompanyTools: true,
         canReturnCompanyTools: true,
+        ...getPriceVisibilityFromMode("total_only"),
         rolePreset,
         financialVisibilityMode: "total_only",
       };
@@ -242,19 +286,25 @@ function resolveFinancialVisibilityMode(
 }
 
 export function buildPermissionSnapshot(
-  raw: Partial<Record<PermissionKey, unknown>>,
+  raw: Partial<Record<PermissionKey | PriceVisibilityKey, unknown>>,
   rolePreset: RolePreset,
   financialVisibilityMode?: FinancialVisibilityMode
 ): PermissionSnapshot {
   const preset = getPresetPermissions(rolePreset);
+  const resolvedFinancialVisibilityMode = financialVisibilityMode ?? preset.financialVisibilityMode;
   const permissions = Object.fromEntries(
     PERMISSION_KEYS.map((key) => [key, typeof raw[key] === "boolean" ? raw[key] : preset[key]])
   ) as PermissionBooleans;
+  const defaultPriceVisibility = getPriceVisibilityFromMode(resolvedFinancialVisibilityMode);
+  const priceVisibility = Object.fromEntries(
+    PRICE_VISIBILITY_KEYS.map((key) => [key, typeof raw[key] === "boolean" ? raw[key] : defaultPriceVisibility[key]])
+  ) as PriceVisibilityBooleans;
 
   return {
     ...permissions,
+    ...priceVisibility,
     rolePreset,
-    financialVisibilityMode: financialVisibilityMode ?? preset.financialVisibilityMode,
+    financialVisibilityMode: resolvedFinancialVisibilityMode,
   };
 }
 
@@ -333,22 +383,38 @@ export function getDefaultHomePath(access: Pick<UserAccessContext, PageAccessKey
 
 export function canViewFinancialValue(
   financialVisibilityMode: FinancialVisibilityMode,
-  field: FinancialField
+  field: FinancialField,
+  priceVisibility?: Partial<PriceVisibilityBooleans>
 ) {
+  const resolvedPriceVisibility = {
+    ...getPriceVisibilityFromMode(financialVisibilityMode),
+    ...priceVisibility,
+  };
+
   switch (financialVisibilityMode) {
-    case "none":
-      return false;
-    case "total_only":
-      return field === "total";
-    case "base_only":
-      return field === "base";
-    case "base_margin_total":
-      return field === "base" || field === "margin" || field === "total";
     case "full":
-      return true;
+      if (field === "supplier" || field === "job_costing") {
+        return true;
+      }
+      break;
     default:
-      return false;
+      if (field === "supplier" || field === "job_costing") {
+        return false;
+      }
+      break;
   }
+
+  if (field === "base") {
+    return resolvedPriceVisibility.canViewBasePrice;
+  }
+  if (field === "margin") {
+    return resolvedPriceVisibility.canViewMarginPrice;
+  }
+  if (field === "total") {
+    return resolvedPriceVisibility.canViewTotalPrice;
+  }
+
+  return false;
 }
 
 export function pickPermissionBooleans(source: Partial<Record<PermissionKey, boolean | undefined>>) {

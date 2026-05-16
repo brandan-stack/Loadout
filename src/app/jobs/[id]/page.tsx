@@ -1,39 +1,24 @@
-import { redirect } from "next/navigation";
 import { JobDetailPageClient } from "@/components/jobs/job-detail-page-client";
 import { prisma } from "@/lib/db";
+import { serializeJobDetail } from "@/lib/jobs/presenter";
+import { jobDetailSelect } from "@/lib/jobs/selects";
 import { canViewFinancialValue, requirePageAccess } from "@/lib/permissions";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const access = await requirePageAccess("canViewJobs");
-  const showFinancials =
-    canViewFinancialValue(access.financialVisibilityMode, "base") ||
-    canViewFinancialValue(access.financialVisibilityMode, "total") ||
-    canViewFinancialValue(access.financialVisibilityMode, "job_costing");
+  const showBaseCosts =
+    canViewFinancialValue(access.financialVisibilityMode, "base", access) ||
+    canViewFinancialValue(access.financialVisibilityMode, "job_costing", access);
+  const showMargin = canViewFinancialValue(access.financialVisibilityMode, "margin", access);
+  const showTotal =
+    canViewFinancialValue(access.financialVisibilityMode, "total", access) ||
+    canViewFinancialValue(access.financialVisibilityMode, "job_costing", access);
 
   const { id } = await params;
 
   const job = await prisma.job.findFirst({
     where: { id, organizationId: access.organizationId },
-    select: {
-      id: true,
-      jobNumber: true,
-      customer: true,
-      date: true,
-      status: true,
-      notes: true,
-      technicianId: true,
-      technician: { select: { id: true, name: true } },
-      parts: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          quantity: true,
-          unitCost: true,
-          notes: true,
-          item: { select: { id: true, name: true, partNumber: true, unitOfMeasure: true } },
-        },
-      },
-    },
+    select: jobDetailSelect,
   });
 
   let initialJobError: string | null = null;
@@ -47,6 +32,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     description?: string;
     quantityOnHand: number;
     unitOfMeasure: string;
+    lastUnitCost?: number;
+    marginPercent?: number;
   }> = [];
 
   if (!job) {
@@ -54,23 +41,14 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   } else if (access.role === "TECH" && job.technicianId !== access.userId) {
     initialJobError = "You don't have permission to view this job.";
   } else {
-    const canEditJob = job.status !== "INVOICED" && access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId);
-    initialJob = {
-      ...job,
-      date: job.date.toISOString(),
-      notes: job.notes ?? undefined,
-      parts: job.parts.map((part) => ({
-        ...part,
-        unitCost: showFinancials ? part.unitCost : 0,
-        notes: part.notes ?? undefined,
-        item: {
-          ...part.item,
-          partNumber: part.item.partNumber ?? undefined,
-        },
-      })),
-    };
+    const canManageJob = access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId);
+    initialJob = serializeJobDetail(job, {
+      showBaseCosts,
+      showMargin,
+      showTotal,
+    });
 
-    if (canEditJob) {
+    if (canManageJob) {
       const items = await prisma.item.findMany({
         where: { organizationId: access.organizationId },
         orderBy: { createdAt: "desc" },
@@ -83,6 +61,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           description: true,
           quantityOnHand: true,
           unitOfMeasure: true,
+          lastUnitCost: true,
+          marginPercent: true,
         },
       });
 
@@ -92,20 +72,26 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         partNumber: item.partNumber ?? undefined,
         modelNumber: item.modelNumber ?? undefined,
         description: item.description ?? undefined,
+        lastUnitCost: item.lastUnitCost ?? undefined,
+        marginPercent: item.marginPercent ?? undefined,
       }));
     }
   }
 
-  const canEditJob = job
-    ? job.status !== "INVOICED" && access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId)
+  const canManageJob = job
+    ? access.canEditJobs && (access.role !== "TECH" || job.technicianId === access.userId)
     : false;
 
   return (
     <JobDetailPageClient
-      currentUserId={access.userId}
-      canEditJob={canEditJob}
-      canChangeStatus={access.canCloseJobs || access.canInvoiceJobs}
-      showFinancials={showFinancials}
+      canManageJob={canManageJob}
+      canCloseJobs={access.canCloseJobs}
+      canInvoiceJobs={access.canInvoiceJobs}
+      canDeleteJobs={canManageJob}
+      canEditBillingTotal={canManageJob && showTotal}
+      showBaseCosts={showBaseCosts}
+      showMargin={showMargin}
+      showTotal={showTotal}
       jobId={id}
       initialJob={initialJob}
       initialItems={initialItems}

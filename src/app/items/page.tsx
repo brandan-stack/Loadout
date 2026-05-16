@@ -36,6 +36,7 @@ export default async function ItemsPage({
         preferredSupplier: { select: { id: true, name: true } },
         defaultLocation: { select: { id: true, name: true } },
         lastUnitCost: true,
+        marginPercent: true,
         unitOfMeasure: true,
         lastMovementAt: true,
         lastMovementType: true,
@@ -107,10 +108,16 @@ export default async function ItemsPage({
         defaultLocationName: item.defaultLocation?.name ?? undefined,
         defaultLocationId: item.defaultLocation?.id ?? undefined,
         lastUnitCost: item.lastUnitCost ?? undefined,
+        marginPercent: item.marginPercent ?? 0,
         lastMovementAt: item.lastMovementAt?.toISOString(),
         lastMovementType: item.lastMovementType ?? undefined,
         linkedJobsCount: item._count.jobParts,
       }))}
+      priceVisibility={{
+        canViewBasePrice: access.canViewBasePrice,
+        canViewMarginPrice: access.canViewMarginPrice,
+        canViewTotalPrice: access.canViewTotalPrice,
+      }}
       initialSuppliers={suppliers}
       initialLocations={locations.map((location) => ({
         id: location.id,

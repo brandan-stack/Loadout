@@ -1,6 +1,7 @@
 // src/lib/features/settings-service.ts - Feature toggle and settings management
 
 import { prisma } from "@/lib/db";
+import type { FinancialVisibilityMode } from "@/lib/permissions";
 
 export interface AppSettings {
   premiumEnabled: boolean;
@@ -12,7 +13,10 @@ export interface AppSettings {
   allowOfflineCompanyToolFlows: boolean;
   offlineAutoSync: boolean;
   offlineCacheDays: number;
-  defaultFinancialVisibilityMode: string;
+  defaultFinancialVisibilityMode: FinancialVisibilityMode;
+  defaultCanViewBasePrice: boolean;
+  defaultCanViewMarginPrice: boolean;
+  defaultCanViewTotalPrice: boolean;
   enableMultiLocation: boolean;
   enableVariants: boolean;
   enableImportWizard: boolean;
@@ -53,6 +57,9 @@ export async function getSettings(organizationId: string): Promise<AppSettings> 
       offlineAutoSync: true,
       offlineCacheDays: 30,
       defaultFinancialVisibilityMode: "total_only",
+      defaultCanViewBasePrice: false,
+      defaultCanViewMarginPrice: false,
+      defaultCanViewTotalPrice: true,
       enableMultiLocation: false,
       enableVariants: false,
       enableImportWizard: false,
@@ -78,6 +85,9 @@ export async function getSettings(organizationId: string): Promise<AppSettings> 
     offlineAutoSync: settings.offlineAutoSync,
     offlineCacheDays: settings.offlineCacheDays,
     defaultFinancialVisibilityMode: settings.defaultFinancialVisibilityMode,
+    defaultCanViewBasePrice: settings.defaultCanViewBasePrice,
+    defaultCanViewMarginPrice: settings.defaultCanViewMarginPrice,
+    defaultCanViewTotalPrice: settings.defaultCanViewTotalPrice,
     enableMultiLocation: settings.enableMultiLocation,
     enableVariants: settings.enableVariants,
     enableImportWizard: settings.enableImportWizard,
@@ -106,6 +116,9 @@ const DEFAULT_SETTINGS_CREATE = {
   offlineAutoSync: true,
   offlineCacheDays: 30,
   defaultFinancialVisibilityMode: "total_only",
+  defaultCanViewBasePrice: false,
+  defaultCanViewMarginPrice: false,
+  defaultCanViewTotalPrice: true,
   enableMultiLocation: false,
   enableVariants: false,
   enableImportWizard: false,
@@ -145,6 +158,9 @@ export async function updateSettings(
     offlineAutoSync: updated.offlineAutoSync,
     offlineCacheDays: updated.offlineCacheDays,
     defaultFinancialVisibilityMode: updated.defaultFinancialVisibilityMode,
+    defaultCanViewBasePrice: updated.defaultCanViewBasePrice,
+    defaultCanViewMarginPrice: updated.defaultCanViewMarginPrice,
+    defaultCanViewTotalPrice: updated.defaultCanViewTotalPrice,
     enableMultiLocation: updated.enableMultiLocation,
     enableVariants: updated.enableVariants,
     enableImportWizard: updated.enableImportWizard,

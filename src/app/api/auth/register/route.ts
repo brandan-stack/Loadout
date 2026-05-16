@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminAccessSeed } from "@/lib/admin-access";
 import { prisma } from "@/lib/db";
 import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -10,6 +11,7 @@ const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
 // Allow 5 registrations per hour per IP
 const REGISTER_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 const MAX_FIELD_LENGTH = 320;
+const adminAccessSeed = getAdminAccessSeed();
 
 export async function POST(request: NextRequest) {
 	try {
@@ -86,6 +88,7 @@ export async function POST(request: NextRequest) {
 						name: trimmedName,
 						email: trimmedEmail,
 						role: "SUPER_ADMIN",
+						...adminAccessSeed,
 						passwordHash,
 						organizationId: organization.id,
 					},

@@ -60,6 +60,7 @@ model Item {
   preferredSupplierId   String?
   preferredSupplier     Supplier?  @relation(fields: [preferredSupplierId], references: [id])
   lastUnitCost          Float?
+  marginPercent         Float   @default(0)
   
   // Variants (Wave B feature)
   unitOfMeasure         String   @default("each")
@@ -163,8 +164,11 @@ model Supplier {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name      String
   contact   String?
+  emailContacts Json   @default("[]")
   website   String?
   leadTimeD Int      @default(7)
+  isPreferred Boolean @default(false)
+  isFastest Boolean   @default(false)
   notes     String?
   archived  Boolean  @default(false)
   items     Item[]   @relation()
@@ -173,6 +177,8 @@ model Supplier {
 
   @@unique([organizationId, name])
   @@index([organizationId])
+  @@index([organizationId, isPreferred])
+  @@index([organizationId, isFastest])
 }
 
 model AppUser {
@@ -184,6 +190,9 @@ model AppUser {
   role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
   rolePreset       String    @default("STANDARD")
   financialVisibilityMode String @default("total_only")
+  canViewBasePrice Boolean @default(false)
+  canViewMarginPrice Boolean @default(false)
+  canViewTotalPrice Boolean @default(false)
   canViewDashboard Boolean @default(false)
   canViewJobs Boolean @default(false)
   canViewInventory Boolean @default(false)
@@ -246,15 +255,29 @@ model Job {
   organizationId String
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   jobNumber    String
+  title        String?
   description  String?
   customer     String
+  siteName     String?
   technicianId String
   technician   AppUser   @relation("TechJobs", fields: [technicianId], references: [id])
+  createdByUserId String?
+  createdByName String?
   date         DateTime  @default(now())
   status       String    @default("OPEN") // "OPEN" | "COMPLETED" | "INVOICED"
+  billingTotal Float?
   notes        String?
+  customerSummary String?
+  completedAt  DateTime?
+  completedByUserId String?
+  completedByName String?
+  invoiceNumber String?
+  invoiceDate  DateTime?
+  invoicedByUserId String?
+  invoicedByName String?
   latestActivityAt DateTime @default(now())
   parts        JobPart[]
+  history      JobHistory[]
   transactions InventoryTransaction[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -265,6 +288,8 @@ model Job {
   @@index([status])
   @@index([organizationId, jobNumber])
   @@index([organizationId, latestActivityAt])
+  @@index([organizationId, status, latestActivityAt])
+  @@index([organizationId, invoiceNumber])
 }
 
 model JobPart {
@@ -279,8 +304,11 @@ model JobPart {
   performedByUser AppUser? @relation("JobPartPerformedBy", fields: [performedByUserId], references: [id])
   quantity  Int
   unitCost  Float    @default(0)
+  markupPercent Float @default(0)
+  unitSell  Float    @default(0)
   costSnapshot Float?
   itemNameSnapshot String?
+  itemPartNumberSnapshot String?
   jobDescriptionSnapshot String?
   returnedQuantity Int @default(0)
   notes     String?
@@ -291,6 +319,24 @@ model JobPart {
   @@index([itemId])
   @@index([inventoryTransactionId])
   @@index([performedByUserId])
+}
+
+model JobHistory {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  actorUserId    String?
+  actorName      String?
+  actionType     String
+  actionLabel    String
+  details        String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([jobId, createdAt])
 }
 
 model Tool {
@@ -514,6 +560,9 @@ model Settings {
   offlineAutoSync       Boolean   @default(true)
   offlineCacheDays      Int       @default(30)
   defaultFinancialVisibilityMode String @default("total_only")
+  defaultCanViewBasePrice Boolean @default(false)
+  defaultCanViewMarginPrice Boolean @default(false)
+  defaultCanViewTotalPrice Boolean @default(true)
   
   // Feature toggles
   enableMultiLocation   Boolean   @default(false)

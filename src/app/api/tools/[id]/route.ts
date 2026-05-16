@@ -21,6 +21,13 @@ const updateToolSchema = z.object({
   photoUrl: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
   assignedUserId: z.string().optional().nullable(),
+}).superRefine((value, context) => {
+  if (value.scope === "PERSONAL" && value.assignedUserId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["assignedUserId"], message: "Personal tools cannot be assigned like company tools." });
+  }
+  if (value.scope === "COMPANY" && value.ownerId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["ownerId"], message: "Company tools cannot have a personal owner." });
+  }
 });
 
 function normalizeOptionalText(value: unknown) {
@@ -118,6 +125,23 @@ export async function PUT(
       ownerId: rawBody?.ownerId === undefined ? undefined : normalizeOptionalText(rawBody.ownerId),
       assignedUserId: rawBody?.assignedUserId === undefined ? undefined : normalizeOptionalText(rawBody.assignedUserId),
     });
+
+    if (data.scope && data.scope !== existing.type) {
+      return NextResponse.json({ error: "Tool scope cannot be changed" }, { status: 400 });
+    }
+
+    if (existing.type === "PERSONAL") {
+      if (data.assignedUserId) {
+        return NextResponse.json({ error: "Personal tools cannot be assigned through the company flow" }, { status: 400 });
+      }
+      if (data.ownerId && data.ownerId !== existing.ownerId && !(access.access.canManageCompanyTools || access.access.canManageUsers)) {
+        return NextResponse.json({ error: "You cannot transfer ownership of this personal tool" }, { status: 403 });
+      }
+    }
+
+    if (existing.type === "COMPANY" && data.ownerId) {
+      return NextResponse.json({ error: "Company tools cannot have a personal owner" }, { status: 400 });
+    }
 
     if (data.ownerId) {
       const owner = await dbAny.appUser.findFirst({

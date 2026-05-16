@@ -63,24 +63,55 @@ async function validateLocationOwnership(tx: any, organizationId: string, locati
   return location;
 }
 
-async function applyLocationDelta(tx: any, itemId: string, locationId: string | null | undefined, delta: number) {
+async function applyLocationDelta(
+  tx: any,
+  item: { id: string; quantityOnHand: number },
+  locationId: string | null | undefined,
+  delta: number,
+  options?: { reconcileWithItemQuantity?: boolean }
+) {
   if (!locationId || delta === 0) {
     return;
   }
 
   const stock = await tx.locationStock.findUnique({
-    where: { locationId_itemId: { locationId, itemId } },
+    where: { locationId_itemId: { locationId, itemId: item.id } },
   });
+
+  const reconcileWithItemQuantity = Boolean(options?.reconcileWithItemQuantity && delta < 0);
+
+  async function loadTrackedStocks() {
+    return tx.locationStock.findMany({
+      where: { itemId: item.id },
+      select: { id: true, locationId: true, quantityOnHand: true },
+    });
+  }
 
   if (!stock) {
     if (delta < 0) {
+      if (reconcileWithItemQuantity) {
+        const trackedStocks = await loadTrackedStocks();
+        const nextQuantityOnHand = item.quantityOnHand + delta;
+
+        if (trackedStocks.length === 0 && nextQuantityOnHand >= 0) {
+          await tx.locationStock.create({
+            data: {
+              locationId,
+              itemId: item.id,
+              quantityOnHand: nextQuantityOnHand,
+            },
+          });
+          return;
+        }
+      }
+
       throw new Error("Location stock is insufficient");
     }
 
     await tx.locationStock.create({
       data: {
         locationId,
-        itemId,
+        itemId: item.id,
         quantityOnHand: delta,
       },
     });
@@ -88,6 +119,21 @@ async function applyLocationDelta(tx: any, itemId: string, locationId: string | 
   }
 
   if (stock.quantityOnHand + delta < 0) {
+    if (reconcileWithItemQuantity) {
+      const trackedStocks = await loadTrackedStocks();
+      const nextQuantityOnHand = item.quantityOnHand + delta;
+      const canReconcileSingleTrackedLocation =
+        trackedStocks.length === 1 && trackedStocks[0]?.id === stock.id && nextQuantityOnHand >= 0;
+
+      if (canReconcileSingleTrackedLocation) {
+        await tx.locationStock.update({
+          where: { id: stock.id },
+          data: { quantityOnHand: nextQuantityOnHand },
+        });
+        return;
+      }
+    }
+
     throw new Error("Location stock is insufficient");
   }
 
@@ -115,6 +161,7 @@ async function loadInventoryItemSummary(tx: any, organizationId: string, itemId:
       preferredSupplier: { select: { id: true, name: true } },
       defaultLocation: { select: { id: true, name: true } },
       lastUnitCost: true,
+      marginPercent: true,
       unitOfMeasure: true,
       lastMovementAt: true,
       lastMovementType: true,
@@ -136,6 +183,7 @@ async function loadInventoryItemSummary(tx: any, organizationId: string, itemId:
         defaultLocationName: item.defaultLocation?.name ?? undefined,
         defaultLocationId: item.defaultLocation?.id ?? undefined,
         lastUnitCost: item.lastUnitCost ?? undefined,
+        marginPercent: item.marginPercent ?? 0,
         lastMovementAt: item.lastMovementAt?.toISOString(),
         lastMovementType: item.lastMovementType ?? undefined,
         linkedJobsCount: item._count.jobParts,
@@ -228,11 +276,13 @@ export async function POST(
 
       if (body.action === "move_stock") {
         if (item.quantityOnHand < quantity) {
-          throw new Error("Insufficient quantity available");
+          throw new Error(`Insufficient quantity available. Available: ${item.quantityOnHand}, requested: ${quantity}`);
         }
 
-        await applyLocationDelta(tx, item.id, fromLocation?.id ?? item.defaultLocationId, -quantity);
-        await applyLocationDelta(tx, item.id, toLocation?.id, quantity);
+        await applyLocationDelta(tx, item, fromLocation?.id ?? item.defaultLocationId, -quantity, {
+          reconcileWithItemQuantity: true,
+        });
+        await applyLocationDelta(tx, item, toLocation?.id, quantity);
         transactionData = {
           ...transactionData,
           quantityDelta: 0,
@@ -244,7 +294,7 @@ export async function POST(
 
       if (body.action === "receive_stock") {
         nextQuantityOnHand += quantity;
-        await applyLocationDelta(tx, item.id, toLocation?.id ?? item.defaultLocationId, quantity);
+        await applyLocationDelta(tx, item, toLocation?.id ?? item.defaultLocationId, quantity);
         transactionData = {
           ...transactionData,
           quantityDelta: quantity,
@@ -264,7 +314,9 @@ export async function POST(
           await applyLocationDelta(tx, item.id, toLocation?.id ?? item.defaultLocationId, quantityDelta);
         }
         if (quantityDelta < 0) {
-          await applyLocationDelta(tx, item.id, fromLocation?.id ?? item.defaultLocationId, quantityDelta);
+          await applyLocationDelta(tx, item, fromLocation?.id ?? item.defaultLocationId, quantityDelta, {
+            reconcileWithItemQuantity: true,
+          });
         }
 
         transactionData = {
@@ -285,11 +337,13 @@ export async function POST(
           throw new Error("Job not found");
         }
         if (item.quantityOnHand < quantity) {
-          throw new Error("Insufficient quantity available");
+          throw new Error(`Insufficient quantity available. Available: ${item.quantityOnHand}, requested: ${quantity}`);
         }
 
         nextQuantityOnHand -= quantity;
-        await applyLocationDelta(tx, item.id, fromLocation?.id ?? item.defaultLocationId, -quantity);
+        await applyLocationDelta(tx, item, fromLocation?.id ?? item.defaultLocationId, -quantity, {
+          reconcileWithItemQuantity: true,
+        });
 
         transactionData = {
           ...transactionData,
@@ -361,7 +415,7 @@ export async function POST(
         }
 
         nextQuantityOnHand += quantity;
-        await applyLocationDelta(tx, item.id, toLocation?.id, quantity);
+  await applyLocationDelta(tx, item, toLocation?.id, quantity);
 
         transactionData = {
           ...transactionData,

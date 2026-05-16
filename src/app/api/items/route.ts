@@ -8,6 +8,27 @@ import { z } from "zod";
 
 const dbAny = prisma as any;
 
+function mapItemResponse(item: any) {
+  return {
+    ...item,
+    manufacturer: item.manufacturer ?? undefined,
+    partNumber: item.partNumber ?? undefined,
+    modelNumber: item.modelNumber ?? undefined,
+    category: item.category ?? undefined,
+    description: item.description ?? undefined,
+    photoUrl: item.photoUrl ?? undefined,
+    preferredSupplierName: item.preferredSupplier?.name ?? undefined,
+    preferredSupplierId: item.preferredSupplier?.id ?? undefined,
+    defaultLocationName: item.defaultLocation?.name ?? undefined,
+    defaultLocationId: item.defaultLocation?.id ?? undefined,
+    lastUnitCost: item.lastUnitCost ?? undefined,
+    marginPercent: item.marginPercent ?? 0,
+    lastMovementAt: item.lastMovementAt?.toISOString(),
+    lastMovementType: item.lastMovementType ?? undefined,
+    linkedJobsCount: item._count?.jobParts ?? 0,
+  };
+}
+
 function normalizeOptionalText(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -29,6 +50,7 @@ const itemSchema = z.object({
   lowStockRedThreshold: z.number().int().min(0).default(2),
   preferredSupplierId: z.string().optional(),
   lastUnitCost: z.number().min(0).optional(),
+  marginPercent: z.number().min(0).default(0),
   unitOfMeasure: z.string().default("units"),
   enableLotTracking: z.boolean().default(false),
   enableExpiryTracking: z.boolean().default(false),
@@ -68,6 +90,7 @@ export async function GET(request: NextRequest) {
         preferredSupplier: { select: { id: true, name: true } },
         defaultLocation: { select: { id: true, name: true } },
         lastUnitCost: true,
+        marginPercent: true,
         unitOfMeasure: true,
         lastMovementAt: true,
         lastMovementType: true,
@@ -76,7 +99,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ lastMovementAt: "desc" }, { name: "asc" }],
     });
 
-    return NextResponse.json(items);
+    return NextResponse.json(items.map(mapItemResponse));
   } catch (error) {
     console.error("Item GET error:", error);
     return NextResponse.json({ error: "Failed to fetch items" }, { status: 500 });
@@ -181,7 +204,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(item, { status: 201 });
+    return NextResponse.json(mapItemResponse(item), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       const message = error.errors[0]?.message || "Invalid item data";

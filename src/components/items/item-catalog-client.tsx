@@ -20,7 +20,7 @@ import {
   subscribeToOfflineQueue,
   type OfflineQueueSummary,
 } from "@/lib/offline-queue";
-import { canViewFinancialValue, type FinancialVisibilityMode } from "@/lib/financial-visibility";
+import { canViewFinancialValue, type FinancialVisibilityMode, type PriceVisibilitySnapshot } from "@/lib/financial-visibility";
 import { StatCard } from "@/components/cards/StatCard";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { SidePanel } from "@/components/panels/SidePanel";
@@ -69,6 +69,7 @@ export interface InventoryPageItem {
   defaultLocationId?: string;
   defaultLocationName?: string;
   lastUnitCost?: number;
+  marginPercent: number;
   unitOfMeasure: string;
   lastMovementAt?: string;
   lastMovementType?: string;
@@ -77,6 +78,7 @@ export interface InventoryPageItem {
 
 interface ItemCatalogClientProps {
   financialVisibilityMode: FinancialVisibilityMode;
+  priceVisibility: PriceVisibilitySnapshot;
   permissions: {
     canAddInventory: boolean;
     canEditInventory: boolean;
@@ -108,6 +110,7 @@ type CreateItemDraft = {
   unitOfMeasure: string;
   locationId: string;
   lastUnitCost: string;
+  marginPercent: string;
 };
 type MovementDraft = {
   action: MovementAction;
@@ -134,7 +137,43 @@ const EMPTY_CREATE_DRAFT: CreateItemDraft = {
   unitOfMeasure: "units",
   locationId: "",
   lastUnitCost: "",
+  marginPercent: "0",
 };
+
+function normalizeMarginPercent(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeInventoryItem(item: InventoryPageItem): InventoryPageItem {
+  return {
+    ...item,
+    marginPercent: normalizeMarginPercent(item.marginPercent),
+    linkedJobsCount: typeof item.linkedJobsCount === "number" && Number.isFinite(item.linkedJobsCount) ? item.linkedJobsCount : 0,
+  };
+}
+
+function createItemDraftFromItem(item?: InventoryPageItem): CreateItemDraft {
+  if (!item) {
+    return EMPTY_CREATE_DRAFT;
+  }
+
+  return {
+    name: item.name,
+    manufacturer: item.manufacturer ?? "",
+    partNumber: item.partNumber ?? "",
+    modelNumber: item.modelNumber ?? "",
+    category: item.category ?? "",
+    description: item.description ?? "",
+    quantityOnHand: String(item.quantityOnHand),
+    lowStockAmberThreshold: String(item.lowStockAmberThreshold),
+    lowStockRedThreshold: String(item.lowStockRedThreshold),
+    preferredSupplierId: item.preferredSupplierId ?? "",
+    unitOfMeasure: item.unitOfMeasure,
+    locationId: item.defaultLocationId ?? "",
+    lastUnitCost: item.lastUnitCost?.toString() ?? "",
+    marginPercent: normalizeMarginPercent(item.marginPercent).toString(),
+  };
+}
 
 function createMovementDraft(item?: InventoryPageItem, action: MovementAction = "receive_stock"): MovementDraft {
   return {
@@ -172,6 +211,32 @@ function parseCurrency(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function parsePercent(value: string) {
+  if (!value.trim()) {
+    return 0;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function formatUtcDate(value?: string) {
+  if (!value) {
+    return "No date";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "No date";
+  }
+
+  return `${parsed.getUTCFullYear()}-${padDatePart(parsed.getUTCMonth() + 1)}-${padDatePart(parsed.getUTCDate())}`;
+}
+
 function getStockTone(item: InventoryPageItem): "green" | "orange" | "red" {
   if (item.quantityOnHand <= item.lowStockRedThreshold) {
     return "red";
@@ -199,7 +264,11 @@ function formatDateTime(value?: string) {
   }
 
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "No movement yet" : parsed.toLocaleString();
+  if (Number.isNaN(parsed.getTime())) {
+    return "No movement yet";
+  }
+
+  return `${parsed.getUTCFullYear()}-${padDatePart(parsed.getUTCMonth() + 1)}-${padDatePart(parsed.getUTCDate())} ${padDatePart(parsed.getUTCHours())}:${padDatePart(parsed.getUTCMinutes())}:${padDatePart(parsed.getUTCSeconds())} UTC`;
 }
 
 function formatMoney(value?: number) {
@@ -212,6 +281,27 @@ function formatMoney(value?: number) {
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatPercent(value?: number) {
+  const normalizedValue = normalizeMarginPercent(value);
+  return `${Number.isInteger(normalizedValue) ? normalizedValue.toFixed(0) : normalizedValue.toFixed(1)}%`;
+}
+
+function getItemMarginAmount(item: Pick<InventoryPageItem, "lastUnitCost" | "marginPercent">) {
+  if (item.lastUnitCost === undefined) {
+    return undefined;
+  }
+
+  return item.lastUnitCost * (normalizeMarginPercent(item.marginPercent) / 100);
+}
+
+function getItemTotalCost(item: Pick<InventoryPageItem, "lastUnitCost" | "marginPercent">) {
+  if (item.lastUnitCost === undefined) {
+    return undefined;
+  }
+
+  return item.lastUnitCost + getItemMarginAmount(item)!;
 }
 
 function buildItemSearchText(item: InventoryPageItem) {
@@ -279,6 +369,7 @@ function applyMovementOptimistically(
 
 export function ItemCatalogClient({
   financialVisibilityMode,
+  priceVisibility,
   permissions,
   initialItems,
   initialSuppliers,
@@ -286,17 +377,18 @@ export function ItemCatalogClient({
   initialJobs,
   initialSelectedItemId,
 }: ItemCatalogClientProps) {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState(() => initialItems.map(normalizeInventoryItem));
   const [suppliers, setSuppliers] = useState(initialSuppliers);
   const [locations] = useState(initialLocations);
   const [jobs] = useState(initialJobs);
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(initialSelectedItemId ?? initialItems[0]?.id ?? null);
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [editorState, setEditorState] = useState<{ open: boolean; itemId?: string }>({ open: false });
   const [createDraft, setCreateDraft] = useState<CreateItemDraft>(EMPTY_CREATE_DRAFT);
-  const [createError, setCreateError] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [editorError, setEditorError] = useState("");
+  const [savingItem, setSavingItem] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [movementItemId, setMovementItemId] = useState<string | null>(null);
   const [movementDraft, setMovementDraft] = useState<MovementDraft>(createMovementDraft());
   const [movementError, setMovementError] = useState("");
@@ -306,11 +398,13 @@ export function ItemCatalogClient({
   useEffect(() => subscribeToOfflineQueue(() => setQueueSummary(getOfflineQueueSummary())), []);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  const editingItem = items.find((item) => item.id === editorState.itemId) ?? null;
   const movementItem = items.find((item) => item.id === movementItemId) ?? null;
   const lowCount = items.filter((item) => getStockTone(item) === "orange").length;
   const criticalCount = items.filter((item) => getStockTone(item) === "red").length;
-  const visibleBase = canViewFinancialValue(financialVisibilityMode, "base");
-  const visibleTotal = canViewFinancialValue(financialVisibilityMode, "total");
+  const visibleBase = canViewFinancialValue(financialVisibilityMode, "base", priceVisibility);
+  const visibleMargin = canViewFinancialValue(financialVisibilityMode, "margin", priceVisibility);
+  const visibleTotal = canViewFinancialValue(financialVisibilityMode, "total", priceVisibility);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -330,14 +424,16 @@ export function ItemCatalogClient({
     });
   }, [items, search, stockFilter]);
 
-  async function refreshItems() {
-    const response = await fetch("/api/items", { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error("Failed to refresh inventory");
-    }
-    const payload = (await response.json()) as InventoryPageItem[];
-    setItems(payload);
-    setSuppliers((current) => current);
+  function openCreatePanel() {
+    setEditorError("");
+    setCreateDraft(EMPTY_CREATE_DRAFT);
+    setEditorState({ open: true });
+  }
+
+  function openEditPanel(item: InventoryPageItem) {
+    setEditorError("");
+    setCreateDraft(createItemDraftFromItem(item));
+    setEditorState({ open: true, itemId: item.id });
   }
 
   function openMovement(item: InventoryPageItem, action: MovementAction) {
@@ -346,50 +442,69 @@ export function ItemCatalogClient({
     setMovementError("");
   }
 
-  async function handleCreateItem() {
+  async function refreshItemSnapshot(itemId: string) {
+    const response = await fetch(`/api/items/${itemId}`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Failed to refresh item availability.");
+    }
+
+    const freshItem = normalizeInventoryItem((await response.json()) as InventoryPageItem);
+    setItems((current) => current.map((item) => (item.id === freshItem.id ? freshItem : item)));
+    return freshItem;
+  }
+
+  async function handleSaveItem() {
     const quantityOnHand = parseInteger(createDraft.quantityOnHand);
     const lowThreshold = parseInteger(createDraft.lowStockAmberThreshold);
     const criticalThreshold = parseInteger(createDraft.lowStockRedThreshold);
+    const marginPercent = parsePercent(createDraft.marginPercent);
 
     if (!createDraft.name.trim()) {
-      setCreateError("Item name is required.");
+      setEditorError("Item name is required.");
       return;
     }
     if (quantityOnHand === undefined || quantityOnHand < 0) {
-      setCreateError("Quantity on hand must be a whole number of 0 or greater.");
+      setEditorError("Quantity on hand must be a whole number of 0 or greater.");
       return;
     }
     if (lowThreshold === undefined || lowThreshold < 1) {
-      setCreateError("Low threshold must be at least 1.");
+      setEditorError("Low threshold must be at least 1.");
       return;
     }
     if (criticalThreshold === undefined || criticalThreshold < 0 || criticalThreshold > lowThreshold) {
-      setCreateError("Critical threshold must be 0 or greater and not exceed the low threshold.");
+      setEditorError("Critical threshold must be 0 or greater and not exceed the low threshold.");
+      return;
+    }
+    if (marginPercent === undefined || marginPercent < 0) {
+      setEditorError("Margin percent must be 0 or greater.");
       return;
     }
 
-    setCreating(true);
-    setCreateError("");
+    setSavingItem(true);
+    setEditorError("");
+
+    const payload = {
+      name: createDraft.name.trim(),
+      manufacturer: normalizeOptionalText(createDraft.manufacturer),
+      partNumber: normalizeOptionalText(createDraft.partNumber),
+      modelNumber: normalizeOptionalText(createDraft.modelNumber),
+      category: normalizeOptionalText(createDraft.category),
+      description: normalizeOptionalText(createDraft.description),
+      quantityOnHand,
+      lowStockAmberThreshold: lowThreshold,
+      lowStockRedThreshold: criticalThreshold,
+      preferredSupplierId: normalizeOptionalText(createDraft.preferredSupplierId),
+      lastUnitCost: parseCurrency(createDraft.lastUnitCost),
+      marginPercent,
+      unitOfMeasure: normalizeOptionalText(createDraft.unitOfMeasure) ?? "units",
+      locationId: normalizeOptionalText(createDraft.locationId),
+    };
 
     try {
-      const response = await fetch("/api/items", {
-        method: "POST",
+      const response = await fetch(editorState.itemId ? `/api/items/${editorState.itemId}` : "/api/items", {
+        method: editorState.itemId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: createDraft.name.trim(),
-          manufacturer: normalizeOptionalText(createDraft.manufacturer),
-          partNumber: normalizeOptionalText(createDraft.partNumber),
-          modelNumber: normalizeOptionalText(createDraft.modelNumber),
-          category: normalizeOptionalText(createDraft.category),
-          description: normalizeOptionalText(createDraft.description),
-          quantityOnHand,
-          lowStockAmberThreshold: lowThreshold,
-          lowStockRedThreshold: criticalThreshold,
-          preferredSupplierId: normalizeOptionalText(createDraft.preferredSupplierId),
-          lastUnitCost: parseCurrency(createDraft.lastUnitCost),
-          unitOfMeasure: normalizeOptionalText(createDraft.unitOfMeasure) ?? "units",
-          locationId: normalizeOptionalText(createDraft.locationId),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -397,13 +512,46 @@ export function ItemCatalogClient({
         throw new Error(payload?.error || "Failed to add item.");
       }
 
-      await refreshItems();
-      setShowCreatePanel(false);
+      const savedItem = normalizeInventoryItem((await response.json()) as InventoryPageItem);
+      setItems((current) => {
+        if (editorState.itemId) {
+          return current.map((item) => (item.id === savedItem.id ? savedItem : item));
+        }
+
+        return [savedItem, ...current];
+      });
+      setSelectedItemId(savedItem.id);
+      setEditorState({ open: false });
       setCreateDraft(EMPTY_CREATE_DRAFT);
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Failed to add item.");
+      setEditorError(error instanceof Error ? error.message : "Failed to save item.");
     } finally {
-      setCreating(false);
+      setSavingItem(false);
+    }
+  }
+
+  async function handleDeleteItem(item: InventoryPageItem) {
+    if (!confirm("Are you sure you want to delete this item?")) {
+      return;
+    }
+
+    setDeletingItemId(item.id);
+    setEditorError("");
+
+    try {
+      const response = await fetch(`/api/items/${item.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to delete item.");
+      }
+
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      setSelectedItemId((current) => (current === item.id ? null : current));
+      setEditorState((current) => (current.itemId === item.id ? { open: false } : current));
+    } catch (error) {
+      setEditorError(error instanceof Error ? error.message : "Failed to delete item.");
+    } finally {
+      setDeletingItemId(null);
     }
   }
 
@@ -439,18 +587,27 @@ export function ItemCatalogClient({
     setSubmittingMovement(true);
     setMovementError("");
 
-    const payload = createOfflineMutationPayload({
-      action: movementDraft.action,
-      quantity,
-      quantityDelta,
-      fromLocationId: normalizeOptionalText(movementDraft.fromLocationId),
-      toLocationId: normalizeOptionalText(movementDraft.toLocationId),
-      jobId: normalizeOptionalText(movementDraft.jobId),
-      supplierCost: parseCurrency(movementDraft.supplierCost),
-      notes: normalizeOptionalText(movementDraft.notes),
-    });
-
     try {
+      const latestItem = await refreshItemSnapshot(movementItem.id);
+      if (
+        (movementDraft.action === "use_on_job" || movementDraft.action === "move_stock") &&
+        latestItem.quantityOnHand < (quantity ?? 0)
+      ) {
+        setMovementError(`Insufficient quantity available. Available: ${latestItem.quantityOnHand}, requested: ${quantity ?? 0}`);
+        return;
+      }
+
+      const payload = createOfflineMutationPayload({
+        action: movementDraft.action,
+        quantity,
+        quantityDelta,
+        fromLocationId: normalizeOptionalText(movementDraft.fromLocationId),
+        toLocationId: normalizeOptionalText(movementDraft.toLocationId),
+        jobId: normalizeOptionalText(movementDraft.jobId),
+        supplierCost: parseCurrency(movementDraft.supplierCost),
+        notes: normalizeOptionalText(movementDraft.notes),
+      });
+
       const result = await runMutationWithOfflineSupport({
         url: `/api/items/${movementItem.id}/movements`,
         method: "POST",
@@ -459,7 +616,7 @@ export function ItemCatalogClient({
       });
 
       if (result.queued) {
-        const optimistic = applyMovementOptimistically(movementItem, movementDraft, locations, jobs);
+        const optimistic = normalizeInventoryItem(applyMovementOptimistically(movementItem, movementDraft, locations, jobs));
         setItems((current) => current.map((item) => (item.id === optimistic.id ? optimistic : item)));
       } else {
         const response = result.response;
@@ -472,7 +629,7 @@ export function ItemCatalogClient({
           throw new Error(responsePayload?.error || "Failed to save movement.");
         }
 
-        const updated = (await response.json()) as InventoryPageItem;
+        const updated = normalizeInventoryItem((await response.json()) as InventoryPageItem);
         setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       }
 
@@ -497,7 +654,7 @@ export function ItemCatalogClient({
               Scan
             </Button>
             {permissions.canAddInventory ? (
-              <Button variant="primary" onClick={() => { setCreateError(""); setShowCreatePanel(true); }}>
+              <Button variant="primary" onClick={openCreatePanel}>
                 <PackagePlus className="h-4 w-4" />
                 Add item
               </Button>
@@ -581,14 +738,20 @@ export function ItemCatalogClient({
                     <div className="grid grid-cols-2 gap-3">
                       <MetricBox label="On hand" value={`${item.quantityOnHand} ${item.unitOfMeasure}`} />
                       <MetricBox label="Thresholds" value={`${item.lowStockRedThreshold} / ${item.lowStockAmberThreshold}`} helpText="Critical / low" />
-                      {visibleBase ? <MetricBox label="Base cost" value={formatMoney(item.lastUnitCost)} /> : null}
-                      {visibleTotal ? <MetricBox label="Stock total" value={formatMoney((item.lastUnitCost ?? 0) * item.quantityOnHand)} /> : null}
+                      {visibleBase ? <MetricBox label="Base price" value={formatMoney(item.lastUnitCost)} /> : null}
+                      {visibleMargin ? <MetricBox label="Margin price" value={formatMoney(getItemMarginAmount(item))} helpText={formatPercent(item.marginPercent)} /> : null}
+                      {visibleTotal ? <MetricBox label="Total cost" value={formatMoney(getItemTotalCost(item))} helpText="Base + margin per unit" /> : null}
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
                       <Button variant="secondary" onClick={() => setSelectedItemId(item.id)}>
                         <FolderOpen className="h-4 w-4" />
                         Open
                       </Button>
+                      {permissions.canEditInventory ? (
+                        <Button variant="secondary" onClick={() => openEditPanel(item)}>
+                          Edit
+                        </Button>
+                      ) : null}
                       {permissions.canAddInventory ? (
                         <Button variant="secondary" onClick={() => openMovement(item, "receive_stock")}>
                           <PackagePlus className="h-4 w-4" />
@@ -608,7 +771,7 @@ export function ItemCatalogClient({
                         </Button>
                       ) : null}
                       {permissions.canUseInventoryOnJob ? (
-                        <Button variant="primary" onClick={() => openMovement(item, "use_on_job")}>
+                        <Button className="sm:col-span-2" variant="primary" onClick={() => openMovement(item, "use_on_job")}>
                           <BriefcaseBusiness className="h-4 w-4" />
                           Use on job
                         </Button>
@@ -623,17 +786,18 @@ export function ItemCatalogClient({
       </PageSection>
 
       <SidePanel
-        open={showCreatePanel}
-        onClose={() => setShowCreatePanel(false)}
-        title="Add inventory item"
-        description="Capture the key record fields without leaving the inventory workspace."
+        open={editorState.open}
+        onClose={() => setEditorState({ open: false })}
+        title={editorState.itemId ? "Edit inventory item" : "Add inventory item"}
+        description="Capture the core record, supplier, threshold, and default location details in a wider layout that stays usable on both desktop and mobile."
         footer={
           <div className="flex flex-col gap-3">
-            {createError ? <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{createError}</Card> : null}
-            <Button variant="primary" onClick={handleCreateItem} disabled={creating}>
-              {creating ? "Saving..." : "Save item"}
+            {editorError ? <Card className="border-rose-400/20 bg-rose-500/[0.08] text-rose-100">{editorError}</Card> : null}
+            <Button variant="primary" onClick={handleSaveItem} disabled={savingItem}>
+              {savingItem ? "Saving..." : editorState.itemId ? "Save changes" : "Save item"}
             </Button>
-            <Button variant="secondary" onClick={() => setShowCreatePanel(false)}>Cancel</Button>
+            {editingItem ? <Button variant="danger" onClick={() => handleDeleteItem(editingItem)} disabled={deletingItemId === editingItem.id}>{deletingItemId === editingItem.id ? "Deleting..." : "Delete item"}</Button> : null}
+            <Button variant="secondary" onClick={() => setEditorState({ open: false })}>Cancel</Button>
           </div>
         }
       >
@@ -664,7 +828,13 @@ export function ItemCatalogClient({
             onChange={(value) => setCreateDraft((current) => ({ ...current, locationId: value }))}
             options={[{ value: "", label: "No default location" }, ...locations.map((location) => ({ value: location.id, label: location.name }))]}
           />
-          {visibleBase ? <FormInput label="Base cost" type="number" value={createDraft.lastUnitCost} onChange={(value) => setCreateDraft((current) => ({ ...current, lastUnitCost: value }))} /> : null}
+          {(visibleBase || visibleMargin) ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {visibleBase ? <FormInput label="Base price" type="number" value={createDraft.lastUnitCost} onChange={(value) => setCreateDraft((current) => ({ ...current, lastUnitCost: value }))} /> : null}
+              {visibleMargin ? <FormInput label="Margin percent" type="number" value={createDraft.marginPercent} onChange={(value) => setCreateDraft((current) => ({ ...current, marginPercent: value }))} /> : null}
+            </div>
+          ) : null}
+          {visibleTotal ? <MetricBox label="Total cost preview" value={formatMoney(getItemTotalCost({ lastUnitCost: parseCurrency(createDraft.lastUnitCost), marginPercent: parsePercent(createDraft.marginPercent) ?? 0 }))} helpText="Base + margin per unit" /> : null}
         </div>
       </SidePanel>
 
@@ -675,9 +845,11 @@ export function ItemCatalogClient({
         description={selectedItem ? `${selectedItem.defaultLocationName || "Unassigned"} • ${selectedItem.unitOfMeasure}` : undefined}
         footer={
           selectedItem ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {permissions.canEditInventory ? <Button variant="secondary" onClick={() => openEditPanel(selectedItem)}>Edit item</Button> : null}
               {permissions.canMoveInventory ? <Button variant="secondary" onClick={() => openMovement(selectedItem, "move_stock")}>Move stock</Button> : null}
               {permissions.canUseInventoryOnJob ? <Button variant="primary" onClick={() => openMovement(selectedItem, "use_on_job")}>Use on job</Button> : null}
+              {permissions.canEditInventory ? <Button variant="danger" onClick={() => handleDeleteItem(selectedItem)} disabled={deletingItemId === selectedItem.id}>{deletingItemId === selectedItem.id ? "Deleting..." : "Delete item"}</Button> : null}
             </div>
           ) : null
         }
@@ -700,8 +872,9 @@ export function ItemCatalogClient({
               <DetailRow label="Supplier" value={selectedItem.preferredSupplierName || "Not linked"} />
               <DetailRow label="Last movement" value={formatDateTime(selectedItem.lastMovementAt)} />
               <DetailRow label="Linked jobs" value={String(selectedItem.linkedJobsCount)} />
-              {visibleBase ? <DetailRow label="Base cost" value={formatMoney(selectedItem.lastUnitCost)} /> : null}
-              {visibleTotal ? <DetailRow label="Stock total" value={formatMoney((selectedItem.lastUnitCost ?? 0) * selectedItem.quantityOnHand)} /> : null}
+              {visibleBase ? <DetailRow label="Base price" value={formatMoney(selectedItem.lastUnitCost)} /> : null}
+              {visibleMargin ? <DetailRow label="Margin price" value={`${formatMoney(getItemMarginAmount(selectedItem))} (${formatPercent(selectedItem.marginPercent)})`} /> : null}
+              {visibleTotal ? <DetailRow label="Total cost" value={formatMoney(getItemTotalCost(selectedItem))} /> : null}
             </Card>
             {selectedItem.description ? <p className="text-sm leading-6 text-slate-300/78">{selectedItem.description}</p> : null}
           </div>
@@ -872,7 +1045,7 @@ function SearchableJobSelect({ jobs, value, onChange }: { jobs: InventoryPageJob
               <Badge tone="slate">{job.status}</Badge>
             </div>
             <p className="mt-2 text-sm text-slate-300">{job.description || "No description"}</p>
-            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{job.customer} • {new Date(job.date).toLocaleDateString()}</p>
+            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{job.customer} • {formatUtcDate(job.date)}</p>
           </button>
         ))}
         {filteredJobs.length === 0 ? <p className="px-2 py-3 text-sm text-slate-400">No jobs match this search.</p> : null}

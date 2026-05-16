@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/next-with-port.js dev 3004",
     "build": "prisma generate --schema=./prisma/schema.postgresql.prisma && next build",
-    "start": "next start",
+    "start": "node scripts/next-with-port.js start 3004",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "jest",

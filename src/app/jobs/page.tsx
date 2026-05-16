@@ -1,10 +1,21 @@
 import { JobsPageClient } from "@/components/jobs/jobs-page-client";
 import { prisma } from "@/lib/db";
-import { requirePageAccess } from "@/lib/permissions";
+import { serializeJobSummary } from "@/lib/jobs/presenter";
+import { jobSummarySelect } from "@/lib/jobs/selects";
+import { canViewFinancialValue, requirePageAccess } from "@/lib/permissions";
 
 export default async function JobsPage() {
   const access = await requirePageAccess("canViewJobs");
   const dbAny = prisma as any;
+  const visibility = {
+    showBaseCosts:
+      canViewFinancialValue(access.financialVisibilityMode, "base", access) ||
+      canViewFinancialValue(access.financialVisibilityMode, "job_costing", access),
+    showMargin: canViewFinancialValue(access.financialVisibilityMode, "margin", access),
+    showTotal:
+      canViewFinancialValue(access.financialVisibilityMode, "total", access) ||
+      canViewFinancialValue(access.financialVisibilityMode, "job_costing", access),
+  };
 
   const jobs = await dbAny.job.findMany({
     where: {
@@ -12,51 +23,22 @@ export default async function JobsPage() {
       ...(access.role === "TECH" ? { technicianId: access.userId } : {}),
     },
     orderBy: { latestActivityAt: "desc" },
-    select: {
-      id: true,
-      jobNumber: true,
-      description: true,
-      customer: true,
-      date: true,
-      status: true,
-      latestActivityAt: true,
-      technician: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      parts: {
-        select: {
-          quantity: true,
-          item: {
-            select: {
-              quantityOnHand: true,
-              lowStockRedThreshold: true,
-            },
-          },
-        },
-      },
-      _count: {
-        select: {
-          parts: true,
-        },
-      },
-    },
+    select: jobSummarySelect,
   });
 
   return (
     <JobsPageClient
       canCreateJobs={access.canCreateJobs}
-      initialJobs={jobs.map((job: any) => ({
-        ...job,
-        description: job.description ?? undefined,
-        date: job.date.toISOString(),
-        latestActivityAt: job.latestActivityAt.toISOString(),
-        needsPartsAttention: job.parts.some(
-          (part: any) => part.item.quantityOnHand < part.quantity || part.item.quantityOnHand <= part.item.lowStockRedThreshold
-        ),
-      }))}
+      canEditJobs={access.canEditJobs}
+      canCloseJobs={access.canCloseJobs}
+      canInvoiceJobs={access.canInvoiceJobs}
+      initialJobs={jobs.map((job: any) => serializeJobSummary(job, visibility))}
+      financialVisibilityMode={access.financialVisibilityMode}
+      priceVisibility={{
+        canViewBasePrice: access.canViewBasePrice,
+        canViewMarginPrice: access.canViewMarginPrice,
+        canViewTotalPrice: access.canViewTotalPrice,
+      }}
     />
   );
 }

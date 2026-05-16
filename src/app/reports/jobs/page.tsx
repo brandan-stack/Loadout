@@ -5,9 +5,9 @@ import { canViewFinancialValue, requirePageAccess } from "@/lib/permissions";
 export default async function JobsReportPage() {
   const access = await requirePageAccess("canViewReports");
   const showFinancials =
-    canViewFinancialValue(access.financialVisibilityMode, "base") ||
-    canViewFinancialValue(access.financialVisibilityMode, "total") ||
-    canViewFinancialValue(access.financialVisibilityMode, "job_costing");
+    canViewFinancialValue(access.financialVisibilityMode, "base", access) ||
+    canViewFinancialValue(access.financialVisibilityMode, "total", access) ||
+    canViewFinancialValue(access.financialVisibilityMode, "job_costing", access);
 
   const jobs = access.role === "TECH"
     ? await prisma.job.findMany({

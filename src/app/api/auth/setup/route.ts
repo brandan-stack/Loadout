@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminAccessSeed } from "@/lib/admin-access";
 import { prisma } from "@/lib/db";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
 import bcrypt from "bcryptjs";
@@ -6,6 +7,7 @@ import { z } from "zod";
 
 const dbAny = prisma as any;
 const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
+const adminAccessSeed = getAdminAccessSeed();
 const setupSchema = z.object({
   organizationName: z.string().trim().min(1, "Business name is required").max(120, "Business name is too long"),
   name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
           name: data.name,
           email: data.email,
           role: "SUPER_ADMIN",
+          ...adminAccessSeed,
           passwordHash,
           organizationId: organization.id,
         },

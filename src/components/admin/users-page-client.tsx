@@ -62,6 +62,12 @@ const ADMIN_ACTION_FIELDS = [
   { key: "canEnableModules", label: "Enable modules", description: "Turn advanced modules on or off." },
 ] as const;
 
+const PRICE_VISIBILITY_FIELDS = [
+  { key: "canViewBasePrice", label: "Base price", description: "Show the base item or material price." },
+  { key: "canViewMarginPrice", label: "Margin price", description: "Show the margin amount with the percent beside it." },
+  { key: "canViewTotalPrice", label: "Total cost", description: "Show the total cost after margin is applied." },
+] as const;
+
 const PERMISSION_GROUPS = [
   { title: "Page Access", items: PAGE_ACCESS_FIELDS },
   { title: "Inventory Actions", items: INVENTORY_ACTION_FIELDS },
@@ -88,11 +94,13 @@ const FINANCIAL_MODES = [
 ] as const;
 
 type PermissionKey = (typeof PERMISSION_KEYS)[number];
+type PriceVisibilityKey = (typeof PRICE_VISIBILITY_FIELDS)[number]["key"];
 type RolePreset = (typeof ROLE_PRESETS)[number]["value"];
 type FinancialVisibilityMode = (typeof FINANCIAL_MODES)[number]["value"];
 type PermissionShape = Record<PermissionKey, boolean>;
+type PriceVisibilityShape = Record<PriceVisibilityKey, boolean>;
 
-export interface AppUser extends PermissionShape {
+export interface AppUser extends PermissionShape, PriceVisibilityShape {
   id: string;
   name: string;
   email: string;
@@ -101,7 +109,7 @@ export interface AppUser extends PermissionShape {
   financialVisibilityMode: FinancialVisibilityMode;
 }
 
-interface UserDraft extends PermissionShape {
+interface UserDraft extends PermissionShape, PriceVisibilityShape {
   name: string;
   email: string;
   role: string;
@@ -114,8 +122,16 @@ interface UserDraft extends PermissionShape {
 interface UsersPageClientProps {
   currentUserId: string;
   organizationName: string;
+  organizationDefaults: {
+    financialVisibilityMode: FinancialVisibilityMode;
+    canViewBasePrice: boolean;
+    canViewMarginPrice: boolean;
+    canViewTotalPrice: boolean;
+  };
   initialUsers: AppUser[];
 }
+
+type OrganizationDefaults = UsersPageClientProps["organizationDefaults"];
 
 const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -133,13 +149,21 @@ function emptyPermissions(): PermissionShape {
   return Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false])) as PermissionShape;
 }
 
-function getPresetPermissions(rolePreset: RolePreset): PermissionShape & { financialVisibilityMode: FinancialVisibilityMode } {
+function emptyPriceVisibility(): PriceVisibilityShape {
+  return Object.fromEntries(PRICE_VISIBILITY_FIELDS.map((field) => [field.key, false])) as PriceVisibilityShape;
+}
+
+function getPresetPermissions(rolePreset: RolePreset): PermissionShape & PriceVisibilityShape & { financialVisibilityMode: FinancialVisibilityMode } {
   const base = emptyPermissions();
+  const noPriceVisibility = emptyPriceVisibility();
 
   switch (rolePreset) {
     case "ADMIN":
       return {
         ...Object.fromEntries(PERMISSION_KEYS.map((key) => [key, true])) as PermissionShape,
+        canViewBasePrice: true,
+        canViewMarginPrice: true,
+        canViewTotalPrice: true,
         financialVisibilityMode: "full",
       };
     case "MANAGER":
@@ -178,11 +202,15 @@ function getPresetPermissions(rolePreset: RolePreset): PermissionShape & { finan
         canManageSettings: true,
         canExportData: true,
         canClearCache: true,
+        canViewBasePrice: true,
+        canViewMarginPrice: true,
+        canViewTotalPrice: true,
         financialVisibilityMode: "base_margin_total",
       };
     case "LIMITED":
       return {
         ...base,
+        ...noPriceVisibility,
         canViewJobs: true,
         canViewInventory: true,
         canViewTools: true,
@@ -197,6 +225,7 @@ function getPresetPermissions(rolePreset: RolePreset): PermissionShape & { finan
     default:
       return {
         ...base,
+        ...noPriceVisibility,
         canViewDashboard: true,
         canViewJobs: true,
         canViewInventory: true,
@@ -213,13 +242,23 @@ function getPresetPermissions(rolePreset: RolePreset): PermissionShape & { finan
         canViewCompanyTools: true,
         canRequestCompanyTools: true,
         canReturnCompanyTools: true,
+        canViewTotalPrice: true,
         financialVisibilityMode: "total_only",
       };
   }
 }
 
-function createDraft(user?: AppUser): UserDraft {
+function createDraft(
+  user?: AppUser,
+  organizationDefaults?: {
+    financialVisibilityMode: FinancialVisibilityMode;
+    canViewBasePrice: boolean;
+    canViewMarginPrice: boolean;
+    canViewTotalPrice: boolean;
+  }
+): UserDraft {
   const basePermissions = emptyPermissions();
+  const basePriceVisibility = emptyPriceVisibility();
 
   if (!user) {
     const preset = getPresetPermissions("STANDARD");
@@ -231,7 +270,12 @@ function createDraft(user?: AppUser): UserDraft {
       password: "",
       confirm: "",
       ...basePermissions,
+      ...basePriceVisibility,
       ...preset,
+      financialVisibilityMode: organizationDefaults?.financialVisibilityMode ?? preset.financialVisibilityMode,
+      canViewBasePrice: organizationDefaults?.canViewBasePrice ?? preset.canViewBasePrice,
+      canViewMarginPrice: organizationDefaults?.canViewMarginPrice ?? preset.canViewMarginPrice,
+      canViewTotalPrice: organizationDefaults?.canViewTotalPrice ?? preset.canViewTotalPrice,
     };
   }
 
@@ -244,7 +288,9 @@ function createDraft(user?: AppUser): UserDraft {
     password: "",
     confirm: "",
     ...basePermissions,
+    ...basePriceVisibility,
     ...Object.fromEntries(PERMISSION_KEYS.map((key) => [key, user[key]])) as PermissionShape,
+    ...Object.fromEntries(PRICE_VISIBILITY_FIELDS.map((field) => [field.key, user[field.key]])) as PriceVisibilityShape,
   };
 }
 
@@ -252,25 +298,28 @@ function countEnabledPermissions(user: PermissionShape) {
   return PERMISSION_KEYS.filter((key) => user[key]).length;
 }
 
-function getFinancialModeLabel(mode: FinancialVisibilityMode) {
-  return FINANCIAL_MODES.find((option) => option.value === mode)?.label ?? mode;
+function getPriceVisibilityLabel(source: PriceVisibilityShape) {
+  const visibleLabels = PRICE_VISIBILITY_FIELDS.filter((field) => source[field.key]).map((field) => field.label);
+  return visibleLabels.length ? visibleLabels.join(" • ") : "Pricing hidden";
 }
 
 function normalizeUser(user: AppUser): AppUser {
   return {
     ...user,
     ...Object.fromEntries(PERMISSION_KEYS.map((key) => [key, Boolean(user[key])])) as PermissionShape,
+    ...Object.fromEntries(PRICE_VISIBILITY_FIELDS.map((field) => [field.key, Boolean(user[field.key])])) as PriceVisibilityShape,
   };
 }
 
-export function UsersPageClient({ currentUserId, organizationName, initialUsers }: UsersPageClientProps) {
+export function UsersPageClient({ currentUserId, organizationName, organizationDefaults, initialUsers }: UsersPageClientProps) {
   const [users, setUsers] = useState<AppUser[]>(initialUsers.map(normalizeUser));
+  const [resolvedOrganizationDefaults, setResolvedOrganizationDefaults] = useState<OrganizationDefaults>(organizationDefaults);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(initialUsers[0]?.id ?? null);
   const [drafts, setDrafts] = useState<Record<string, UserDraft>>(
-    Object.fromEntries(initialUsers.map((user) => [user.id, createDraft(normalizeUser(user))]))
+    Object.fromEntries(initialUsers.map((user) => [user.id, createDraft(normalizeUser(user), organizationDefaults)]))
   );
   const [showCreatePanel, setShowCreatePanel] = useState(false);
-  const [createDraftState, setCreateDraftState] = useState<UserDraft>(createDraft());
+  const [createDraftState, setCreateDraftState] = useState<UserDraft>(createDraft(undefined, organizationDefaults));
   const [error, setError] = useState("");
   const [createError, setCreateError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -282,7 +331,9 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
 
   const summary = useMemo(() => {
     const managers = users.filter((user) => user.rolePreset === "ADMIN" || user.rolePreset === "MANAGER").length;
-    const hiddenFinancials = users.filter((user) => user.financialVisibilityMode === "none").length;
+    const hiddenFinancials = users.filter(
+      (user) => !user.canViewBasePrice && !user.canViewMarginPrice && !user.canViewTotalPrice
+    ).length;
     return {
       total: users.length,
       managers,
@@ -310,6 +361,41 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
     };
   }
 
+  async function refreshOrganizationDefaults() {
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      if (!response.ok) {
+        return resolvedOrganizationDefaults;
+      }
+
+      const settings = (await response.json()) as {
+        defaultFinancialVisibilityMode: FinancialVisibilityMode;
+        defaultCanViewBasePrice: boolean;
+        defaultCanViewMarginPrice: boolean;
+        defaultCanViewTotalPrice: boolean;
+      };
+
+      const nextDefaults = {
+        financialVisibilityMode: settings.defaultFinancialVisibilityMode,
+        canViewBasePrice: settings.defaultCanViewBasePrice,
+        canViewMarginPrice: settings.defaultCanViewMarginPrice,
+        canViewTotalPrice: settings.defaultCanViewTotalPrice,
+      };
+
+      setResolvedOrganizationDefaults(nextDefaults);
+      return nextDefaults;
+    } catch {
+      return resolvedOrganizationDefaults;
+    }
+  }
+
+  async function openCreatePanel() {
+    setCreateError("");
+    const defaults = await refreshOrganizationDefaults();
+    setCreateDraftState(createDraft(undefined, defaults));
+    setShowCreatePanel(true);
+  }
+
   async function fetchUsers() {
     const response = await fetch("/api/users", { cache: "no-store" });
     if (!response.ok) {
@@ -319,7 +405,7 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
     const nextUsers = (await response.json()) as AppUser[];
     const normalized = nextUsers.map(normalizeUser);
     setUsers(normalized);
-    setDrafts(Object.fromEntries(normalized.map((user) => [user.id, createDraft(user)])));
+    setDrafts(Object.fromEntries(normalized.map((user) => [user.id, createDraft(user, organizationDefaults)])));
 
     if (!normalized.some((user) => user.id === selectedUserId)) {
       setSelectedUserId(normalized[0]?.id ?? null);
@@ -379,7 +465,7 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
 
       await fetchUsers();
       setShowCreatePanel(false);
-      setCreateDraftState(createDraft());
+      setCreateDraftState(createDraft(undefined, resolvedOrganizationDefaults));
     } catch (createIssue) {
       setCreateError(createIssue instanceof Error ? createIssue.message : "Failed to create user.");
     } finally {
@@ -500,11 +586,49 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
     ));
   }
 
+  function renderPriceVisibility(
+    draft: UserDraft,
+    onChange: (key: PriceVisibilityKey, value: boolean) => void
+  ) {
+    return (
+      <Card className="space-y-4 bg-white/[0.03] p-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">Price Visibility</h3>
+          <p className="mt-1 text-sm text-slate-400">Choose base price, margin price, and total cost separately for this user.</p>
+        </div>
+        <div className="space-y-3">
+          {PRICE_VISIBILITY_FIELDS.map((field) => (
+            <div
+              key={field.key}
+              className="flex items-start justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-white">{field.label}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">{field.description}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onChange(field.key, !draft[field.key])}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${draft[field.key] ? "bg-sky-500/80" : "bg-slate-700/90"}`}
+                aria-pressed={draft[field.key]}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${draft[field.key] ? "translate-x-6" : "translate-x-1"}`}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
   function renderUserPanel(user: AppUser, draft: UserDraft) {
     const presetDefaults = getPresetPermissions(draft.rolePreset);
     const hasCustomOverrides =
       draft.financialVisibilityMode !== presetDefaults.financialVisibilityMode ||
-      PERMISSION_KEYS.some((key) => draft[key] !== presetDefaults[key]);
+      PERMISSION_KEYS.some((key) => draft[key] !== presetDefaults[key]) ||
+      PRICE_VISIBILITY_FIELDS.some((field) => draft[field.key] !== presetDefaults[field.key]);
 
     return (
       <div className="space-y-5">
@@ -562,27 +686,12 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
             </label>
           </div>
 
-          <label className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Financial visibility</span>
-            <select
-              value={draft.financialVisibilityMode}
-              onChange={(event) => updateDraft(user.id, { financialVisibilityMode: event.target.value as FinancialVisibilityMode })}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none"
-            >
-              {FINANCIAL_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>{mode.label}</option>
-              ))}
-            </select>
-            <p className="text-xs leading-5 text-slate-400">
-              {FINANCIAL_MODES.find((mode) => mode.value === draft.financialVisibilityMode)?.description}
-            </p>
-          </label>
-
           <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
             <p className="font-medium text-white">Preset behavior</p>
             <p className="mt-1 text-slate-400">
               {ROLE_PRESETS.find((preset) => preset.value === draft.rolePreset)?.description}
             </p>
+            <p className="mt-2 text-slate-400">Price fields are controlled separately below. Supplier cost and deeper job costing still follow the preset.</p>
             {hasCustomOverrides ? <p className="mt-2 text-sky-200">Custom overrides are active on top of the preset.</p> : null}
           </div>
 
@@ -610,6 +719,8 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
           </div>
           <p className="text-xs text-slate-500">{PASSWORD_RULES_TEXT}</p>
         </Card>
+
+        {renderPriceVisibility(draft, (key, value) => updateDraft(user.id, { [key]: value } as Partial<UserDraft>))}
 
         {renderPermissionGroup(draft, (key, value) => updateDraft(user.id, { [key]: value } as Partial<UserDraft>))}
       </div>
@@ -688,20 +799,13 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
             </label>
           </div>
 
-          <label className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Financial visibility</span>
-            <select
-              value={createDraftState.financialVisibilityMode}
-              onChange={(event) => setCreateDraftState((current) => ({ ...current, financialVisibilityMode: event.target.value as FinancialVisibilityMode }))}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none"
-            >
-              {FINANCIAL_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>{mode.label}</option>
-              ))}
-            </select>
-          </label>
           <p className="text-xs text-slate-500">{PASSWORD_RULES_TEXT}</p>
         </Card>
+
+        {renderPriceVisibility(
+          createDraftState,
+          (key, value) => setCreateDraftState((current) => ({ ...current, [key]: value }))
+        )}
 
         {renderPermissionGroup(
           createDraftState,
@@ -718,7 +822,7 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
         title="Control who sees what"
         description="Manage access by user instead of forcing the whole workspace into one coarse role model. Page visibility, action permissions, and financial visibility all live here."
         actions={
-          <Button variant="primary" onClick={() => { setCreateError(""); setShowCreatePanel(true); }}>
+          <Button variant="primary" onClick={() => { void openCreatePanel(); }}>
             <UserPlus className="h-4 w-4" />
             Add user
           </Button>
@@ -801,7 +905,7 @@ export function UsersPageClient({ currentUserId, organizationName, initialUsers 
                     {ROLE_PRESETS.find((preset) => preset.value === user.rolePreset)?.label ?? user.rolePreset}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300">
-                    {getFinancialModeLabel(user.financialVisibilityMode)}
+                    {getPriceVisibilityLabel(user)}
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">

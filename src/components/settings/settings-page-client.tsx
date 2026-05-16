@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { HardDriveDownload, ShieldCheck, Users } from "lucide-react";
+import { BriefcaseBusiness, HardDriveDownload, PackagePlus, Truck, Users, Wrench } from "lucide-react";
+import type { FinancialVisibilityMode } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/Badge";
@@ -45,7 +46,10 @@ export interface AppSettings {
   allowOfflineCompanyToolFlows: boolean;
   offlineAutoSync: boolean;
   offlineCacheDays: number;
-  defaultFinancialVisibilityMode: string;
+  defaultFinancialVisibilityMode: FinancialVisibilityMode;
+  defaultCanViewBasePrice: boolean;
+  defaultCanViewMarginPrice: boolean;
+  defaultCanViewTotalPrice: boolean;
   enableMultiLocation: boolean;
   enableVariants: boolean;
   enableImportWizard: boolean;
@@ -344,6 +348,52 @@ export function SettingsPageClient({ initialSettings }: SettingsPageClientProps)
           </div>
         </SectionCard>
 
+        <SectionCard title="How To Use Loadout" description="A built-in walkthrough for new staff so they know where to go, what each workspace does, and how the job flow moves from open to completed to invoiced.">
+          <div className="grid gap-3 md:grid-cols-3">
+            <TutorialCard
+              icon={BriefcaseBusiness}
+              title="1. Run jobs from the Jobs folder"
+              body="Start in Jobs for field work. Open jobs stay in the open folder, finished work moves into completed, and completed work moves into invoiced once billing is ready."
+              href="/jobs"
+              linkLabel="Open jobs"
+            />
+            <TutorialCard
+              icon={PackagePlus}
+              title="2. Use inventory from Inventory"
+              body="Go to Inventory to add stock, edit records, move parts, or use material directly on a job. The main Use on job action is the fastest path when technicians need to consume stock in the field."
+              href="/items"
+              linkLabel="Open inventory"
+            />
+            <TutorialCard
+              icon={Truck}
+              title="3. Manage buying from Suppliers"
+              body="Suppliers keeps preferred and fastest vendors visible, stores multiple email contacts with custom positions, and gives purchasing one place to update vendor lead times and notes."
+              href="/suppliers"
+              linkLabel="Open suppliers"
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <TutorialCard
+              icon={Wrench}
+              title="4. Separate personal and company tools"
+              body="Use Tools to track private gear separately from company assets. Personal tools stay owner-scoped. Company tools move through request, assignment, checkout, return, and acceptance."
+              href="/tools"
+              linkLabel="Open tools"
+            />
+            <Card className="border-white/8 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Where to go for what</p>
+              <div className="mt-3 grid gap-2 text-sm text-slate-300">
+                <p>Dashboard: Live operating picture and priority alerts.</p>
+                <p>Jobs: Work orders, parts used, billing total, and status movement.</p>
+                <p>Inventory: Parts catalog, stock moves, receiving, returns, and job usage.</p>
+                <p>Suppliers: Vendor contacts, lead time, preferred and fastest flags.</p>
+                <p>Tools: Personal gear and shared company asset workflow.</p>
+                <p>Reports: Operational and cost rollups for follow-up and billing review.</p>
+              </div>
+            </Card>
+          </div>
+        </SectionCard>
+
         <SectionCard title="Inventory Rules" description="Operational defaults that shape how inventory behaves in the field.">
           <div className="space-y-3">
             <ToggleRow label="Multi-location inventory" description="Track stock across multiple locations and transfers." checked={settings.enableMultiLocation} disabled={readOnly} onToggle={() => toggle("enableMultiLocation")} badge="Inventory" />
@@ -385,19 +435,24 @@ export function SettingsPageClient({ initialSettings }: SettingsPageClientProps)
         </SectionCard>
 
         <SectionCard title="Financial Visibility" description="Choose the default pricing posture for new permission presets and workspace-wide reporting behavior.">
+          <div className="space-y-3">
+            <ToggleRow label="Default base price" description="New user drafts start with base price visibility enabled." checked={settings.defaultCanViewBasePrice} disabled={readOnly} onToggle={() => updateField("defaultCanViewBasePrice", !settings.defaultCanViewBasePrice)} badge="Default" />
+            <ToggleRow label="Default margin price" description="New user drafts start with margin amount and percent visibility enabled." checked={settings.defaultCanViewMarginPrice} disabled={readOnly} onToggle={() => updateField("defaultCanViewMarginPrice", !settings.defaultCanViewMarginPrice)} badge="Default" />
+            <ToggleRow label="Default total cost" description="New user drafts start with total cost visibility enabled." checked={settings.defaultCanViewTotalPrice} disabled={readOnly} onToggle={() => updateField("defaultCanViewTotalPrice", !settings.defaultCanViewTotalPrice)} badge="Default" />
+          </div>
           <label className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Default financial mode</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Advanced costing mode</span>
             <select
               value={settings.defaultFinancialVisibilityMode}
               disabled={readOnly}
-              onChange={(event) => updateField("defaultFinancialVisibilityMode", event.target.value)}
+              onChange={(event) => updateField("defaultFinancialVisibilityMode", event.target.value as FinancialVisibilityMode)}
               className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none disabled:opacity-60"
             >
               {FINANCIAL_MODES.map((mode) => (
                 <option key={mode.value} value={mode.value}>{mode.label}</option>
               ))}
             </select>
-            <p className="text-xs leading-5 text-slate-400">{FINANCIAL_MODES.find((mode) => mode.value === settings.defaultFinancialVisibilityMode)?.description}</p>
+            <p className="text-xs leading-5 text-slate-400">{FINANCIAL_MODES.find((mode) => mode.value === settings.defaultFinancialVisibilityMode)?.description} Use this for supplier-cost and deeper job-costing posture beyond the separate base, margin, and total defaults above.</p>
           </label>
         </SectionCard>
 
@@ -494,6 +549,25 @@ export function SettingsPageClient({ initialSettings }: SettingsPageClientProps)
         </SectionCard>
       </PageSection>
     </PageShell>
+  );
+}
+
+function TutorialCard({ icon: Icon, title, body, href, linkLabel }: { icon: typeof BriefcaseBusiness; title: string; body: string; href: string; linkLabel: string }) {
+  return (
+    <Card className="border-white/8 bg-white/[0.03] p-4">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-200">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-white">{title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
+          <Link href={href} className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-sky-200 hover:text-sky-100">
+            {linkLabel}
+          </Link>
+        </div>
+      </div>
+    </Card>
   );
 }
 

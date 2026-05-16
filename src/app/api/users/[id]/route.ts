@@ -6,6 +6,7 @@ import {
   FINANCIAL_VISIBILITY_VALUES,
   getDefaultRolePreset,
   PERMISSION_KEYS,
+  PRICE_VISIBILITY_KEYS,
   ROLE_PRESET_VALUES,
   requireUserAccess,
   USER_ACCESS_SELECT,
@@ -16,7 +17,7 @@ import bcrypt from "bcryptjs";
 const dbAny = prisma as any;
 
 const permissionShape = Object.fromEntries(
-  PERMISSION_KEYS.map((key) => [key, z.boolean().optional()])
+  [...PERMISSION_KEYS, ...PRICE_VISIBILITY_KEYS].map((key) => [key, z.boolean().optional()])
 ) as Record<string, z.ZodBoolean | z.ZodOptional<z.ZodBoolean>>;
 
 const updateSchema = z.object({

@@ -251,6 +251,24 @@ describe("POST /api/auth/register", () => {
     expect(createCall.data.role).toBe("SUPER_ADMIN");
   });
 
+  it("creates super admins with admin access preset", async () => {
+    const { tx } = await mockSuccessfulTransaction();
+
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
+    await POST(req);
+
+    const createCall = tx.appUser.create.mock.calls[0][0];
+    expect(createCall.data.rolePreset).toBe("ADMIN");
+    expect(createCall.data.financialVisibilityMode).toBe("full");
+    expect(createCall.data.canViewBasePrice).toBe(true);
+    expect(createCall.data.canViewMarginPrice).toBe(true);
+    expect(createCall.data.canViewTotalPrice).toBe(true);
+    expect(createCall.data.canViewDashboard).toBe(true);
+    expect(createCall.data.canViewJobs).toBe(true);
+    expect(createCall.data.canViewInventory).toBe(true);
+    expect(createCall.data.canViewSettings).toBe(true);
+  });
+
   it("normalises email to lowercase before saving", async () => {
     const { tx } = await mockSuccessfulTransaction();
 
