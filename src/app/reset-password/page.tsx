@@ -1,76 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLogo } from "@/components/ui/AuthLogo";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function ResetPasswordForm() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [checkingRecovery, setCheckingRecovery] = useState(true);
-  const [hasRecoverySession, setHasRecoverySession] = useState(false);
 
-  const hasRecoveryParams = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const hash = window.location.hash.startsWith("#")
-      ? window.location.hash.slice(1)
-      : window.location.hash;
-    if (!hash) return false;
-    const hashParams = new URLSearchParams(hash);
-    return hashParams.get("type") === "recovery" || hashParams.has("access_token");
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initRecoveryState = async () => {
-      try {
-        const supabase = getSupabaseBrowserClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!isMounted) return;
-        setHasRecoverySession(Boolean(session));
-
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange((event, sessionData) => {
-          if (!isMounted) return;
-          if (event === "PASSWORD_RECOVERY" || Boolean(sessionData)) {
-            setHasRecoverySession(true);
-          }
-        });
-
-        setCheckingRecovery(false);
-
-        return () => {
-          subscription.unsubscribe();
-        };
-      } catch {
-        if (isMounted) {
-          setError("Unable to initialize password recovery. Please request a new reset link.");
-          setCheckingRecovery(false);
-        }
-      }
-    };
-
-    let cleanup: (() => void) | undefined;
-    initRecoveryState().then((unsubscribe) => {
-      cleanup = unsubscribe;
-    });
-
-    return () => {
-      isMounted = false;
-      cleanup?.();
-    };
-  }, []);
+  const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +29,7 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (!hasRecoverySession) {
+    if (!token) {
       setError("Invalid or expired reset link. Please request a new password reset email.");
       return;
     }
@@ -94,19 +38,22 @@ function ResetPasswordForm() {
     setError("");
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password: newPassword }),
+      });
 
-      if (updateError) {
-        setError(updateError.message || "Failed to update password.");
+      const data = await response.json().catch(() => ({ error: "Failed to update password." }));
+
+      if (!response.ok) {
+        setError(data.error || "Failed to update password.");
         setSubmitting(false);
         return;
       }
 
       setSuccess(true);
       setSubmitting(false);
-
-      await supabase.auth.signOut();
       window.setTimeout(() => {
         router.replace("/login?reset=1");
       }, 1600);
@@ -131,13 +78,7 @@ function ResetPasswordForm() {
           </div>
         )}
 
-        {!checkingRecovery && !hasRecoverySession && !success && !hasRecoveryParams && (
-          <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
-            Open this page using the password reset link from your email.
-          </div>
-        )}
-
-        {!checkingRecovery && !hasRecoverySession && !success && hasRecoveryParams && (
+        {!token && !success && (
           <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
             This reset link is invalid or expired. Request a new password reset email.
           </div>
@@ -171,11 +112,11 @@ function ResetPasswordForm() {
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={checkingRecovery || submitting || success}
+            disabled={!token || submitting || success}
             className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
-            {checkingRecovery ? "Loading..." : submitting ? "Updating..." : "Update password"}
+            {submitting ? "Updating..." : "Update password"}
           </button>
           <p className="text-center text-xs text-slate-500">
             <Link href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 font-medium">
