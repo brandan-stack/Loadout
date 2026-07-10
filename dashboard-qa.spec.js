@@ -6,17 +6,17 @@ function resolveBaseUrl() {
     return explicitBaseUrl.replace(/\/$/, '');
   }
 
+  const port = process.env.LOADOUT_QA_PORT || process.env.TEST_PORT || process.env.PORT || process.env.npm_config_port;
+  if (port) {
+    return `http://127.0.0.1:${port}`;
+  }
+
   const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
     return appUrl.replace(/\/$/, '');
   }
 
-  const port = process.env.PORT || process.env.npm_config_port;
-  if (port) {
-    return `http://127.0.0.1:${port}`;
-  }
-
-  return 'http://127.0.0.1:3004';
+  return 'http://127.0.0.1:3104';
 }
 
 const BASE_URL = resolveBaseUrl();

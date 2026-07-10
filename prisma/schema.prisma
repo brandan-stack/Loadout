@@ -23,6 +23,7 @@ model Organization {
   jobs              Job[]
   tools             Tool[]
   inventoryTransactions InventoryTransaction[]
+  jobHistory        JobHistory[]
   toolTransactions  ToolTransaction[]
   reportViews       ReportView[]
   shareLogs         ShareLog[]

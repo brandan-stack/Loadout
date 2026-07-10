@@ -9,6 +9,7 @@ import {
   FolderOpen,
   PackageMinus,
   PackagePlus,
+  Printer,
   RotateCcw,
   ScanLine,
   Warehouse,
@@ -30,6 +31,7 @@ import { Card } from "@/components/ui/Card";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { CodePrintPanel } from "@/components/items/code-print-panel";
 
 export interface InventoryPageSupplier {
   id: string;
@@ -55,6 +57,7 @@ export interface InventoryPageJob {
 export interface InventoryPageItem {
   id: string;
   name: string;
+  barcode?: string;
   manufacturer?: string;
   partNumber?: string;
   modelNumber?: string;
@@ -98,6 +101,7 @@ type StockFilter = "all" | "low" | "critical";
 type MovementAction = "move_stock" | "use_on_job" | "return_from_job" | "receive_stock" | "adjust_quantity";
 type CreateItemDraft = {
   name: string;
+  barcode: string;
   manufacturer: string;
   partNumber: string;
   modelNumber: string;
@@ -125,6 +129,7 @@ type MovementDraft = {
 
 const EMPTY_CREATE_DRAFT: CreateItemDraft = {
   name: "",
+  barcode: "",
   manufacturer: "",
   partNumber: "",
   modelNumber: "",
@@ -159,6 +164,7 @@ function createItemDraftFromItem(item?: InventoryPageItem): CreateItemDraft {
 
   return {
     name: item.name,
+    barcode: item.barcode ?? "",
     manufacturer: item.manufacturer ?? "",
     partNumber: item.partNumber ?? "",
     modelNumber: item.modelNumber ?? "",
@@ -307,6 +313,7 @@ function getItemTotalCost(item: Pick<InventoryPageItem, "lastUnitCost" | "margin
 function buildItemSearchText(item: InventoryPageItem) {
   return [
     item.name,
+    item.barcode,
     item.manufacturer,
     item.partNumber,
     item.modelNumber,
@@ -390,6 +397,7 @@ export function ItemCatalogClient({
   const [savingItem, setSavingItem] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [movementItemId, setMovementItemId] = useState<string | null>(null);
+  const [codePanelItemId, setCodePanelItemId] = useState<string | null>(null);
   const [movementDraft, setMovementDraft] = useState<MovementDraft>(createMovementDraft());
   const [movementError, setMovementError] = useState("");
   const [submittingMovement, setSubmittingMovement] = useState(false);
@@ -400,6 +408,7 @@ export function ItemCatalogClient({
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
   const editingItem = items.find((item) => item.id === editorState.itemId) ?? null;
   const movementItem = items.find((item) => item.id === movementItemId) ?? null;
+  const codePanelItem = items.find((item) => item.id === codePanelItemId) ?? null;
   const lowCount = items.filter((item) => getStockTone(item) === "orange").length;
   const criticalCount = items.filter((item) => getStockTone(item) === "red").length;
   const visibleBase = canViewFinancialValue(financialVisibilityMode, "base", priceVisibility);
@@ -485,6 +494,7 @@ export function ItemCatalogClient({
 
     const payload = {
       name: createDraft.name.trim(),
+      barcode: normalizeOptionalText(createDraft.barcode),
       manufacturer: normalizeOptionalText(createDraft.manufacturer),
       partNumber: normalizeOptionalText(createDraft.partNumber),
       modelNumber: normalizeOptionalText(createDraft.modelNumber),
@@ -727,6 +737,7 @@ export function ItemCatalogClient({
                       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <DataPill label="Location" value={item.defaultLocationName || "Unassigned"} />
                         <DataPill label="Supplier" value={item.preferredSupplierName || "Not linked"} />
+                        <DataPill label="Barcode" value={item.barcode || "Not set"} />
                         <DataPill label="Last movement" value={formatDateTime(item.lastMovementAt)} />
                         <DataPill label="Linked jobs" value={String(item.linkedJobsCount)} />
                       </div>
@@ -746,6 +757,10 @@ export function ItemCatalogClient({
                       <Button variant="secondary" onClick={() => setSelectedItemId(item.id)}>
                         <FolderOpen className="h-4 w-4" />
                         Open
+                      </Button>
+                      <Button variant="secondary" onClick={() => setCodePanelItemId(item.id)}>
+                        <Printer className="h-4 w-4" />
+                        Print code
                       </Button>
                       {permissions.canEditInventory ? (
                         <Button variant="secondary" onClick={() => openEditPanel(item)}>
@@ -803,6 +818,7 @@ export function ItemCatalogClient({
       >
         <div className="space-y-4">
           <FormInput label="Item name" value={createDraft.name} onChange={(value) => setCreateDraft((current) => ({ ...current, name: value }))} />
+          <FormInput label="Barcode / custom code" value={createDraft.barcode} onChange={(value) => setCreateDraft((current) => ({ ...current, barcode: value }))} />
           <div className="grid gap-4 md:grid-cols-2">
             <FormInput label="Manufacturer" value={createDraft.manufacturer} onChange={(value) => setCreateDraft((current) => ({ ...current, manufacturer: value }))} />
             <FormInput label="Part number" value={createDraft.partNumber} onChange={(value) => setCreateDraft((current) => ({ ...current, partNumber: value }))} />
@@ -847,6 +863,7 @@ export function ItemCatalogClient({
           selectedItem ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {permissions.canEditInventory ? <Button variant="secondary" onClick={() => openEditPanel(selectedItem)}>Edit item</Button> : null}
+              <Button variant="secondary" onClick={() => setCodePanelItemId(selectedItem.id)}>Print code</Button>
               {permissions.canMoveInventory ? <Button variant="secondary" onClick={() => openMovement(selectedItem, "move_stock")}>Move stock</Button> : null}
               {permissions.canUseInventoryOnJob ? <Button variant="primary" onClick={() => openMovement(selectedItem, "use_on_job")}>Use on job</Button> : null}
               {permissions.canEditInventory ? <Button variant="danger" onClick={() => handleDeleteItem(selectedItem)} disabled={deletingItemId === selectedItem.id}>{deletingItemId === selectedItem.id ? "Deleting..." : "Delete item"}</Button> : null}
@@ -866,6 +883,7 @@ export function ItemCatalogClient({
             ) : null}
             <Card className="space-y-4 bg-white/[0.04]">
               <DetailRow label="Manufacturer" value={selectedItem.manufacturer || "Not set"} />
+              <DetailRow label="Barcode" value={selectedItem.barcode || "Not set"} />
               <DetailRow label="Part number" value={selectedItem.partNumber || "Not set"} />
               <DetailRow label="Model number" value={selectedItem.modelNumber || "Not set"} />
               <DetailRow label="Category" value={selectedItem.category || "Not set"} />
@@ -954,6 +972,13 @@ export function ItemCatalogClient({
           </div>
         ) : null}
       </SidePanel>
+
+      <CodePrintPanel
+        open={Boolean(codePanelItem)}
+        onClose={() => setCodePanelItemId(null)}
+        initialCode={codePanelItem?.barcode ?? ""}
+        initialName={codePanelItem?.name}
+      />
     </PageShell>
   );
 }

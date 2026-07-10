@@ -1,45 +1,117 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { checkPasswordStrength } from "@/lib/validation";
-import { PasswordRules } from "@/components/ui/PasswordRules";
+import { useRouter } from "next/navigation";
 import { AuthLogo } from "@/components/ui/AuthLogo";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function ResetPasswordForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const token = searchParams.get("token")?.trim() ?? "";
+  const [success, setSuccess] = useState(false);
+  const [checkingRecovery, setCheckingRecovery] = useState(true);
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
+
+  const hasRecoveryParams = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const hash = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    if (!hash) return false;
+    const hashParams = new URLSearchParams(hash);
+    return hashParams.get("type") === "recovery" || hashParams.has("access_token");
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initRecoveryState = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
+        setHasRecoverySession(Boolean(session));
+
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((event, sessionData) => {
+          if (!isMounted) return;
+          if (event === "PASSWORD_RECOVERY" || Boolean(sessionData)) {
+            setHasRecoverySession(true);
+          }
+        });
+
+        setCheckingRecovery(false);
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch {
+        if (isMounted) {
+          setError("Unable to initialize password recovery. Please request a new reset link.");
+          setCheckingRecovery(false);
+        }
+      }
+    };
+
+    let cleanup: (() => void) | undefined;
+    initRecoveryState().then((unsubscribe) => {
+      cleanup = unsubscribe;
+    });
+
+    return () => {
+      isMounted = false;
+      cleanup?.();
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) { setError("Invalid or expired reset link"); return; }
-    const pwCheck = checkPasswordStrength(password);
-    if (!pwCheck.valid) { setError(pwCheck.message!); return; }
-    if (password !== confirm) { setError("Passwords do not match"); return; }
+
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirm) {
+      setError("New password and confirm password must match.");
+      return;
+    }
+
+    if (!hasRecoverySession) {
+      setError("Invalid or expired reset link. Please request a new password reset email.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
+
     try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
-      const d = await res.json();
-      if (res.ok) {
-        router.push("/login?reset=1");
-      } else {
-        setError(d.error || "Failed to reset password");
+      const supabase = getSupabaseBrowserClient();
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (updateError) {
+        setError(updateError.message || "Failed to update password.");
         setSubmitting(false);
+        return;
       }
+
+      setSuccess(true);
+      setSubmitting(false);
+
+      await supabase.auth.signOut();
+      window.setTimeout(() => {
+        router.replace("/login?reset=1");
+      }, 1600);
     } catch {
-      setError("Failed to reset password. Please try again.");
+      setError("Failed to update password. Please try again.");
       setSubmitting(false);
     }
   };
@@ -49,34 +121,48 @@ function ResetPasswordForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <AuthLogo />
-          <h1 className="mt-2 text-2xl font-bold text-slate-50 sm:text-3xl">Set New Password</h1>
-          <p className="text-slate-400 text-sm mt-1">Open the link from your email, then enter and confirm your new password</p>
+          <h1 className="mt-2 text-2xl font-bold text-slate-50 sm:text-3xl">Reset Password</h1>
+          <p className="text-slate-400 text-sm mt-1">Enter and confirm your new password</p>
         </div>
-        {!token && (
+
+        {success && (
+          <div className="mb-4 rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-xs text-center">
+            Password updated successfully.
+          </div>
+        )}
+
+        {!checkingRecovery && !hasRecoverySession && !success && !hasRecoveryParams && (
+          <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
+            Open this page using the password reset link from your email.
+          </div>
+        )}
+
+        {!checkingRecovery && !hasRecoverySession && !success && hasRecoveryParams && (
           <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
             This reset link is invalid or expired. Request a new password reset email.
           </div>
         )}
+
         <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6">
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">New Password</label>
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
-              placeholder="Create a strong password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
               autoFocus
             />
-            <PasswordRules password={password} />
+            <p className="mt-2 text-xs text-slate-500">Minimum 8 characters.</p>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm New Password</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Confirm Password</label>
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
-              placeholder="Re-enter new password"
+              placeholder="Re-enter password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
@@ -85,11 +171,11 @@ function ResetPasswordForm() {
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={!token || submitting}
+            disabled={checkingRecovery || submitting || success}
             className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
-            {submitting ? "Saving…" : "Set New Password"}
+            {checkingRecovery ? "Loading..." : submitting ? "Updating..." : "Update password"}
           </button>
           <p className="text-center text-xs text-slate-500">
             <Link href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 font-medium">
@@ -98,7 +184,7 @@ function ResetPasswordForm() {
           </p>
           <p className="text-center text-xs text-slate-500">
             <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
-              Back to Sign In
+              Back to Login
             </Link>
           </p>
         </form>

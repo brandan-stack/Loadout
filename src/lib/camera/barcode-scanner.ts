@@ -8,6 +8,34 @@ export interface ScanResult {
   timestamp: number;
 }
 
+const BARCODE_FORMATS: string[] = [
+  "qr_code",
+  "code_128",
+  "code_39",
+  "ean_13",
+  "ean_8",
+  "upc_a",
+  "upc_e",
+  "itf",
+  "codabar",
+];
+
+let detector: BarcodeDetector | null | undefined;
+
+function getDetector() {
+  if (detector !== undefined) {
+    return detector;
+  }
+
+  if (typeof window === "undefined" || !("BarcodeDetector" in window)) {
+    detector = null;
+    return detector;
+  }
+
+  detector = new BarcodeDetector({ formats: BARCODE_FORMATS as BarcodeFormat[] });
+  return detector;
+}
+
 /**
  * Scan barcode/QR code from video element using canvas + jsQR
  */
@@ -35,6 +63,26 @@ export async function scanBarcodeFromVideo(
 
   // Scan with jsQR
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  const barcodeDetector = getDetector();
+  if (barcodeDetector) {
+    try {
+      const codes = await barcodeDetector.detect(canvas);
+      if (codes.length > 0) {
+        const first = codes.find((entry) => entry.rawValue)?.rawValue;
+        if (first) {
+          return {
+            code: first,
+            type: "barcode",
+            timestamp: Date.now(),
+          };
+        }
+      }
+    } catch {
+      // Fall through to jsQR fallback.
+    }
+  }
+
   const code = jsQR(imageData.data, canvas.width, canvas.height);
 
   if (code) {

@@ -1,0 +1,74 @@
+nohup: ignoring input
+
+> loadout@0.1.0 dev
+> node scripts/next-with-port.js dev 3004
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3004
+   - Network:      http://10.0.0.212:3004
+   - Environments: .env
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 983ms (30 modules)
+[instrumentation] Database initialization failed: Error [PrismaClientInitializationError]: 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Authentication failed against database server at `aws-1-us-east-2.pooler.supabase.com`, the provided database credentials for `postgres` are not valid.
+
+Please make sure to provide valid database credentials for the database server at `aws-1-us-east-2.pooler.supabase.com`.
+    at async Module.register (src/instrumentation.ts:325:9)
+  323 |         }
+  324 |       } else {
+> 325 |         await prisma.$executeRawUnsafe(sql);
+      |         ^
+  326 |       }
+  327 |     }
+  328 | {
+  clientVersion: '5.22.0',
+  errorCode: undefined
+}
+ ✓ Ready in 6s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 950ms (180 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 8.2s (701 modules)
+ ✓ Compiled in 729ms (277 modules)
+ GET /login 200 in 9024ms
+ ○ Compiling /api/auth/setup ...
+ ✓ Compiled /api/auth/setup in 1584ms (704 modules)
+[setup] Database check failed after retries: Error [PrismaClientInitializationError]: 
+Invalid `prisma.appUser.count()` invocation:
+
+
+Authentication failed against database server at `aws-1-us-east-2.pooler.supabase.com`, the provided database credentials for `postgres` are not valid.
+
+Please make sure to provide valid database credentials for the database server at `aws-1-us-east-2.pooler.supabase.com`.
+    at async GET (src/app/api/auth/setup/route.ts:25:21)
+  23 |   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  24 |     try {
+> 25 |       const count = await dbAny.appUser.count();
+     |                     ^
+  26 |       return NextResponse.json({ required: count === 0 });
+  27 |     } catch (err) {
+  28 |       lastError = err; {
+  clientVersion: '5.22.0',
+  errorCode: undefined
+}
+ GET /api/auth/setup 503 in 12933ms
+   Reload env: .env
+ ✓ Compiled in 801ms (455 modules)
+ ✓ Compiled in 225ms (455 modules)
+   Reload env: .env
+ ✓ Compiled in 126ms (455 modules)
+ ✓ Compiled in 223ms (455 modules)
+   Reload env: .env
+ ✓ Compiled in 303ms (455 modules)
+ ✓ Compiled in 95ms (455 modules)
+   Reload env: .env
+ ✓ Compiled in 139ms (455 modules)
+ ✓ Compiled in 185ms (455 modules)
+   Reload env: .env
+ ✓ Compiled in 294ms (455 modules)
+ ✓ Compiled in 146ms (455 modules)

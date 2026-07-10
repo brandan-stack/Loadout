@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AuthLogo } from "@/components/ui/AuthLogo";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -12,25 +13,29 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) { setError("Email is required"); return; }
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      const supabase = getSupabaseBrowserClient();
+      const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
-      const d = await res.json();
-      if (res.ok) {
-        setSubmitted(true);
-      } else {
-        setError(d.error || "Failed to process request");
+
+      if (supabaseError) {
+        setError(supabaseError.message || "Failed to send reset link");
         setSubmitting(false);
+        return;
       }
+
+      setSubmitted(true);
+      setSubmitting(false);
     } catch {
-      setError("Failed to process request. Please try again.");
+      setError("Failed to send reset link. Please try again.");
       setSubmitting(false);
     }
   };
@@ -46,7 +51,7 @@ export default function ForgotPasswordPage() {
         {submitted ? (
           <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-center sm:p-6">
             <div className="rounded-xl bg-emerald-900/30 border border-emerald-700/50 px-4 py-3 text-emerald-300 text-sm">
-              If an account exists for {email.trim().toLowerCase()}, a password reset link has been sent.
+              If an account exists for that email, a password reset link has been sent.
             </div>
             <p className="text-sm text-slate-400">
               Check your inbox and spam folder, then open the reset link to choose a new password.
@@ -84,11 +89,11 @@ export default function ForgotPasswordPage() {
             {error && <p className="text-red-400 text-xs">{error}</p>}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !email.trim()}
               className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
             >
-              {submitting ? "Sending…" : "Send Reset Link"}
+              {submitting ? "Sending..." : "Send reset link"}
             </button>
             <p className="text-center text-xs text-slate-500">
               Remember your password?{" "}

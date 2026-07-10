@@ -171,12 +171,7 @@ function LoginForm() {
             />
           </div>
           <div>
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <label className="block text-xs font-semibold text-slate-400">Password</label>
-              <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
-                Forgot password?
-              </Link>
-            </div>
+            <label className="mb-1 block text-xs font-semibold text-slate-400">Password</label>
             <input
               className="w-full rounded-xl bg-slate-800 border border-slate-600 text-slate-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               type="password"
@@ -185,6 +180,11 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
+            <div className="mt-2 text-right">
+              <Link href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
+                Forgot password?
+              </Link>
+            </div>
           </div>
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <button

@@ -24,6 +24,7 @@ export default async function ItemsPage({
       select: {
         id: true,
         name: true,
+        barcode: true,
         manufacturer: true,
         partNumber: true,
         modelNumber: true,
@@ -97,6 +98,7 @@ export default async function ItemsPage({
       }}
       initialItems={items.map((item: any) => ({
         ...item,
+        barcode: item.barcode ?? undefined,
         manufacturer: item.manufacturer ?? undefined,
         partNumber: item.partNumber ?? undefined,
         modelNumber: item.modelNumber ?? undefined,

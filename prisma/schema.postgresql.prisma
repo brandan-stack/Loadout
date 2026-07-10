@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,84 +9,63 @@ datasource db {
 }
 
 model Organization {
-  id           String            @id @default(cuid())
-  name         String
-  contactEmail String
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  users             AppUser[]
-  items             Item[]
-  suppliers         Supplier[]
-  jobs              Job[]
-  tools             Tool[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  contactEmail          String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  users                 AppUser[]
   inventoryTransactions InventoryTransaction[]
-  toolTransactions  ToolTransaction[]
-  reportViews       ReportView[]
-  shareLogs         ShareLog[]
-  itemVariants      ItemVariant[]
-  locations         Location[]
-  locationTransfers LocationTransfer[]
-  scheduledReports  ScheduledReport[]
-  settings          Settings?
+  items                 Item[]
+  itemVariants          ItemVariant[]
+  jobs                  Job[]
+  locations             Location[]
+  locationTransfers     LocationTransfer[]
+  reportViews           ReportView[]
+  scheduledReports      ScheduledReport[]
+  settings              Settings?
+  shareLogs             ShareLog[]
+  suppliers             Supplier[]
+  tools                 Tool[]
+  toolTransactions      ToolTransaction[]
 }
 
 model Item {
-  id                    String   @id @default(cuid())
-  organizationId        String
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name                  String
-  manufacturer          String?
-  partNumber            String?
-  modelNumber           String?
-  category              String?
-  serialNumber          String?
-  barcode               String?
-  description           String?
-  quantityOnHand        Int      @default(0)
-  quantityUsedTotal     Int      @default(0)
-  defaultLocationId     String?
-  defaultLocation       Location? @relation("DefaultItemLocation", fields: [defaultLocationId], references: [id])
-  lastMovementAt        DateTime?
-  lastMovementType      String?
-  
-  // Low stock thresholds
-  lowStockAmberThreshold Int      @default(5)
-  lowStockRedThreshold   Int      @default(2)
-  
-  // Supplier
-  preferredSupplierId   String?
-  preferredSupplier     Supplier?  @relation(fields: [preferredSupplierId], references: [id])
-  lastUnitCost          Float?
-  marginPercent         Float   @default(0)
-  
-  // Variants (Wave B feature)
-  unitOfMeasure         String   @default("each")
-  
-  // Lot/expiry (Wave B feature)
-  enableLotTracking     Boolean  @default(false)
-  enableExpiryTracking  Boolean  @default(false)
-  
-  // Photos
-  photoUrl              String?
-  photos                ItemPhoto[]
-  
-  // Transactions
-  transactions          InventoryTransaction[]
-  
-  // Variants (Wave B feature)
-  variants              ItemVariant[]
-  
-  // Multi-location stock
-  locationStock         LocationStock[]
+  id                     String                 @id @default(cuid())
+  name                   String
+  manufacturer           String?
+  partNumber             String?
+  modelNumber            String?
+  serialNumber           String?
+  barcode                String?
+  description            String?
+  quantityOnHand         Int                    @default(0)
+  quantityUsedTotal      Int                    @default(0)
+  lowStockAmberThreshold Int                    @default(5)
+  lowStockRedThreshold   Int                    @default(2)
+  preferredSupplierId    String?
+  lastUnitCost           Float?
+  unitOfMeasure          String                 @default("each")
+  enableLotTracking      Boolean                @default(false)
+  enableExpiryTracking   Boolean                @default(false)
+  photoUrl               String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organizationId         String
+  category               String?
+  defaultLocationId      String?
+  lastMovementAt         DateTime?
+  lastMovementType       String?
+  marginPercent          Float                  @default(0)
+  transactions           InventoryTransaction[]
+  defaultLocation        Location?              @relation("DefaultItemLocation", fields: [defaultLocationId], references: [id])
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  preferredSupplier      Supplier?              @relation(fields: [preferredSupplierId], references: [id])
+  photos                 ItemPhoto[]
+  variants               ItemVariant[]
+  jobParts               JobPart[]
+  locationStock          LocationStock[]
 
-  // Job parts
-  jobParts              JobPart[]
-
-  // Dates
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
   @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([organizationId, barcode])
@@ -97,57 +73,55 @@ model Item {
   @@index([defaultLocationId])
   @@index([organizationId, category])
   @@index([organizationId, lastMovementAt])
+  @@index([barcode])
+  @@index([lowStockRedThreshold])
 }
 
 model ItemPhoto {
   id        String   @id @default(cuid())
   itemId    String
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
   fileName  String
   filePath  String
   isPrimary Boolean  @default(false)
   notes     String?
   size      Int      @default(0)
   createdAt DateTime @default(now())
-  
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
   @@index([itemId])
 }
 
 model InventoryTransaction {
-  id        String   @id @default(cuid())
-  organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itemId    String
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  actorUserId String?
-  actorUser AppUser? @relation("InventoryTransactionsActor", fields: [actorUserId], references: [id])
-  fromLocationId String?
-  fromLocation Location? @relation("InventoryTransactionsFromLocation", fields: [fromLocationId], references: [id])
-  toLocationId String?
-  toLocation Location? @relation("InventoryTransactionsToLocation", fields: [toLocationId], references: [id])
-  jobId     String?
-  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  jobParts  JobPart[]
-  
-  type      String   // "add" | "use" | "adjust"
-  quantity  Int
-  quantityDelta Int?
-  balanceAfter Int?
-  jobNumberSnapshot String?
+  id                     String       @id @default(cuid())
+  itemId                 String
+  type                   String
+  quantity               Int
+  lotNumber              String?
+  expiryDate             DateTime?
+  notes                  String?
+  createdAt              DateTime     @default(now())
+  organizationId         String
+  actorUserId            String?
+  fromLocationId         String?
+  toLocationId           String?
+  jobId                  String?
+  quantityDelta          Int?
+  balanceAfter           Int?
+  jobNumberSnapshot      String?
   jobDescriptionSnapshot String?
-  costSnapshot Float?
-  clientRequestId String? @unique
-  submittedOfflineAt DateTime?
-  syncedAt DateTime?
-  syncStatus String @default("synced")
-  
-  // Optional lot/expiry tracking
-  lotNumber String?
-  expiryDate DateTime?
-  
-  notes     String?
-  createdAt DateTime @default(now())
-  
+  costSnapshot           Float?
+  clientRequestId        String?      @unique
+  submittedOfflineAt     DateTime?
+  syncedAt               DateTime?
+  syncStatus             String       @default("synced")
+  actorUser              AppUser?     @relation("InventoryTransactionsActor", fields: [actorUserId], references: [id])
+  fromLocation           Location?    @relation("InventoryTransactionsFromLocation", fields: [fromLocationId], references: [id])
+  item                   Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  job                    Job?         @relation(fields: [jobId], references: [id])
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  toLocation             Location?    @relation("InventoryTransactionsToLocation", fields: [toLocationId], references: [id])
+  jobParts               JobPart[]
+
   @@index([itemId])
   @@index([createdAt])
   @@index([type])
@@ -160,21 +134,21 @@ model InventoryTransaction {
 }
 
 model Supplier {
-  id        String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  name           String
+  contact        String?
+  website        String?
+  leadTimeD      Int          @default(7)
+  notes          String?
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name      String
-  contact   String?
-  emailContacts Json   @default("[]")
-  website   String?
-  leadTimeD Int      @default(7)
-  isPreferred Boolean @default(false)
-  isFastest Boolean   @default(false)
-  notes     String?
-  archived  Boolean  @default(false)
-  items     Item[]   @relation()
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  emailContacts  Json         @default("[]")
+  isPreferred    Boolean      @default(false)
+  isFastest      Boolean      @default(false)
+  items          Item[]
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -183,105 +157,91 @@ model Supplier {
 }
 
 model AppUser {
-  id               String    @id @default(cuid())
-  organizationId   String
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name             String
-  email            String    @unique
-  role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
-  rolePreset       String    @default("STANDARD")
-  financialVisibilityMode String @default("total_only")
-  canViewBasePrice Boolean @default(false)
-  canViewMarginPrice Boolean @default(false)
-  canViewTotalPrice Boolean @default(false)
-  canViewDashboard Boolean @default(false)
-  canViewJobs Boolean @default(false)
-  canViewInventory Boolean @default(false)
-  canViewTools Boolean @default(false)
-  canViewReports Boolean @default(false)
-  canViewSuppliers Boolean @default(false)
-  canViewReorder Boolean @default(false)
-  canViewSettings Boolean @default(false)
-  canAddInventory Boolean @default(false)
-  canEditInventory Boolean @default(false)
-  canMoveInventory Boolean @default(false)
-  canRemoveInventory Boolean @default(false)
-  canUseInventoryOnJob Boolean @default(false)
-  canReturnInventoryFromJob Boolean @default(false)
-  canManageLocations Boolean @default(false)
-  canManageCategories Boolean @default(false)
-  canCreateJobs Boolean @default(false)
-  canEditJobs Boolean @default(false)
-  canCloseJobs Boolean @default(false)
-  canInvoiceJobs Boolean @default(false)
-  canViewJobSummaries Boolean @default(false)
-  canViewOwnTools Boolean @default(false)
-  canAddOwnTools Boolean @default(false)
-  canEditOwnTools Boolean @default(false)
-  canViewCompanyTools Boolean @default(false)
-  canRequestCompanyTools Boolean @default(false)
-  canCheckoutCompanyTools Boolean @default(false)
-  canReturnCompanyTools Boolean @default(false)
-  canAcceptToolReturns Boolean @default(false)
-  canManageCompanyTools Boolean @default(false)
-  canManageUsers Boolean @default(false)
-  canManageSettings Boolean @default(false)
-  canExportData Boolean @default(false)
-  canBackupRestore Boolean @default(false)
-  canClearCache Boolean @default(false)
-  canEnableModules Boolean @default(false)
-  passwordHash     String
-  resetToken       String?
-  resetTokenExpiry DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  jobs      Job[]          @relation("TechJobs")
-  tools     Tool[]         @relation("PersonalTools")
-  assignedCompanyTools Tool[] @relation("AssignedCompanyTools")
-  checkouts ToolCheckout[]
-  inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsActor")
-  jobMaterialUsages JobPart[] @relation("JobPartPerformedBy")
-  requestedToolTransactions ToolTransaction[] @relation("RequestedToolTransactions")
-  approvedToolTransactions ToolTransaction[] @relation("ApprovedToolTransactions")
-  acceptedToolTransactions ToolTransaction[] @relation("AcceptedToolTransactions")
-  heldToolTransactions ToolTransaction[] @relation("HeldToolTransactions")
+  id                        String                 @id @default(cuid())
+  name                      String
+  role                      String                 @default("TECH")
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  email                     String                 @unique
+  passwordHash              String
+  resetToken                String?
+  resetTokenExpiry          DateTime?
+  organizationId            String
+  rolePreset                String                 @default("STANDARD")
+  financialVisibilityMode   String                 @default("total_only")
+  canViewDashboard          Boolean                @default(false)
+  canViewJobs               Boolean                @default(false)
+  canViewInventory          Boolean                @default(false)
+  canViewTools              Boolean                @default(false)
+  canViewReports            Boolean                @default(false)
+  canViewSuppliers          Boolean                @default(false)
+  canViewReorder            Boolean                @default(false)
+  canViewSettings           Boolean                @default(false)
+  canAddInventory           Boolean                @default(false)
+  canEditInventory          Boolean                @default(false)
+  canMoveInventory          Boolean                @default(false)
+  canRemoveInventory        Boolean                @default(false)
+  canUseInventoryOnJob      Boolean                @default(false)
+  canReturnInventoryFromJob Boolean                @default(false)
+  canManageLocations        Boolean                @default(false)
+  canManageCategories       Boolean                @default(false)
+  canCreateJobs             Boolean                @default(false)
+  canEditJobs               Boolean                @default(false)
+  canCloseJobs              Boolean                @default(false)
+  canInvoiceJobs            Boolean                @default(false)
+  canViewJobSummaries       Boolean                @default(false)
+  canViewOwnTools           Boolean                @default(false)
+  canAddOwnTools            Boolean                @default(false)
+  canEditOwnTools           Boolean                @default(false)
+  canViewCompanyTools       Boolean                @default(false)
+  canRequestCompanyTools    Boolean                @default(false)
+  canCheckoutCompanyTools   Boolean                @default(false)
+  canReturnCompanyTools     Boolean                @default(false)
+  canAcceptToolReturns      Boolean                @default(false)
+  canManageCompanyTools     Boolean                @default(false)
+  canManageUsers            Boolean                @default(false)
+  canManageSettings         Boolean                @default(false)
+  canExportData             Boolean                @default(false)
+  canBackupRestore          Boolean                @default(false)
+  canClearCache             Boolean                @default(false)
+  canEnableModules          Boolean                @default(false)
+  canViewBasePrice          Boolean                @default(false)
+  canViewMarginPrice        Boolean                @default(false)
+  canViewTotalPrice         Boolean                @default(false)
+  organization              Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryTransactions     InventoryTransaction[] @relation("InventoryTransactionsActor")
+  jobs                      Job[]                  @relation("TechJobs")
+  jobMaterialUsages         JobPart[]              @relation("JobPartPerformedBy")
+  assignedCompanyTools      Tool[]                 @relation("AssignedCompanyTools")
+  tools                     Tool[]                 @relation("PersonalTools")
+  checkouts                 ToolCheckout[]
+  acceptedToolTransactions  ToolTransaction[]      @relation("AcceptedToolTransactions")
+  approvedToolTransactions  ToolTransaction[]      @relation("ApprovedToolTransactions")
+  heldToolTransactions      ToolTransaction[]      @relation("HeldToolTransactions")
+  requestedToolTransactions ToolTransaction[]      @relation("RequestedToolTransactions")
 
   @@index([organizationId])
   @@index([organizationId, rolePreset])
 }
 
 model Job {
-  id           String    @id @default(cuid())
-  organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  jobNumber    String
-  title        String?
-  description  String?
-  customer     String
-  siteName     String?
-  technicianId String
-  technician   AppUser   @relation("TechJobs", fields: [technicianId], references: [id])
-  createdByUserId String?
-  createdByName String?
-  date         DateTime  @default(now())
-  status       String    @default("OPEN") // "OPEN" | "COMPLETED" | "INVOICED"
-  billingTotal Float?
-  notes        String?
-  customerSummary String?
-  completedAt  DateTime?
-  completedByUserId String?
-  completedByName String?
-  invoiceNumber String?
-  invoiceDate  DateTime?
-  invoicedByUserId String?
-  invoicedByName String?
-  latestActivityAt DateTime @default(now())
-  parts        JobPart[]
-  history      JobHistory[]
-  transactions InventoryTransaction[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String                 @id @default(cuid())
+  jobNumber        String
+  customer         String
+  technicianId     String
+  date             DateTime               @default(now())
+  status           String                 @default("OPEN")
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  organizationId   String
+  description      String?
+  latestActivityAt DateTime               @default(now())
+  billingTotal     Float?
+  transactions     InventoryTransaction[]
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  technician       AppUser                @relation("TechJobs", fields: [technicianId], references: [id])
+  parts            JobPart[]
 
   @@unique([organizationId, jobNumber])
   @@index([organizationId])
@@ -289,32 +249,29 @@ model Job {
   @@index([status])
   @@index([organizationId, jobNumber])
   @@index([organizationId, latestActivityAt])
-  @@index([organizationId, status, latestActivityAt])
-  @@index([organizationId, invoiceNumber])
+  @@index([jobNumber])
+  @@index([status, latestActivityAt])
 }
 
 model JobPart {
-  id        String   @id @default(cuid())
-  jobId     String
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  itemId    String
-  item      Item     @relation(fields: [itemId], references: [id])
+  id                     String                @id @default(cuid())
+  jobId                  String
+  itemId                 String
+  quantity               Int
+  unitCost               Float                 @default(0)
+  notes                  String?
+  createdAt              DateTime              @default(now())
   inventoryTransactionId String?
-  inventoryTransaction InventoryTransaction? @relation(fields: [inventoryTransactionId], references: [id], onDelete: SetNull)
-  performedByUserId String?
-  performedByUser AppUser? @relation("JobPartPerformedBy", fields: [performedByUserId], references: [id])
-  quantity  Int
-  unitCost  Float    @default(0)
-  markupPercent Float @default(0)
-  unitSell  Float    @default(0)
-  costSnapshot Float?
-  itemNameSnapshot String?
-  itemPartNumberSnapshot String?
+  performedByUserId      String?
+  costSnapshot           Float?
+  itemNameSnapshot       String?
   jobDescriptionSnapshot String?
-  returnedQuantity Int @default(0)
-  notes     String?
-  lastActivityAt DateTime @default(now())
-  createdAt DateTime @default(now())
+  returnedQuantity       Int                   @default(0)
+  lastActivityAt         DateTime              @default(now())
+  inventoryTransaction   InventoryTransaction? @relation(fields: [inventoryTransactionId], references: [id])
+  item                   Item                  @relation(fields: [itemId], references: [id])
+  job                    Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  performedByUser        AppUser?              @relation("JobPartPerformedBy", fields: [performedByUserId], references: [id])
 
   @@index([jobId])
   @@index([itemId])
@@ -322,55 +279,38 @@ model JobPart {
   @@index([performedByUserId])
 }
 
-model JobHistory {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  jobId          String
-  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  actorUserId    String?
-  actorName      String?
-  actionType     String
-  actionLabel    String
-  details        String?
-  createdAt      DateTime @default(now())
-
-  @@index([organizationId])
-  @@index([jobId])
-  @@index([jobId, createdAt])
-}
-
 model Tool {
-  id           String         @id @default(cuid())
-  organizationId String
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assetTag     String?
-  name         String
-  manufacturer String?
-  partNumber   String?
-  modelNumber  String?
-  serialNumber String?
-  category     String?
-  supplier     String?
-  cost         Float          @default(0)
-  replacementValue Float?
-  condition    String         @default("Good")
-  currentStatus String        @default("Available")
-  notes        String?
-  photoUrl     String?
-  type         String         @default("COMPANY") // "COMPANY" | "PERSONAL"
-  ownerId      String?
-  owner        AppUser?       @relation("PersonalTools", fields: [ownerId], references: [id])
-  assignedUserId String?
-  assignedUser AppUser?       @relation("AssignedCompanyTools", fields: [assignedUserId], references: [id])
-  defaultLocation String?
-  checkouts    ToolCheckout[]
-  transactions ToolTransaction[]
+  id                String            @id @default(cuid())
+  name              String
+  manufacturer      String?
+  partNumber        String?
+  modelNumber       String?
+  supplier          String?
+  cost              Float             @default(0)
+  notes             String?
+  photoUrl          String?
+  type              String            @default("SHOP")
+  ownerId           String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  organizationId    String
+  assetTag          String?
+  serialNumber      String?
+  category          String?
+  replacementValue  Float?
+  condition         String            @default("Good")
+  currentStatus     String            @default("Available")
+  assignedUserId    String?
+  defaultLocation   String?
   lastTransactionAt DateTime?
-  archived     Boolean        @default(false)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  archived          Boolean           @default(false)
+  assignedUser      AppUser?          @relation("AssignedCompanyTools", fields: [assignedUserId], references: [id])
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner             AppUser?          @relation("PersonalTools", fields: [ownerId], references: [id])
+  checkouts         ToolCheckout[]
+  transactions      ToolTransaction[]
 
+  @@unique([organizationId, assetTag])
   @@index([name])
   @@index([supplier])
   @@index([ownerId])
@@ -378,38 +318,37 @@ model Tool {
   @@index([assignedUserId])
   @@index([organizationId, type])
   @@index([organizationId, currentStatus])
-  @@unique([organizationId, assetTag])
 }
 
 model ToolTransaction {
-  id               String       @id @default(cuid())
-  organizationId   String
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  toolId           String
-  tool             Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
-  holderUserId     String?
-  holderUser       AppUser?     @relation("HeldToolTransactions", fields: [holderUserId], references: [id])
-  requestedByUserId String?
-  requestedByUser  AppUser?     @relation("RequestedToolTransactions", fields: [requestedByUserId], references: [id])
-  approvedByUserId String?
-  approvedByUser   AppUser?     @relation("ApprovedToolTransactions", fields: [approvedByUserId], references: [id])
-  acceptedByUserId String?
-  acceptedByUser   AppUser?     @relation("AcceptedToolTransactions", fields: [acceptedByUserId], references: [id])
-  status           String       @default("Requested")
-  transactionType  String       @default("request")
-  requestedAt      DateTime     @default(now())
-  checkedOutAt     DateTime?
-  dueBackAt        DateTime?
-  returnRequestedAt DateTime?
-  returnedAt       DateTime?
-  acceptedAt       DateTime?
-  notes            String?
-  issueReported    String?
-  clientRequestId  String?      @unique
+  id                 String       @id @default(cuid())
+  organizationId     String
+  toolId             String
+  holderUserId       String?
+  requestedByUserId  String?
+  approvedByUserId   String?
+  acceptedByUserId   String?
+  status             String       @default("Requested")
+  transactionType    String       @default("request")
+  requestedAt        DateTime     @default(now())
+  checkedOutAt       DateTime?
+  dueBackAt          DateTime?
+  returnRequestedAt  DateTime?
+  returnedAt         DateTime?
+  acceptedAt         DateTime?
+  notes              String?
+  issueReported      String?
+  clientRequestId    String?      @unique
   submittedOfflineAt DateTime?
-  syncStatus       String       @default("synced")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  syncStatus         String       @default("synced")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @default(now()) @updatedAt
+  acceptedByUser     AppUser?     @relation("AcceptedToolTransactions", fields: [acceptedByUserId], references: [id])
+  approvedByUser     AppUser?     @relation("ApprovedToolTransactions", fields: [approvedByUserId], references: [id])
+  holderUser         AppUser?     @relation("HeldToolTransactions", fields: [holderUserId], references: [id])
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedByUser    AppUser?     @relation("RequestedToolTransactions", fields: [requestedByUserId], references: [id])
+  tool               Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([toolId])
@@ -424,57 +363,57 @@ model ToolTransaction {
 model ToolCheckout {
   id           String    @id @default(cuid())
   toolId       String
-  tool         Tool      @relation(fields: [toolId], references: [id], onDelete: Cascade)
   userId       String
-  user         AppUser   @relation(fields: [userId], references: [id])
   checkedOutAt DateTime  @default(now())
   returnedAt   DateTime?
   notes        String?
+  tool         Tool      @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  user         AppUser   @relation(fields: [userId], references: [id])
 
   @@index([toolId])
   @@index([userId])
 }
 
 model ReportView {
-  id        String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  name           String
+  type           String
+  filters        String       @default("{}")
+  sortBy         String       @default("name")
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name      String
-  type      String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
-  filters   String   @default("{}") // JSON stored as string
-  sortBy    String   @default("name")
-  archived  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 model ShareLog {
-  id           String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  type           String
+  reportType     String?
+  emailClient    String?
+  filters        String       @default("{}")
+  createdAt      DateTime     @default(now())
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  type         String   // "pdf" | "email"
-  reportType   String?
-  emailClient  String?  // "apple_mail" | "gmail" | "outlook" | "default"
-  filters      String   @default("{}") // JSON
-  createdAt    DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 model ItemVariant {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
   itemId         String
-  item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  name           String   // e.g. "Red / Large"
+  name           String
   sku            String?
-  quantityOnHand Int      @default(0)
-  attributes     String   @default("{}") // JSON: { size, color, etc. }
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  quantityOnHand Int          @default(0)
+  attributes     String       @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organizationId String
+  item           Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, sku])
   @@index([organizationId])
@@ -482,18 +421,18 @@ model ItemVariant {
 }
 
 model Location {
-  id          String         @id @default(cuid())
-  organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  archived    Boolean        @default(false)
-  stock       LocationStock[]
-  defaultItems Item[]        @relation("DefaultItemLocation")
+  id                            String                 @id @default(cuid())
+  name                          String
+  description                   String?
+  archived                      Boolean                @default(false)
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  organizationId                String
   outboundInventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsFromLocation")
-  inboundInventoryTransactions InventoryTransaction[] @relation("InventoryTransactionsToLocation")
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  inboundInventoryTransactions  InventoryTransaction[] @relation("InventoryTransactionsToLocation")
+  defaultItems                  Item[]                 @relation("DefaultItemLocation")
+  organization                  Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stock                         LocationStock[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -502,11 +441,11 @@ model Location {
 model LocationStock {
   id             String   @id @default(cuid())
   locationId     String
-  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   itemId         String
-  item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
   quantityOnHand Int      @default(0)
   updatedAt      DateTime @updatedAt
+  item           Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([locationId, itemId])
   @@index([locationId])
@@ -514,15 +453,15 @@ model LocationStock {
 }
 
 model LocationTransfer {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
   fromLocationId String
   toLocationId   String
   itemId         String
   quantity       Int
   notes          String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
   @@index([fromLocationId])
@@ -531,56 +470,49 @@ model LocationTransfer {
 }
 
 model ScheduledReport {
-  id         String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  name           String
+  reportType     String
+  frequency      String
+  filters        String       @default("{}")
+  lastRun        DateTime?
+  nextRun        DateTime
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name       String
-  reportType String   // "low_stock" | "usage_period" | "dead_stock" | "fast_movers"
-  frequency  String   // "daily" | "weekly" | "monthly"
-  filters    String   @default("{}") // JSON
-  lastRun    DateTime?
-  nextRun    DateTime
-  archived   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 model Settings {
-  id                    String    @id @default(cuid())
-  organizationId        String    @unique
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  premiumEnabled        Boolean   @default(false)
-  simpleMode            Boolean   @default(true)
-  enableToolsModule     Boolean   @default(true)
-  requireToolReturnAcceptance Boolean @default(true)
-  allowOfflineMode      Boolean   @default(true)
-  allowOfflineQueue     Boolean   @default(true)
-  allowOfflineCompanyToolFlows Boolean @default(true)
-  offlineAutoSync       Boolean   @default(true)
-  offlineCacheDays      Int       @default(30)
-  defaultFinancialVisibilityMode String @default("total_only")
-  defaultCanViewBasePrice Boolean @default(false)
-  defaultCanViewMarginPrice Boolean @default(false)
-  defaultCanViewTotalPrice Boolean @default(true)
-  
-  // Feature toggles
-  enableMultiLocation   Boolean   @default(false)
-  enableVariants        Boolean   @default(false)
-  enableImportWizard    Boolean   @default(false)
-  enableLotExpiry       Boolean   @default(false)
-  enableBackupZip       Boolean   @default(false)
-  enableReportScheduler Boolean   @default(false)
-  enableAITagging       Boolean   @default(false)
-  
-  // Email
-  preferredEmailClient  String    @default("default") // "apple_mail" | "gmail" | "outlook" | "default"
-  composeSubjectTemplate String   @default("Inventory Report - {date}")
-  
-  // Thresholds
-  defaultLowStockAmber  Int       @default(5)
-  defaultLowStockRed    Int       @default(2)
-  
-  updatedAt             DateTime  @updatedAt
+  id                             String       @id @default(cuid())
+  premiumEnabled                 Boolean      @default(false)
+  simpleMode                     Boolean      @default(true)
+  enableMultiLocation            Boolean      @default(false)
+  enableVariants                 Boolean      @default(false)
+  enableImportWizard             Boolean      @default(false)
+  enableLotExpiry                Boolean      @default(false)
+  enableBackupZip                Boolean      @default(false)
+  enableReportScheduler          Boolean      @default(false)
+  enableAITagging                Boolean      @default(false)
+  preferredEmailClient           String       @default("default")
+  composeSubjectTemplate         String       @default("Inventory Report - {date}")
+  defaultLowStockAmber           Int          @default(5)
+  defaultLowStockRed             Int          @default(2)
+  updatedAt                      DateTime     @updatedAt
+  organizationId                 String       @unique
+  enableToolsModule              Boolean      @default(true)
+  requireToolReturnAcceptance    Boolean      @default(true)
+  allowOfflineMode               Boolean      @default(true)
+  allowOfflineQueue              Boolean      @default(true)
+  allowOfflineCompanyToolFlows   Boolean      @default(true)
+  offlineAutoSync                Boolean      @default(true)
+  offlineCacheDays               Int          @default(30)
+  defaultFinancialVisibilityMode String       @default("total_only")
+  defaultCanViewBasePrice        Boolean      @default(false)
+  defaultCanViewMarginPrice      Boolean      @default(false)
+  defaultCanViewTotalPrice       Boolean      @default(true)
+  organization                   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }

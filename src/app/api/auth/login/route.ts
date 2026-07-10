@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { signToken, COOKIE_NAME, MAX_AGE } from "@/lib/auth";
-import { normalizeEmail } from "@/lib/auth-credentials";
-import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
+import { COOKIE_NAME, MAX_AGE, signToken } from "@/lib/auth";
+import { isValidEmail } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimit";
 
-// Allow 10 login attempts per 15-minute window per IP
+const dbAny = prisma as any;
+
 const LOGIN_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
-// Hard cap on input length to prevent DoS payloads
-const MAX_FIELD_LENGTH = 320;
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,18 +24,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const email = String(body.email ?? "").slice(0, MAX_FIELD_LENGTH);
-    const password = String(body.password ?? "").slice(0, MAX_FIELD_LENGTH);
+    const email = String(body.email ?? "").toLowerCase().trim().slice(0, 320);
+    const password = String(body.password ?? "").slice(0, 320);
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+    if (!email || !isValidEmail(email)) {
+      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+    }
+    if (!password) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
-    const dbAny = prisma as any;
     const user = await dbAny.appUser.findUnique({
-      where: { email: normalizeEmail(email) },
+      where: { email },
       include: { organization: { select: { id: true, name: true } } },
     });
+
     if (!user || !user.passwordHash) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
@@ -54,17 +56,11 @@ export async function POST(request: NextRequest) {
       organizationName: user.organization.name,
     });
 
-    const res = NextResponse.json({
-      ok: true,
-      role: user.role,
-      name: user.name,
-      organizationId: user.organization.id,
-      organizationName: user.organization.name,
-    });
+    const res = NextResponse.json({ ok: true });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: MAX_AGE,
       path: "/",
     });
