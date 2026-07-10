@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { isValidEmail } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { createPasswordResetTokenPair, getAppBaseUrl } from "@/lib/password-reset";
-import { isPasswordRecoveryEmailConfigured, sendPasswordResetEmail } from "@/lib/server-email";
+import { getAppBaseUrl } from "@/lib/password-reset";
 
 const dbAny = prisma as any;
 
 // Allow 5 requests per hour per IP
 const FORGOT_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 
+function getSupabasePublicClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  }
+
+  return createClient(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    if (!isPasswordRecoveryEmailConfigured()) {
-      return NextResponse.json({ error: "Password recovery email is not configured" }, { status: 503 });
-    }
-
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
       request.headers.get("x-real-ip") ??
@@ -33,34 +46,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
 
-    const user = await dbAny.appUser.findUnique({
-      where: { email: trimmedEmail },
-      include: { organization: { select: { name: true } } },
-    });
+    const user = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
 
     if (user) {
-      const { token, tokenHash } = createPasswordResetTokenPair();
-      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-      const resetUrl = `${getAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(token)}`;
-
-      await dbAny.appUser.update({
-        where: { id: user.id },
-        data: { resetToken: tokenHash, resetTokenExpiry: expiry },
-      });
-
+      const supabase = getSupabasePublicClient();
       try {
-        await sendPasswordResetEmail({
-          to: user.email,
-          name: user.name,
-          organizationName: user.organization?.name,
-          resetUrl,
+        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+          redirectTo: `${getAppBaseUrl(request)}/reset-password`,
         });
+
+        if (error) {
+          console.error("Password reset email send failed:", error);
+        }
       } catch (mailError) {
         console.error("Password reset email send failed:", mailError);
-        await dbAny.appUser.update({
-          where: { id: user.id },
-          data: { resetToken: null, resetTokenExpiry: null },
-        });
       }
     }
 
