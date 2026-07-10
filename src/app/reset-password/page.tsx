@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLogo } from "@/components/ui/AuthLogo";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -13,8 +14,69 @@ function ResetPasswordForm() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [checkingRecovery, setCheckingRecovery] = useState(true);
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
 
   const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
+  const hasRecoveryParams = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const hash = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    if (!hash) return false;
+    const hashParams = new URLSearchParams(hash);
+    return hashParams.get("type") === "recovery" || hashParams.has("access_token");
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      setCheckingRecovery(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const initRecoveryState = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
+        setHasRecoverySession(Boolean(session));
+
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((event, sessionData) => {
+          if (!isMounted) return;
+          if (event === "PASSWORD_RECOVERY" || Boolean(sessionData)) {
+            setHasRecoverySession(true);
+          }
+        });
+
+        setCheckingRecovery(false);
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch {
+        if (isMounted) {
+          setCheckingRecovery(false);
+        }
+      }
+    };
+
+    let cleanup: (() => void) | undefined;
+    initRecoveryState().then((unsubscribe) => {
+      cleanup = unsubscribe;
+    });
+
+    return () => {
+      isMounted = false;
+      cleanup?.();
+    };
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,27 +91,41 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (!token) {
-      setError("Invalid or expired reset link. Please request a new password reset email.");
-      return;
-    }
-
     setSubmitting(true);
     setError("");
 
     try {
-      const response = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password: newPassword }),
-      });
+      if (token) {
+        const response = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password: newPassword }),
+        });
 
-      const data = await response.json().catch(() => ({ error: "Failed to update password." }));
+        const data = await response.json().catch(() => ({ error: "Failed to update password." }));
 
-      if (!response.ok) {
-        setError(data.error || "Failed to update password.");
-        setSubmitting(false);
-        return;
+        if (!response.ok) {
+          setError(data.error || "Failed to update password.");
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        if (!hasRecoverySession) {
+          setError("Invalid or expired reset link. Please request a new password reset email.");
+          setSubmitting(false);
+          return;
+        }
+
+        const supabase = getSupabaseBrowserClient();
+        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+        if (updateError) {
+          setError(updateError.message || "Failed to update password.");
+          setSubmitting(false);
+          return;
+        }
+
+        await supabase.auth.signOut();
       }
 
       setSuccess(true);
@@ -78,7 +154,13 @@ function ResetPasswordForm() {
           </div>
         )}
 
-        {!token && !success && (
+        {!token && !success && !checkingRecovery && !hasRecoverySession && !hasRecoveryParams && (
+          <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
+            Open this page using the password reset link from your email.
+          </div>
+        )}
+
+        {!token && !success && !checkingRecovery && !hasRecoverySession && hasRecoveryParams && (
           <div className="mb-4 rounded-xl bg-amber-900/30 border border-amber-700/50 px-4 py-3 text-amber-300 text-xs text-center">
             This reset link is invalid or expired. Request a new password reset email.
           </div>
@@ -112,11 +194,11 @@ function ResetPasswordForm() {
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={!token || submitting || success}
+            disabled={submitting || success || (!token && (checkingRecovery || !hasRecoverySession))}
             className="w-full rounded-xl text-white font-semibold py-3 text-sm transition-colors disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #5b5ef4 0%, #818cf8 100%)" }}
           >
-            {submitting ? "Updating..." : "Update password"}
+            {!token && checkingRecovery ? "Loading..." : submitting ? "Updating..." : "Update password"}
           </button>
           <p className="text-center text-xs text-slate-500">
             <Link href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 font-medium">

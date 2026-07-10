@@ -3,12 +3,30 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AuthLogo } from "@/components/ui/AuthLogo";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const sendWithSupabaseFallback = async (normalizedEmail: string) => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (supabaseError) {
+        return supabaseError.message || "Failed to send reset link";
+      }
+
+      return "";
+    } catch {
+      return "Password recovery email is not configured. Configure SMTP settings or Supabase recovery keys.";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,15 +37,29 @@ export default function ForgotPasswordPage() {
 
     setSubmitting(true);
     setError("");
+    const normalizedEmail = email.trim().toLowerCase();
     try {
       const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({ email: normalizedEmail }),
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: "Failed to send reset link" }));
+        if (response.status === 503 && String(data.error ?? "").toLowerCase().includes("not configured")) {
+          const fallbackError = await sendWithSupabaseFallback(normalizedEmail);
+          if (fallbackError) {
+            setError(fallbackError);
+            setSubmitting(false);
+            return;
+          }
+
+          setSubmitted(true);
+          setSubmitting(false);
+          return;
+        }
+
         setError(data.error || "Failed to send reset link");
         setSubmitting(false);
         return;
@@ -36,7 +68,12 @@ export default function ForgotPasswordPage() {
       setSubmitted(true);
       setSubmitting(false);
     } catch {
-      setError("Failed to send reset link. Please try again.");
+      const fallbackError = await sendWithSupabaseFallback(normalizedEmail);
+      if (fallbackError) {
+        setError(fallbackError);
+      } else {
+        setSubmitted(true);
+      }
       setSubmitting(false);
     }
   };
