@@ -163,6 +163,7 @@ model AppUser {
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
   email                     String                 @unique
+  supabaseAuthUserId        String?                @unique
   passwordHash              String
   resetToken                String?
   resetTokenExpiry          DateTime?

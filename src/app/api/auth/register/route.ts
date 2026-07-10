@@ -3,6 +3,7 @@ import { getAdminAccessSeed } from "@/lib/admin-access";
 import { prisma } from "@/lib/db";
 import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { deleteSupabaseAuthUser, ensureSupabaseAuthUser } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 
 const dbAny = prisma as any;
@@ -54,6 +55,23 @@ export async function POST(request: NextRequest) {
 		}
 
 		const passwordHash = await bcrypt.hash(password, 10);
+		let createdSupabaseAuthUser = false;
+		let supabaseAuthUserId = "";
+		try {
+			const ensuredAuthUser = await ensureSupabaseAuthUser({
+				email: trimmedEmail,
+				name: trimmedName,
+			});
+			supabaseAuthUserId = ensuredAuthUser.userId;
+			createdSupabaseAuthUser = ensuredAuthUser.created;
+		} catch (authErr) {
+			console.error("Register Supabase auth sync error:", authErr);
+			return NextResponse.json(
+				{ error: "Registration failed while provisioning authentication account" },
+				{ status: 500 }
+			);
+		}
+
 		let user: { id: string; name: string; email: string; role: string; organization: { id: string; name: string } };
 		try {
 			user = await dbAny.$transaction(async (tx: any) => {
@@ -87,6 +105,7 @@ export async function POST(request: NextRequest) {
 					data: {
 						name: trimmedName,
 						email: trimmedEmail,
+						supabaseAuthUserId,
 						role: "SUPER_ADMIN",
 						...adminAccessSeed,
 						passwordHash,
@@ -108,6 +127,14 @@ export async function POST(request: NextRequest) {
 				return createdUser;
 			});
 		} catch (createErr: unknown) {
+			if (createdSupabaseAuthUser && supabaseAuthUserId) {
+				try {
+					await deleteSupabaseAuthUser(supabaseAuthUserId);
+				} catch (rollbackErr) {
+					console.error("Register rollback failed for Supabase auth user:", rollbackErr);
+				}
+			}
+
 			const code = (createErr as { code?: string })?.code;
 			if (code === "P2002") {
 				return NextResponse.json(

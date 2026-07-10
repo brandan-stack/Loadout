@@ -22,7 +22,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.postgresql.prisma",
     "prisma:reset": "prisma migrate reset --force",
     "db:push": "prisma db push",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "sync:auth-users": "tsx scripts/sync-supabase-auth-users.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

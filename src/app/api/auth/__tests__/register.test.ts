@@ -19,6 +19,11 @@ jest.mock("@/lib/rateLimit", () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 }),
 }));
 
+jest.mock("@/lib/supabase/admin", () => ({
+  ensureSupabaseAuthUser: jest.fn().mockResolvedValue({ userId: "supabase-user-1", created: true }),
+  deleteSupabaseAuthUser: jest.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from "@/app/api/auth/register/route";
 import { NextRequest } from "next/server";
 
@@ -38,7 +43,10 @@ describe("POST /api/auth/register", () => {
     jest.clearAllMocks();
     // Re-apply default mock so each test starts with rate limit allowed
     const { checkRateLimit } = require("@/lib/rateLimit");
+    const { ensureSupabaseAuthUser, deleteSupabaseAuthUser } = require("@/lib/supabase/admin");
     (checkRateLimit as jest.Mock).mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 });
+    (ensureSupabaseAuthUser as jest.Mock).mockResolvedValue({ userId: "supabase-user-1", created: true });
+    (deleteSupabaseAuthUser as jest.Mock).mockResolvedValue(undefined);
   });
 
   async function mockSuccessfulTransaction(userCount = 1) {
@@ -98,6 +106,8 @@ describe("POST /api/auth/register", () => {
         contactEmail: "test@example.com",
       },
     });
+    const createCall = tx.appUser.create.mock.calls[0][0];
+    expect(createCall.data.supabaseAuthUserId).toBe("supabase-user-1");
   });
 
   it("returns 400 when name is missing", async () => {
@@ -199,6 +209,34 @@ describe("POST /api/auth/register", () => {
 
     expect(response.status).toBe(500);
     expect(data.error).toBe("Registration failed");
+  });
+
+  it("returns 500 when Supabase auth provisioning fails", async () => {
+    const { ensureSupabaseAuthUser } = require("@/lib/supabase/admin");
+    (ensureSupabaseAuthUser as jest.Mock).mockRejectedValue(new Error("Supabase admin unavailable"));
+
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const response = await POST(req);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toMatch(/provisioning authentication account/i);
+  });
+
+  it("attempts Supabase auth rollback if local user transaction fails", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { ensureSupabaseAuthUser, deleteSupabaseAuthUser } = require("@/lib/supabase/admin");
+    (ensureSupabaseAuthUser as jest.Mock).mockResolvedValue({ userId: "supabase-user-rollback", created: true });
+    (prisma as any).appUser = {
+      findUnique: jest.fn().mockResolvedValue(null),
+    };
+    (prisma as any).$transaction = jest.fn().mockRejectedValue(new Error("Connection refused"));
+
+    const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
+    const response = await POST(req);
+
+    expect(response.status).toBe(500);
+    expect(deleteSupabaseAuthUser).toHaveBeenCalledWith("supabase-user-rollback");
   });
 
   it("returns 429 when rate limit is exceeded", async () => {

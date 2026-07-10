@@ -188,6 +188,7 @@ model AppUser {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name             String
   email            String    @unique
+  supabaseAuthUserId String? @unique
   role             String    @default("TECH") // "SUPER_ADMIN" | "OFFICE" | "TECH"
   rolePreset       String    @default("STANDARD")
   financialVisibilityMode String @default("total_only")
