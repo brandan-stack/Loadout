@@ -1,20 +1,14 @@
 export const jobSummarySelect = {
   id: true,
   jobNumber: true,
-  title: true,
   description: true,
   customer: true,
-  siteName: true,
   date: true,
   status: true,
   billingTotal: true,
   notes: true,
-  customerSummary: true,
   createdAt: true,
   latestActivityAt: true,
-  createdByName: true,
-  invoiceNumber: true,
-  invoiceDate: true,
   technician: { select: { id: true, name: true } },
   parts: {
     select: {
@@ -22,11 +16,8 @@ export const jobSummarySelect = {
       itemId: true,
       quantity: true,
       unitCost: true,
-      markupPercent: true,
-      unitSell: true,
       notes: true,
       itemNameSnapshot: true,
-      itemPartNumberSnapshot: true,
       createdAt: true,
       lastActivityAt: true,
       item: {
@@ -46,19 +37,5 @@ export const jobSummarySelect = {
 
 export const jobDetailSelect = {
   ...jobSummarySelect,
-  completedAt: true,
-  completedByName: true,
-  invoicedByName: true,
   technicianId: true,
-  history: {
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      actionType: true,
-      actionLabel: true,
-      details: true,
-      actorName: true,
-      createdAt: true,
-    },
-  },
 } as const;

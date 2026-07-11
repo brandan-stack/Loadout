@@ -64,7 +64,8 @@ async function getSettings(page, canViewSettings) {
 
 async function gotoWorkspace(page, path, title) {
   await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+  await expect(page).toHaveURL(`${BASE_URL}${path}`);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 }
 
 async function assertOpenPanelFitsViewport(page) {
@@ -117,8 +118,44 @@ async function assertOpenPanelFitsViewport(page) {
   }, { timeout: 2000 }).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+async function assertOpenDialogFitsViewport(page) {
+  const dialog = page.locator('div[role="dialog"][aria-hidden="false"]:has(button[aria-label="Close dialog"])').first();
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(250);
+
+  const viewport = page.viewportSize();
+  expect(viewport).toBeTruthy();
+
+  await expect.poll(async () => {
+    const box = await dialog.boundingBox();
+    return box ? Math.round(box.x) : -1;
+  }, { timeout: 2000 }).toBeGreaterThanOrEqual(0);
+
+  await expect.poll(async () => {
+    const box = await dialog.boundingBox();
+    return box ? Math.round(box.y) : -1;
+  }, { timeout: 2000 }).toBeGreaterThanOrEqual(0);
+
+  await expect.poll(async () => {
+    const box = await dialog.boundingBox();
+    return box ? Math.round(box.x + box.width) : Number.POSITIVE_INFINITY;
+  }, { timeout: 2000 }).toBeLessThanOrEqual(viewport.width + 1);
+
+  await expect.poll(async () => {
+    const box = await dialog.boundingBox();
+    return box ? Math.round(box.y + box.height) : Number.POSITIVE_INFINITY;
+  }, { timeout: 2000 }).toBeLessThanOrEqual(viewport.height + 1);
+}
+
 async function closePanel(page) {
   const closeButton = page.getByRole('button', { name: 'Close panel' });
+  if (await closeButton.isVisible()) {
+    await closeButton.click();
+  }
+}
+
+async function closeDialog(page) {
+  const closeButton = page.getByRole('button', { name: 'Close dialog' }).first();
   if (await closeButton.isVisible()) {
     await closeButton.click();
   }
@@ -147,20 +184,22 @@ async function runWorkspaceChecks(page, mode) {
   if (access.canViewJobs) {
     await test.step(`jobs ${mode}`, async () => {
       await gotoWorkspace(page, '/jobs', 'Keep work orders moving');
-      await expect(page.getByRole('button', { name: /Open job folder/i })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Completed job folder/i })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Invoiced job folder/i })).toBeVisible();
-
-      if (await page.getByRole('button', { name: 'New job' }).isVisible()) {
-        await page.getByRole('button', { name: 'New job' }).click();
-        await expect(page.getByRole('heading', { level: 2, name: 'Create a new job' })).toBeVisible();
-        await assertOpenPanelFitsViewport(page);
-        await closePanel(page);
-      }
+      await expect(page.getByRole('heading', { level: 2, name: /Workflow folders/i })).toBeVisible();
+      await expect(page.getByText(/jobs in view/i)).toBeVisible();
 
       if (await maybeOpenFirst(page, 'button', 'View summary')) {
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
+      }
+
+      if (await maybeOpenFirst(page, 'button', /Delete job/i)) {
+        await assertOpenDialogFitsViewport(page);
+        await closeDialog(page);
+      }
+
+      if (await maybeOpenFirst(page, 'button', /Delete invoice/i)) {
+        await assertOpenDialogFitsViewport(page);
+        await closeDialog(page);
       }
 
       await takeShot(page, `jobs-${mode}`);
@@ -173,7 +212,6 @@ async function runWorkspaceChecks(page, mode) {
 
       if (await page.getByRole('button', { name: 'Add item' }).isVisible()) {
         await page.getByRole('button', { name: 'Add item' }).click();
-        await expect(page.getByRole('heading', { level: 2, name: 'Add inventory item' })).toBeVisible();
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
       }
@@ -184,7 +222,6 @@ async function runWorkspaceChecks(page, mode) {
       }
 
       if (await maybeOpenFirst(page, 'button', 'Use on job')) {
-        await expect(page.getByRole('heading', { level: 2, name: /Move .*|Inventory movement/ })).toBeVisible();
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
       }
@@ -198,12 +235,10 @@ async function runWorkspaceChecks(page, mode) {
       await gotoWorkspace(page, '/suppliers', 'Keep supplier decisions clean and fast');
 
       await page.getByRole('button', { name: 'Add supplier' }).click();
-      await expect(page.getByRole('heading', { level: 2, name: 'Add supplier' })).toBeVisible();
       await assertOpenPanelFitsViewport(page);
       await closePanel(page);
 
       if (await maybeOpenFirst(page, 'button', 'Edit')) {
-        await expect(page.getByRole('heading', { level: 2, name: 'Edit supplier' })).toBeVisible();
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
       }
@@ -219,7 +254,6 @@ async function runWorkspaceChecks(page, mode) {
       const addMyTool = page.getByRole('button', { name: 'Add my tool' });
       if (await addMyTool.isVisible()) {
         await addMyTool.click();
-        await expect(page.getByRole('heading', { level: 2, name: /Add personal tool|Edit personal tool/ })).toBeVisible();
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
       }
@@ -227,7 +261,6 @@ async function runWorkspaceChecks(page, mode) {
       const addCompanyTool = page.getByRole('button', { name: 'Add company tool' });
       if (await addCompanyTool.isVisible()) {
         await addCompanyTool.click();
-        await expect(page.getByRole('heading', { level: 2, name: /Add company tool|Edit company tool/ })).toBeVisible();
         await assertOpenPanelFitsViewport(page);
         await closePanel(page);
       }

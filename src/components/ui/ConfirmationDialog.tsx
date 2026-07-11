@@ -32,6 +32,28 @@ export function ConfirmationDialog({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, onClose]);
+
+  useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -50,13 +72,16 @@ export function ConfirmationDialog({
         onClick={onClose}
       />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         aria-hidden={!open}
         className={cn(
-          "fixed inset-0 z-[80] flex items-center justify-center p-4 transition-all duration-200",
+          "fixed inset-0 z-[80] flex items-end justify-center p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] transition-all duration-200 sm:items-center sm:p-4",
           open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       >
-        <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.12),transparent_34%),linear-gradient(180deg,rgba(8,12,23,0.98),rgba(10,16,30,0.98))] p-6 shadow-[0_40px_80px_rgba(2,6,23,0.55)]">
+        <div className="w-full max-w-lg max-h-[calc(100dvh-1.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto rounded-[1.6rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.12),transparent_34%),linear-gradient(180deg,rgba(8,12,23,0.98),rgba(10,16,30,0.98))] p-5 shadow-[0_40px_80px_rgba(2,6,23,0.55)] sm:rounded-[2rem] sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/10 text-amber-100">
               <AlertTriangle className="h-5 w-5" />

@@ -23,6 +23,28 @@ export function SidePanel({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, onClose]);
+
+  useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -41,9 +63,12 @@ export function SidePanel({
         onClick={onClose}
       />
       <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         aria-hidden={!open}
         className={cn(
-          "fixed inset-y-0 right-0 z-[60] flex w-full max-w-full flex-col border-l border-white/10 bg-[linear-gradient(180deg,rgba(7,11,20,0.985),rgba(9,15,29,0.965))] shadow-[-24px_0_48px_rgba(2,6,23,0.42)] transition-transform duration-300 sm:w-[34rem] lg:w-[42rem] xl:w-[48rem]",
+          "fixed inset-y-0 right-0 z-[60] flex h-[100dvh] w-full max-w-full flex-col border-l border-white/10 bg-[linear-gradient(180deg,rgba(7,11,20,0.985),rgba(9,15,29,0.965))] shadow-[-24px_0_48px_rgba(2,6,23,0.42)] transition-transform duration-300 sm:w-[34rem] lg:w-[42rem] xl:w-[48rem]",
           open ? "translate-x-0" : "pointer-events-none translate-x-full"
         )}
       >
