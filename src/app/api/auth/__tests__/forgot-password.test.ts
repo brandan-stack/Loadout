@@ -2,10 +2,6 @@
  * @jest-environment node
  */
 
-jest.mock("@/lib/db", () => ({
-  prisma: {},
-}));
-
 jest.mock("@/lib/rateLimit", () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 }),
 }));
@@ -48,18 +44,7 @@ describe("POST /api/auth/forgot-password", () => {
     resetPasswordForEmail.mockResolvedValue({ error: null });
   });
 
-  it("sends a Supabase reset email when the user exists", async () => {
-    const { prisma } = await import("@/lib/db");
-
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue({
-        id: "user-1",
-        email: "user@example.com",
-        name: "Test User",
-        organization: { name: "Test Org" },
-      }),
-    };
-
+  it("sends a Supabase reset email for a valid email", async () => {
     const response = await POST(makeRequest({ email: "user@example.com" }));
     const data = await response.json();
 
@@ -70,33 +55,19 @@ describe("POST /api/auth/forgot-password", () => {
     });
   });
 
-  it("returns ok without sending email when the user does not exist", async () => {
-    const { prisma } = await import("@/lib/db");
-
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue(null),
-    };
-
+  it("always calls Supabase for valid email regardless of local user state", async () => {
     const response = await POST(makeRequest({ email: "missing@example.com" }));
     const data = await response.json();
 
     expect(response.status).toBe(200);
     expect(data.ok).toBe(true);
-    expect(resetPasswordForEmail).not.toHaveBeenCalled();
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("missing@example.com", {
+      redirectTo: "https://app.example.com/reset-password",
+    });
   });
 
   it("returns ok when Supabase reset email call returns an error", async () => {
-    const { prisma } = await import("@/lib/db");
     resetPasswordForEmail.mockResolvedValueOnce({ error: { message: "Supabase down" } });
-
-    (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue({
-        id: "user-1",
-        email: "user@example.com",
-        name: "Test User",
-        organization: { name: "Test Org" },
-      }),
-    };
 
     const response = await POST(makeRequest({ email: "user@example.com" }));
     const data = await response.json();

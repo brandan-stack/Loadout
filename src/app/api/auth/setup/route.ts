@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAccessSeed } from "@/lib/admin-access";
 import { prisma } from "@/lib/db";
 import { emailSchema, passwordSchema } from "@/lib/auth-credentials";
-import bcrypt from "bcryptjs";
+import { deleteSupabaseAuthUserByReference, ensureSupabaseAuthUser } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 const dbAny = prisma as any;
@@ -38,6 +38,9 @@ export async function GET() {
 
 // POST — create the first Super Admin (only works when no users exist)
 export async function POST(request: NextRequest) {
+  let createdSupabaseAuthUser = false;
+  let supabaseAuthUserId = "";
+
   try {
     const count = await dbAny.appUser.count();
     if (count > 0) {
@@ -47,7 +50,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = setupSchema.parse(body);
 
-    const passwordHash = await bcrypt.hash(data.password, 10);
+    try {
+      const ensuredAuthUser = await ensureSupabaseAuthUser({
+        email: data.email,
+        name: data.name,
+        password: data.password,
+      });
+      createdSupabaseAuthUser = ensuredAuthUser.created;
+      supabaseAuthUserId = ensuredAuthUser.userId;
+    } catch (authErr) {
+      console.error("Setup Supabase auth sync error:", authErr);
+      return NextResponse.json(
+        { error: "Setup failed while provisioning authentication account" },
+        { status: 500 }
+      );
+    }
+
     const user = await dbAny.$transaction(async (tx: any) => {
       const bootstrapOrganization = await tx.organization.findUnique({
         where: { id: BOOTSTRAP_ORG_ID },
@@ -71,9 +89,9 @@ export async function POST(request: NextRequest) {
         data: {
           name: data.name,
           email: data.email,
+          supabaseAuthUserId,
           role: "SUPER_ADMIN",
           ...adminAccessSeed,
-          passwordHash,
           organizationId: organization.id,
         },
         include: {
@@ -102,6 +120,14 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
+    if (createdSupabaseAuthUser && supabaseAuthUserId) {
+      try {
+        await deleteSupabaseAuthUserByReference({ userId: supabaseAuthUserId });
+      } catch (rollbackErr) {
+        console.error("Setup rollback failed for Supabase auth user:", rollbackErr);
+      }
+    }
+
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.errors[0]?.message ?? "Invalid setup data" }, { status: 400 });
     }

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { hashPasswordResetToken } from "@/lib/password-reset";
-import bcrypt from "bcryptjs";
+import { ensureSupabaseAuthUser } from "@/lib/supabase/admin";
 
 const dbAny = prisma as any;
 
@@ -52,10 +52,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Reset link has expired. Please request a new one." }, { status: 400 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const ensuredAuthUser = await ensureSupabaseAuthUser({
+      email: user.email,
+      name: user.name,
+      password,
+      updatePasswordIfExists: true,
+      appUserId: user.id,
+      organizationId: user.organizationId,
+    });
+
     await dbAny.appUser.update({
       where: { id: user.id },
-      data: { passwordHash, resetToken: null, resetTokenExpiry: null },
+      data: {
+        supabaseAuthUserId: ensuredAuthUser.userId,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
     });
 
     return NextResponse.json({ ok: true });

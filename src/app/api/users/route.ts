@@ -12,7 +12,7 @@ import {
   USER_ACCESS_SELECT,
 } from "@/lib/permissions";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { ensureSupabaseAuthUser, deleteSupabaseAuthUserByReference } from "@/lib/supabase/admin";
 
 const dbAny = prisma as any;
 
@@ -70,22 +70,41 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const data = createSchema.parse(body);
-    const passwordHash = await bcrypt.hash(data.password, 10);
     const rolePreset = data.rolePreset ?? getDefaultRolePreset(data.role);
     const permissionSource = data as unknown as Record<string, boolean | undefined>;
     const permissionInput = Object.fromEntries(
       [...PERMISSION_KEYS, ...PRICE_VISIBILITY_KEYS].map((key) => [key, permissionSource[key]])
     ) as Partial<Record<(typeof PERMISSION_KEYS)[number] | (typeof PRICE_VISIBILITY_KEYS)[number], boolean | undefined>>;
     const permissions = buildPermissionSnapshot(permissionInput, rolePreset, data.financialVisibilityMode);
+    let createdSupabaseAuthUser = false;
+    let supabaseAuthUserId = "";
+
+    try {
+      const ensuredAuthUser = await ensureSupabaseAuthUser({
+        email: data.email,
+        name: data.name,
+        password: data.password,
+        organizationId: access.access.organizationId,
+      });
+      createdSupabaseAuthUser = ensuredAuthUser.created;
+      supabaseAuthUserId = ensuredAuthUser.userId;
+    } catch (authErr) {
+      console.error("Users POST Supabase auth sync error:", authErr);
+      return NextResponse.json(
+        { error: "Failed to create authentication account" },
+        { status: 500 }
+      );
+    }
+
     let user: CreatedUser;
     try {
       user = await dbAny.appUser.create({
         data: {
           name: data.name,
           email: data.email,
+          supabaseAuthUserId,
           role: data.role,
           ...permissions,
-          passwordHash,
           organizationId: access.access.organizationId,
         },
         select: { ...USER_ACCESS_SELECT, createdAt: true },
@@ -93,8 +112,24 @@ export async function POST(request: NextRequest) {
     } catch (createErr: unknown) {
       const code = (createErr as { code?: string })?.code;
       if (code === "P2002") {
+        if (createdSupabaseAuthUser && supabaseAuthUserId) {
+          try {
+            await deleteSupabaseAuthUserByReference({ userId: supabaseAuthUserId });
+          } catch (rollbackErr) {
+            console.error("Users POST rollback failed for Supabase auth user:", rollbackErr);
+          }
+        }
         return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
       }
+
+      if (createdSupabaseAuthUser && supabaseAuthUserId) {
+        try {
+          await deleteSupabaseAuthUserByReference({ userId: supabaseAuthUserId });
+        } catch (rollbackErr) {
+          console.error("Users POST rollback failed for Supabase auth user:", rollbackErr);
+        }
+      }
+
       throw createErr;
     }
     return NextResponse.json(user, { status: 201 });

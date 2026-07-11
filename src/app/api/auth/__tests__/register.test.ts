@@ -8,12 +8,6 @@ jest.mock("@/lib/db", () => ({
   prisma: {},
 }));
 
-// Mock bcryptjs
-jest.mock("bcryptjs", () => ({
-  hash: jest.fn().mockResolvedValue("hashed-password"),
-  compare: jest.fn().mockResolvedValue(true),
-}));
-
 // Mock rate limiter — allow by default
 jest.mock("@/lib/rateLimit", () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 }),
@@ -22,6 +16,8 @@ jest.mock("@/lib/rateLimit", () => ({
 jest.mock("@/lib/supabase/admin", () => ({
   ensureSupabaseAuthUser: jest.fn().mockResolvedValue({ userId: "supabase-user-1", created: true }),
   deleteSupabaseAuthUser: jest.fn().mockResolvedValue(undefined),
+  getSupabaseAuthUserByEmail: jest.fn().mockResolvedValue(null),
+  getSupabaseAuthUserById: jest.fn().mockResolvedValue(null),
 }));
 
 import { POST } from "@/app/api/auth/register/route";
@@ -43,10 +39,17 @@ describe("POST /api/auth/register", () => {
     jest.clearAllMocks();
     // Re-apply default mock so each test starts with rate limit allowed
     const { checkRateLimit } = require("@/lib/rateLimit");
-    const { ensureSupabaseAuthUser, deleteSupabaseAuthUser } = require("@/lib/supabase/admin");
+    const {
+      ensureSupabaseAuthUser,
+      deleteSupabaseAuthUser,
+      getSupabaseAuthUserByEmail,
+      getSupabaseAuthUserById,
+    } = require("@/lib/supabase/admin");
     (checkRateLimit as jest.Mock).mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 });
     (ensureSupabaseAuthUser as jest.Mock).mockResolvedValue({ userId: "supabase-user-1", created: true });
     (deleteSupabaseAuthUser as jest.Mock).mockResolvedValue(undefined);
+    (getSupabaseAuthUserByEmail as jest.Mock).mockResolvedValue(null);
+    (getSupabaseAuthUserById as jest.Mock).mockResolvedValue(null);
   });
 
   async function mockSuccessfulTransaction(userCount = 1) {
@@ -83,6 +86,7 @@ describe("POST /api/auth/register", () => {
 
   it("returns 201 without signing in on successful registration", async () => {
     const { tx } = await mockSuccessfulTransaction();
+    const { ensureSupabaseAuthUser } = require("@/lib/supabase/admin");
 
     const req = makeRequest({
       organizationName: "Test Org",
@@ -108,6 +112,12 @@ describe("POST /api/auth/register", () => {
     });
     const createCall = tx.appUser.create.mock.calls[0][0];
     expect(createCall.data.supabaseAuthUserId).toBe("supabase-user-1");
+    expect(ensureSupabaseAuthUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "test@example.com",
+        password: "TestPass1",
+      })
+    );
   });
 
   it("returns 400 when name is missing", async () => {
@@ -167,8 +177,11 @@ describe("POST /api/auth/register", () => {
   it("returns 409 when email already exists (findUnique check)", async () => {
     const { prisma } = await import("@/lib/db");
     (prisma as any).appUser = {
-      findUnique: jest.fn().mockResolvedValue({ id: "existing-user" }),
+      findUnique: jest.fn().mockResolvedValue({ id: "existing-user", email: "existing@example.com", supabaseAuthUserId: "supabase-existing" }),
     };
+
+    const { getSupabaseAuthUserById } = require("@/lib/supabase/admin");
+    (getSupabaseAuthUserById as jest.Mock).mockResolvedValue({ id: "supabase-existing", email: "existing@example.com" });
 
     const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "existing@example.com", password: "TestPass1" });
     const response = await POST(req);
@@ -176,6 +189,57 @@ describe("POST /api/auth/register", () => {
 
     expect(response.status).toBe(409);
     expect(data.error).toMatch(/already exists/i);
+  });
+
+  it("removes a stale local user when its Supabase auth user no longer exists", async () => {
+    const { prisma } = await import("@/lib/db");
+    const deleteMock = jest.fn().mockResolvedValue({ id: "stale-user" });
+    (prisma as any).appUser = {
+      findUnique: jest.fn().mockResolvedValue({
+        id: "stale-user",
+        email: "stale@example.com",
+        supabaseAuthUserId: "supabase-stale",
+      }),
+      delete: deleteMock,
+    };
+
+    const tx = {
+      appUser: {
+        count: jest.fn().mockResolvedValue(1),
+        create: jest.fn().mockResolvedValue({
+          id: "user-1",
+          name: "Test User",
+          email: "stale@example.com",
+          role: "SUPER_ADMIN",
+          organization: { id: "org-1", name: "Test Org" },
+        }),
+      },
+      organization: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+        create: jest.fn().mockResolvedValue({ id: "org-1", name: "Test Org", contactEmail: "stale@example.com" }),
+      },
+      settings: {
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+    (prisma as any).$transaction = jest.fn(async (callback: (transaction: typeof tx) => unknown) => callback(tx));
+
+    const { getSupabaseAuthUserById } = require("@/lib/supabase/admin");
+    (getSupabaseAuthUserById as jest.Mock).mockResolvedValue(null);
+
+    const req = makeRequest({
+      organizationName: "Test Org",
+      name: "Test User",
+      email: "stale@example.com",
+      password: "TestPass1",
+    });
+    const response = await POST(req);
+    const data = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(data.ok).toBe(true);
+    expect(deleteMock).toHaveBeenCalledWith({ where: { email: "stale@example.com" } });
   });
 
   it("returns 409 when email constraint violation occurs (P2002 race condition)", async () => {
@@ -265,17 +329,14 @@ describe("POST /api/auth/register", () => {
     expect(data.error).toBe("Registration failed");
   });
 
-  it("hashes the password before storing", async () => {
-    const bcrypt = require("bcryptjs");
+  it("does not store password hash on local app user records", async () => {
     const { tx } = await mockSuccessfulTransaction();
 
     const req = makeRequest({ organizationName: "Test Org", name: "Test User", email: "test@example.com", password: "TestPass1" });
     await POST(req);
 
-    expect(bcrypt.hash).toHaveBeenCalledWith("TestPass1", 10);
-    // Ensure the raw password is NOT passed to create
     const createCall = tx.appUser.create.mock.calls[0][0];
-    expect(createCall.data.passwordHash).toBe("hashed-password");
+    expect(createCall.data.passwordHash).toBeUndefined();
     expect(createCall.data).not.toHaveProperty("password");
   });
 

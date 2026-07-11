@@ -10,12 +10,12 @@ jest.mock("@/lib/rateLimit", () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 }),
 }));
 
-jest.mock("bcryptjs", () => ({
-  hash: jest.fn().mockResolvedValue("hashed-password"),
-}));
-
 jest.mock("@/lib/password-reset", () => ({
   hashPasswordResetToken: jest.fn().mockImplementation((value: string) => `hashed:${value}`),
+}));
+
+jest.mock("@/lib/supabase/admin", () => ({
+  ensureSupabaseAuthUser: jest.fn().mockResolvedValue({ userId: "supabase-user-1", created: false }),
 }));
 
 import { NextRequest } from "next/server";
@@ -68,6 +68,9 @@ describe("POST /api/auth/reset-password", () => {
     (prisma as any).appUser = {
       findFirst: jest.fn().mockResolvedValue({
         id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        organizationId: "org-1",
         resetTokenExpiry: new Date(Date.now() - 60_000),
       }),
     };
@@ -79,13 +82,16 @@ describe("POST /api/auth/reset-password", () => {
     expect(data.error).toMatch(/expired/i);
   });
 
-  it("updates the password and clears the reset token", async () => {
-    const bcrypt = require("bcryptjs");
+  it("updates the Supabase password and clears the reset token", async () => {
+    const { ensureSupabaseAuthUser } = require("@/lib/supabase/admin");
     const { prisma } = await import("@/lib/db");
     const update = jest.fn().mockResolvedValue({});
     (prisma as any).appUser = {
       findFirst: jest.fn().mockResolvedValue({
         id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        organizationId: "org-1",
         resetTokenExpiry: new Date(Date.now() + 60_000),
       }),
       update,
@@ -96,11 +102,18 @@ describe("POST /api/auth/reset-password", () => {
 
     expect(response.status).toBe(200);
     expect(data.ok).toBe(true);
-    expect(bcrypt.hash).toHaveBeenCalledWith("TestPass1", 10);
+    expect(ensureSupabaseAuthUser).toHaveBeenCalledWith({
+      email: "user@example.com",
+      name: "User",
+      password: "TestPass1",
+      updatePasswordIfExists: true,
+      appUserId: "user-1",
+      organizationId: "org-1",
+    });
     expect(update).toHaveBeenCalledWith({
       where: { id: "user-1" },
       data: {
-        passwordHash: "hashed-password",
+        supabaseAuthUserId: "supabase-user-1",
         resetToken: null,
         resetTokenExpiry: null,
       },

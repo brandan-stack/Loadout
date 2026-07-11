@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { prisma } from "@/lib/db";
 import { isValidEmail } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getAppBaseUrl } from "@/lib/password-reset";
-
-const dbAny = prisma as any;
 
 // Allow 5 requests per hour per IP
 const FORGOT_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
@@ -46,26 +43,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
 
-    const user = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
+    const supabase = getSupabasePublicClient();
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${getAppBaseUrl(request)}/reset-password`,
+      });
 
-    if (user) {
-      const supabase = getSupabasePublicClient();
-      try {
-        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-          redirectTo: `${getAppBaseUrl(request)}/reset-password`,
-        });
-
-        if (error) {
-          console.error("Password reset email send failed:", error);
-        }
-      } catch (mailError) {
-        console.error("Password reset email send failed:", mailError);
+      if (error) {
+        console.error("Password reset email send failed:", error);
       }
+    } catch (mailError) {
+      console.error("Password reset email send failed:", mailError);
     }
 
     return NextResponse.json({ ok: true, emailSent: true });
   } catch (err) {
     console.error("Forgot password error:", err);
+
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    if (message.includes("not configured")) {
+      return NextResponse.json({ error: "Password recovery email is not configured" }, { status: 503 });
+    }
+
     return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
   }
 }

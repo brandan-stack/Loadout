@@ -1,0 +1,2 @@
+ALTER TABLE "AppUser"
+ALTER COLUMN "passwordHash" DROP NOT NULL;

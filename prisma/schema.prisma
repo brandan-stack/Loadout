@@ -231,7 +231,7 @@ model AppUser {
   canBackupRestore Boolean @default(false)
   canClearCache Boolean @default(false)
   canEnableModules Boolean @default(false)
-  passwordHash     String
+  passwordHash     String?
   resetToken       String?
   resetTokenExpiry DateTime?
   createdAt        DateTime  @default(now())

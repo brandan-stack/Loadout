@@ -3,6 +3,8 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 type EnsureAuthUserInput = {
   email: string;
   name?: string;
+  password?: string;
+  updatePasswordIfExists?: boolean;
   appUserId?: string;
   organizationId?: string;
 };
@@ -10,6 +12,11 @@ type EnsureAuthUserInput = {
 type EnsureAuthUserResult = {
   userId: string;
   created: boolean;
+};
+
+type DeleteAuthUserInput = {
+  userId?: string | null;
+  email?: string | null;
 };
 
 let adminClient: SupabaseClient | null = null;
@@ -65,6 +72,26 @@ async function findSupabaseAuthUserByEmail(email: string): Promise<User | null> 
   }
 }
 
+export async function getSupabaseAuthUserByEmail(email: string) {
+  return findSupabaseAuthUserByEmail(email);
+}
+
+export async function getSupabaseAuthUserById(userId: string): Promise<User | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase.auth.admin.getUserById(userId);
+
+  if (error) {
+    const normalized = error.message.toLowerCase();
+    if (normalized.includes("not found") || normalized.includes("user") && normalized.includes("found")) {
+      return null;
+    }
+
+    throw new Error(`Failed to fetch Supabase auth user ${userId}: ${error.message}`);
+  }
+
+  return data.user ?? null;
+}
+
 function isAlreadyRegisteredError(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("already") && normalized.includes("registered");
@@ -76,11 +103,16 @@ export async function ensureSupabaseAuthUser(input: EnsureAuthUserInput): Promis
 
   const existing = await findSupabaseAuthUserByEmail(email);
   if (existing) {
+    if (input.password && input.updatePasswordIfExists) {
+      await setSupabaseAuthUserPassword(existing.id, input.password);
+    }
+
     return { userId: existing.id, created: false };
   }
 
   const { data, error } = await supabase.auth.admin.createUser({
     email,
+    password: input.password,
     email_confirm: true,
     user_metadata: input.name ? { name: input.name } : undefined,
     app_metadata:
@@ -116,5 +148,56 @@ export async function deleteSupabaseAuthUser(userId: string) {
   const { error } = await supabase.auth.admin.deleteUser(userId);
   if (error) {
     throw new Error(`Failed to delete Supabase auth user ${userId}: ${error.message}`);
+  }
+}
+
+export async function setSupabaseAuthUserPassword(userId: string, password: string) {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    password,
+  });
+
+  if (error) {
+    throw new Error(`Failed to update Supabase auth user password ${userId}: ${error.message}`);
+  }
+}
+
+export async function updateSupabaseAuthUserEmail(userId: string, email: string) {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    email: normalizeEmail(email),
+    email_confirm: true,
+  });
+
+  if (error) {
+    throw new Error(`Failed to update Supabase auth user email ${userId}: ${error.message}`);
+  }
+}
+
+export async function deleteSupabaseAuthUserByReference(input: DeleteAuthUserInput) {
+  const userId = input.userId?.trim();
+  const email = input.email ? normalizeEmail(input.email) : null;
+
+  let targetUserId = userId ?? null;
+
+  if (!targetUserId && email) {
+    const existing = await findSupabaseAuthUserByEmail(email);
+    targetUserId = existing?.id ?? null;
+  }
+
+  if (!targetUserId) {
+    return { deleted: false };
+  }
+
+  try {
+    await deleteSupabaseAuthUser(targetUserId);
+    return { deleted: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes("not found") || message.includes("user not found")) {
+      return { deleted: false };
+    }
+
+    throw error;
   }
 }

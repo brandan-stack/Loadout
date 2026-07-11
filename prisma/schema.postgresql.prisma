@@ -164,7 +164,7 @@ model AppUser {
   updatedAt                 DateTime               @updatedAt
   email                     String                 @unique
   supabaseAuthUserId        String?                @unique
-  passwordHash              String
+  passwordHash              String?
   resetToken                String?
   resetTokenExpiry          DateTime?
   organizationId            String

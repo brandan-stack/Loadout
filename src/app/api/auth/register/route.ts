@@ -3,8 +3,12 @@ import { getAdminAccessSeed } from "@/lib/admin-access";
 import { prisma } from "@/lib/db";
 import { isValidEmail, checkPasswordStrength } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { deleteSupabaseAuthUser, ensureSupabaseAuthUser } from "@/lib/supabase/admin";
-import bcrypt from "bcryptjs";
+import {
+	deleteSupabaseAuthUser,
+	ensureSupabaseAuthUser,
+	getSupabaseAuthUserByEmail,
+	getSupabaseAuthUserById,
+} from "@/lib/supabase/admin";
 
 const dbAny = prisma as any;
 const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
@@ -13,6 +17,10 @@ const BOOTSTRAP_ORG_ID = "org_legacy_bootstrap";
 const REGISTER_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
 const MAX_FIELD_LENGTH = 320;
 const adminAccessSeed = getAdminAccessSeed();
+
+async function deleteStaleAppUserByEmail(email: string) {
+	await dbAny.appUser.delete({ where: { email } });
+}
 
 export async function POST(request: NextRequest) {
 	try {
@@ -49,18 +57,29 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: pwCheck.message }, { status: 400 });
 		}
 
-		const existing = await dbAny.appUser.findUnique({ where: { email: trimmedEmail } });
+		const existing = await dbAny.appUser.findUnique({
+			where: { email: trimmedEmail },
+			select: { id: true, email: true, supabaseAuthUserId: true },
+		});
 		if (existing) {
-			return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+			const authUser = existing.supabaseAuthUserId
+				? await getSupabaseAuthUserById(existing.supabaseAuthUserId)
+				: await getSupabaseAuthUserByEmail(trimmedEmail);
+
+			if (authUser) {
+				return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+			}
+
+			await deleteStaleAppUserByEmail(trimmedEmail);
 		}
 
-		const passwordHash = await bcrypt.hash(password, 10);
 		let createdSupabaseAuthUser = false;
 		let supabaseAuthUserId = "";
 		try {
 			const ensuredAuthUser = await ensureSupabaseAuthUser({
 				email: trimmedEmail,
 				name: trimmedName,
+				password,
 			});
 			supabaseAuthUserId = ensuredAuthUser.userId;
 			createdSupabaseAuthUser = ensuredAuthUser.created;
@@ -108,7 +127,6 @@ export async function POST(request: NextRequest) {
 						supabaseAuthUserId,
 						role: "SUPER_ADMIN",
 						...adminAccessSeed,
-						passwordHash,
 						organizationId: organization.id,
 					},
 					include: {

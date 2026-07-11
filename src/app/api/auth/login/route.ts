@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { COOKIE_NAME, MAX_AGE, signToken } from "@/lib/auth";
 import { isValidEmail } from "@/lib/validation";
@@ -8,6 +8,23 @@ import { checkRateLimit } from "@/lib/rateLimit";
 const dbAny = prisma as any;
 
 const LOGIN_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
+
+function getSupabasePublicClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  }
+
+  return createClient(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,18 +51,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
-    const user = await dbAny.appUser.findUnique({
-      where: { email },
-      include: { organization: { select: { id: true, name: true } } },
+    const supabase = getSupabasePublicClient();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (!user || !user.passwordHash) {
+    if (authError || !authData.user) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    const supabaseUser = authData.user;
+    const normalizedAuthEmail = String(supabaseUser.email ?? "").toLowerCase().trim();
+
+    const user = await dbAny.appUser.findFirst({
+      where: {
+        OR: [
+          { supabaseAuthUserId: supabaseUser.id },
+          { email: normalizedAuthEmail },
+        ],
+      },
+      include: { organization: { select: { id: true, name: true } } },
+    });
+
+    if (!user) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    if (!user.supabaseAuthUserId || user.supabaseAuthUserId !== supabaseUser.id) {
+      await dbAny.appUser.update({
+        where: { id: user.id },
+        data: { supabaseAuthUserId: supabaseUser.id },
+      });
     }
 
     const token = await signToken({

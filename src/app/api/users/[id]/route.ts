@@ -12,7 +12,11 @@ import {
   USER_ACCESS_SELECT,
 } from "@/lib/permissions";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import {
+  deleteSupabaseAuthUserByReference,
+  ensureSupabaseAuthUser,
+  updateSupabaseAuthUserEmail,
+} from "@/lib/supabase/admin";
 
 const dbAny = prisma as any;
 
@@ -45,7 +49,16 @@ export async function PATCH(
     const { id } = await params;
     const existing = await dbAny.appUser.findFirst({
       where: { id, organizationId: access.access.organizationId },
-      select: { role: true, rolePreset: true, financialVisibilityMode: true, ...USER_ACCESS_SELECT },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        supabaseAuthUserId: true,
+        role: true,
+        rolePreset: true,
+        financialVisibilityMode: true,
+        ...USER_ACCESS_SELECT,
+      },
     });
     if (!existing) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -54,7 +67,12 @@ export async function PATCH(
     const data = updateSchema.parse(body);
     const update: Record<string, unknown> = {};
     if (data.name) update.name = data.name;
-    if (data.email) update.email = data.email;
+    if (data.email) {
+      if (existing.supabaseAuthUserId) {
+        await updateSupabaseAuthUserEmail(existing.supabaseAuthUserId, data.email);
+      }
+      update.email = data.email;
+    }
     if (data.role) update.role = data.role;
     const rolePreset = data.rolePreset ?? existing.rolePreset ?? getDefaultRolePreset((data.role ?? existing.role) as "SUPER_ADMIN" | "OFFICE" | "TECH");
     const financialVisibilityMode = data.financialVisibilityMode ?? existing.financialVisibilityMode;
@@ -62,7 +80,28 @@ export async function PATCH(
     update.rolePreset = permissions.rolePreset;
     update.financialVisibilityMode = permissions.financialVisibilityMode;
     Object.assign(update, permissions);
-    if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);
+    if (data.password) {
+      const ensuredAuthUser = await ensureSupabaseAuthUser({
+        email: data.email ?? existing.email,
+        name: data.name ?? existing.name,
+        password: data.password,
+        updatePasswordIfExists: true,
+        appUserId: existing.id,
+        organizationId: access.access.organizationId,
+      });
+      update.supabaseAuthUserId = ensuredAuthUser.userId;
+    }
+
+    if (!existing.supabaseAuthUserId && !update.supabaseAuthUserId) {
+      const ensuredAuthUser = await ensureSupabaseAuthUser({
+        email: data.email ?? existing.email,
+        name: data.name ?? existing.name,
+        appUserId: existing.id,
+        organizationId: access.access.organizationId,
+      });
+      update.supabaseAuthUserId = ensuredAuthUser.userId;
+    }
+
     const user = await dbAny.appUser.update({
       where: { id },
       data: update,
@@ -100,11 +139,17 @@ export async function DELETE(
     }
     const existing = await dbAny.appUser.findFirst({
       where: { id, organizationId: access.access.organizationId },
-      select: { id: true },
+      select: { id: true, email: true, supabaseAuthUserId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    await deleteSupabaseAuthUserByReference({
+      userId: existing.supabaseAuthUserId,
+      email: existing.email,
+    });
+
     await dbAny.appUser.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
